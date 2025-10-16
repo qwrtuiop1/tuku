@@ -25,3 +25,5 @@ UPDATE users SET third_party_type = 'local' WHERE third_party_type IS NULL;
 
 
 
+
+
