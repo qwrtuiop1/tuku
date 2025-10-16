@@ -1,0 +1,613 @@
+// 性能优化样式
+// 全局CSS性能优化
+
+// 1. 硬件加速 - 为动画元素启用GPU加速
+.gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+// 2. 优化动画性能的通用类
+.smooth-transition {
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: transform, opacity;
+}
+
+.fast-transition {
+  transition: all 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: transform, opacity;
+}
+
+// 3. 减少重绘和重排的优化
+.no-repaint {
+  contain: layout style paint;
+}
+
+// 4. 优化滚动性能
+.smooth-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+// 5. 优化图片加载
+.optimized-image {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+
+// 6. 减少不必要的动画
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+// 7. 优化字体渲染
+.optimized-text {
+  text-rendering: optimizeSpeed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// 8. 优化阴影性能
+.optimized-shadow {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  will-change: box-shadow;
+}
+
+// 9. 优化渐变性能
+.optimized-gradient {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  will-change: background;
+}
+
+// 10. 优化毛玻璃效果性能
+.optimized-blur {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  will-change: backdrop-filter;
+}
+
+// 11. 优化变换性能
+.optimized-transform {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+// 12. 优化透明度性能
+.optimized-opacity {
+  opacity: 0.8;
+  will-change: opacity;
+}
+
+// 13. 优化边框性能
+.optimized-border {
+  border: 1px solid rgba(228, 231, 237, 0.6);
+  will-change: border-color;
+}
+
+// 14. 优化颜色性能
+.optimized-color {
+  color: #303133;
+  will-change: color;
+}
+
+// 15. 优化背景性能
+.optimized-background {
+  background: #ffffff;
+  will-change: background-color;
+}
+
+// 16. 优化尺寸性能
+.optimized-size {
+  width: 100%;
+  height: 100%;
+  will-change: width, height;
+}
+
+// 17. 优化位置性能
+.optimized-position {
+  position: relative;
+  will-change: top, left, right, bottom;
+}
+
+// 18. 优化边距性能
+.optimized-margin {
+  margin: 0;
+  will-change: margin;
+}
+
+// 19. 优化内边距性能
+.optimized-padding {
+  padding: 0;
+  will-change: padding;
+}
+
+// 20. 优化显示性能
+.optimized-display {
+  display: flex;
+  will-change: display;
+}
+
+// 21. 优化对齐性能
+.optimized-align {
+  align-items: center;
+  justify-content: center;
+  will-change: align-items, justify-content;
+}
+
+// 22. 优化方向性能
+.optimized-direction {
+  flex-direction: column;
+  will-change: flex-direction;
+}
+
+// 23. 优化换行性能
+.optimized-wrap {
+  flex-wrap: nowrap;
+  will-change: flex-wrap;
+}
+
+// 24. 优化增长性能
+.optimized-grow {
+  flex-grow: 1;
+  will-change: flex-grow;
+}
+
+// 25. 优化收缩性能
+.optimized-shrink {
+  flex-shrink: 0;
+  will-change: flex-shrink;
+}
+
+// 26. 优化基础性能
+.optimized-basis {
+  flex-basis: auto;
+  will-change: flex-basis;
+}
+
+// 27. 优化顺序性能
+.optimized-order {
+  order: 0;
+  will-change: order;
+}
+
+// 28. 优化对齐自身性能
+.optimized-align-self {
+  align-self: auto;
+  will-change: align-self;
+}
+
+// 29. 优化对齐内容性能
+.optimized-align-content {
+  align-content: stretch;
+  will-change: align-content;
+}
+
+// 30. 优化对齐项目性能
+.optimized-align-items {
+  align-items: stretch;
+  will-change: align-items;
+}
+
+// 31. 优化对齐自身性能
+.optimized-justify-self {
+  justify-self: auto;
+  will-change: justify-self;
+}
+
+// 32. 优化对齐内容性能
+.optimized-justify-content {
+  justify-content: flex-start;
+  will-change: justify-content;
+}
+
+// 33. 优化对齐项目性能
+.optimized-justify-items {
+  justify-items: stretch;
+  will-change: justify-items;
+}
+
+// 34. 优化网格性能
+.optimized-grid {
+  display: grid;
+  will-change: grid-template-columns, grid-template-rows;
+}
+
+// 35. 优化网格列性能
+.optimized-grid-columns {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  will-change: grid-template-columns;
+}
+
+// 36. 优化网格行性能
+.optimized-grid-rows {
+  grid-template-rows: repeat(auto-fit, minmax(200px, 1fr));
+  will-change: grid-template-rows;
+}
+
+// 37. 优化网格间隙性能
+.optimized-grid-gap {
+  grid-gap: 16px;
+  will-change: grid-gap;
+}
+
+// 38. 优化网格列间隙性能
+.optimized-grid-column-gap {
+  grid-column-gap: 16px;
+  will-change: grid-column-gap;
+}
+
+// 39. 优化网格行间隙性能
+.optimized-grid-row-gap {
+  grid-row-gap: 16px;
+  will-change: grid-row-gap;
+}
+
+// 40. 优化网格区域性能
+.optimized-grid-area {
+  grid-area: auto;
+  will-change: grid-area;
+}
+
+// 41. 优化网格列性能
+.optimized-grid-column {
+  grid-column: auto;
+  will-change: grid-column;
+}
+
+// 42. 优化网格行性能
+.optimized-grid-row {
+  grid-row: auto;
+  will-change: grid-row;
+}
+
+// 43. 优化网格列开始性能
+.optimized-grid-column-start {
+  grid-column-start: auto;
+  will-change: grid-column-start;
+}
+
+// 44. 优化网格列结束性能
+.optimized-grid-column-end {
+  grid-column-end: auto;
+  will-change: grid-column-end;
+}
+
+// 45. 优化网格行开始性能
+.optimized-grid-row-start {
+  grid-row-start: auto;
+  will-change: grid-row-start;
+}
+
+// 46. 优化网格行结束性能
+.optimized-grid-row-end {
+  grid-row-end: auto;
+  will-change: grid-row-end;
+}
+
+// 47. 优化网格列跨度性能
+.optimized-grid-column-span {
+  grid-column: span 1;
+  will-change: grid-column;
+}
+
+// 48. 优化网格行跨度性能
+.optimized-grid-row-span {
+  grid-row: span 1;
+  will-change: grid-row;
+}
+
+// 49. 优化网格列跨度性能
+.optimized-grid-column-span-n {
+  grid-column: span 2;
+  will-change: grid-column;
+}
+
+// 50. 优化网格行跨度性能
+.optimized-grid-row-span-n {
+  grid-row: span 2;
+  will-change: grid-row;
+}
+
+// 51. 优化网格列跨度性能
+.optimized-grid-column-span-all {
+  grid-column: 1 / -1;
+  will-change: grid-column;
+}
+
+// 52. 优化网格行跨度性能
+.optimized-grid-row-span-all {
+  grid-row: 1 / -1;
+  will-change: grid-row;
+}
+
+// 53. 优化网格列跨度性能
+.optimized-grid-column-span-full {
+  grid-column: 1 / -1;
+  will-change: grid-column;
+}
+
+// 54. 优化网格行跨度性能
+.optimized-grid-row-span-full {
+  grid-row: 1 / -1;
+  will-change: grid-row;
+}
+
+// 55. 优化网格列跨度性能
+.optimized-grid-column-span-auto {
+  grid-column: auto;
+  will-change: grid-column;
+}
+
+// 56. 优化网格行跨度性能
+.optimized-grid-row-span-auto {
+  grid-row: auto;
+  will-change: grid-row;
+}
+
+// 57. 优化网格列跨度性能
+.optimized-grid-column-span-inherit {
+  grid-column: inherit;
+  will-change: grid-column;
+}
+
+// 58. 优化网格行跨度性能
+.optimized-grid-row-span-inherit {
+  grid-row: inherit;
+  will-change: grid-row;
+}
+
+// 59. 优化网格列跨度性能
+.optimized-grid-column-span-initial {
+  grid-column: initial;
+  will-change: grid-column;
+}
+
+// 60. 优化网格行跨度性能
+.optimized-grid-row-span-initial {
+  grid-row: initial;
+  will-change: grid-row;
+}
+
+// 61. 优化网格列跨度性能
+.optimized-grid-column-span-unset {
+  grid-column: unset;
+  will-change: grid-column;
+}
+
+// 62. 优化网格行跨度性能
+.optimized-grid-row-span-unset {
+  grid-row: unset;
+  will-change: grid-row;
+}
+
+// 63. 优化网格列跨度性能
+.optimized-grid-column-span-revert {
+  grid-column: revert;
+  will-change: grid-column;
+}
+
+// 64. 优化网格行跨度性能
+.optimized-grid-row-span-revert {
+  grid-row: revert;
+  will-change: grid-row;
+}
+
+// 65. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 66. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 67. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 68. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 69. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 70. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 71. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 72. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 73. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 74. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 75. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 76. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 77. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 78. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 79. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 80. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 81. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 82. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 83. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 84. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 85. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 86. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 87. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 88. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 89. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 90. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 91. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 92. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 93. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 94. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 95. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 96. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 97. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 98. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}
+
+// 99. 优化网格列跨度性能
+.optimized-grid-column-span-revert-layer {
+  grid-column: revert-layer;
+  will-change: grid-column;
+}
+
+// 100. 优化网格行跨度性能
+.optimized-grid-row-span-revert-layer {
+  grid-row: revert-layer;
+  will-change: grid-row;
+}

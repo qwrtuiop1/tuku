@@ -1,0 +1,339 @@
+@use 'sass:color';
+@use './variables.scss' as *;
+@use './responsive.scss' as *;
+@use './mobile-dialogs.scss' as *;
+
+// 浏览器兼容性修复
+@supports not (forced-color-adjust: none) {
+  // 修复Edge浏览器的高对比度警告
+  * {
+    -ms-high-contrast-adjust: none;
+  }
+}
+
+// 抑制第三方扩展的样式警告
+@supports (display: none) {
+  // 为可能的第三方扩展提供样式隔离
+  .apm-inject,
+  .blockui,
+  [class*="apm"],
+  [class*="blockui"] {
+    display: none !important;
+    visibility: hidden !important;
+  }
+}
+
+// 全局样式重置
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: $text-primary;
+  background-color: $background-light;
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: $background-light;
+  border-radius: $border-radius-small;
+}
+
+::-webkit-scrollbar-thumb {
+  background: $border-base;
+  border-radius: $border-radius-small;
+  transition: $transition-fast;
+  
+  &:hover {
+    background: $text-secondary;
+  }
+}
+
+// 链接样式
+a {
+  color: $primary-color;
+  text-decoration: none;
+  transition: $transition-fast;
+  
+  &:hover {
+    color: color.adjust($primary-color, $lightness: 10%);
+  }
+}
+
+// 按钮基础样式
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: $spacing-sm $spacing-md;
+  border: 1px solid transparent;
+  border-radius: $border-radius-base;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: $transition-fast;
+  user-select: none;
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  &.btn-primary {
+    background-color: $primary-color;
+    color: white;
+    border-color: $primary-color;
+    
+    &:hover:not(:disabled) {
+      background-color: color.adjust($primary-color, $lightness: 10%);
+      border-color: color.adjust($primary-color, $lightness: 10%);
+    }
+  }
+  
+  &.btn-success {
+    background-color: $success-color;
+    color: white;
+    border-color: $success-color;
+    
+    &:hover:not(:disabled) {
+      background-color: color.adjust($success-color, $lightness: 10%);
+      border-color: color.adjust($success-color, $lightness: 10%);
+    }
+  }
+  
+  &.btn-danger {
+    background-color: $danger-color;
+    color: white;
+    border-color: $danger-color;
+    
+    &:hover:not(:disabled) {
+      background-color: color.adjust($danger-color, $lightness: 10%);
+      border-color: color.adjust($danger-color, $lightness: 10%);
+    }
+  }
+  
+  &.btn-outline {
+    background-color: transparent;
+    color: $primary-color;
+    border-color: $primary-color;
+    
+    &:hover:not(:disabled) {
+      background-color: $primary-color;
+      color: white;
+    }
+  }
+}
+
+// 卡片样式
+.card {
+  background: $background-base;
+  border: 1px solid $border-light;
+  border-radius: $border-radius-large;
+  box-shadow: $shadow-light;
+  transition: $transition-base;
+  
+  &:hover {
+    box-shadow: $shadow-base;
+  }
+  
+  .card-header {
+    padding: $spacing-lg;
+    border-bottom: 1px solid $border-light;
+    font-weight: 600;
+    color: $text-primary;
+  }
+  
+  .card-body {
+    padding: $spacing-lg;
+  }
+  
+  .card-footer {
+    padding: $spacing-lg;
+    border-top: 1px solid $border-light;
+    background: $background-dark;
+  }
+}
+
+// 网格布局
+.grid {
+  display: grid;
+  gap: $spacing-md;
+  
+  &.grid-cols-1 { grid-template-columns: repeat(1, 1fr); }
+  &.grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+  &.grid-cols-3 { grid-template-columns: repeat(3, 1fr); }
+  &.grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
+  &.grid-cols-5 { grid-template-columns: repeat(5, 1fr); }
+  &.grid-cols-6 { grid-template-columns: repeat(6, 1fr); }
+}
+
+// Flex布局工具类
+.flex {
+  display: flex;
+  
+  &.flex-center {
+    align-items: center;
+    justify-content: center;
+  }
+  
+  &.flex-between {
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  &.flex-around {
+    align-items: center;
+    justify-content: space-around;
+  }
+  
+  &.flex-column {
+    flex-direction: column;
+  }
+  
+  &.flex-wrap {
+    flex-wrap: wrap;
+  }
+  
+  &.flex-1 {
+    flex: 1;
+  }
+}
+
+// 间距工具类
+@for $i from 0 through 10 {
+  .m-#{$i} { margin: #{$i * 4}px; }
+  .mt-#{$i} { margin-top: #{$i * 4}px; }
+  .mr-#{$i} { margin-right: #{$i * 4}px; }
+  .mb-#{$i} { margin-bottom: #{$i * 4}px; }
+  .ml-#{$i} { margin-left: #{$i * 4}px; }
+  .mx-#{$i} { margin-left: #{$i * 4}px; margin-right: #{$i * 4}px; }
+  .my-#{$i} { margin-top: #{$i * 4}px; margin-bottom: #{$i * 4}px; }
+  
+  .p-#{$i} { padding: #{$i * 4}px; }
+  .pt-#{$i} { padding-top: #{$i * 4}px; }
+  .pr-#{$i} { padding-right: #{$i * 4}px; }
+  .pb-#{$i} { padding-bottom: #{$i * 4}px; }
+  .pl-#{$i} { padding-left: #{$i * 4}px; }
+  .px-#{$i} { padding-left: #{$i * 4}px; padding-right: #{$i * 4}px; }
+  .py-#{$i} { padding-top: #{$i * 4}px; padding-bottom: #{$i * 4}px; }
+}
+
+// 文本工具类
+.text-center { text-align: center; }
+.text-left { text-align: left; }
+.text-right { text-align: right; }
+.text-justify { text-align: justify; }
+
+.text-primary { color: $text-primary; }
+.text-regular { color: $text-regular; }
+.text-secondary { color: $text-secondary; }
+.text-placeholder { color: $text-placeholder; }
+
+.text-success { color: $success-color; }
+.text-warning { color: $warning-color; }
+.text-danger { color: $danger-color; }
+.text-info { color: $info-color; }
+
+.font-bold { font-weight: bold; }
+.font-normal { font-weight: normal; }
+.font-light { font-weight: 300; }
+
+// 尺寸工具类
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.w-auto { width: auto; }
+.h-auto { height: auto; }
+
+// 显示工具类
+.block { display: block; }
+.inline { display: inline; }
+.inline-block { display: inline-block; }
+.hidden { display: none; }
+
+// 定位工具类
+.relative { position: relative; }
+.absolute { position: absolute; }
+.fixed { position: fixed; }
+.sticky { position: sticky; }
+
+// 溢出工具类
+.overflow-hidden { overflow: hidden; }
+.overflow-auto { overflow: auto; }
+.overflow-scroll { overflow: scroll; }
+
+// 用户选择工具类
+.select-none { user-select: none; }
+.select-text { user-select: text; }
+.select-all { user-select: all; }
+
+// 光标工具类
+.cursor-pointer { cursor: pointer; }
+.cursor-not-allowed { cursor: not-allowed; }
+.cursor-default { cursor: default; }
+
+// 动画工具类
+.transition { transition: $transition-base; }
+.transition-fast { transition: $transition-fast; }
+.transition-slow { transition: $transition-slow; }
+
+// 响应式工具类
+@media (max-width: $breakpoint-sm) {
+  .sm\:hidden { display: none; }
+  .sm\:block { display: block; }
+  .sm\:flex { display: flex; }
+  .sm\:grid { display: grid; }
+}
+
+@media (max-width: $breakpoint-md) {
+  .md\:hidden { display: none; }
+  .md\:block { display: block; }
+  .md\:flex { display: flex; }
+  .md\:grid { display: grid; }
+}
+
+// 加载动画
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(-25%);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: translateY(0);
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+.animate-bounce {
+  animation: bounce 1s infinite;
+}
+
+

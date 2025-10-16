@@ -1,0 +1,302 @@
+// 响应式工具类和混入
+@use './variables.scss' as *;
+
+// 响应式混入 - 确保断点不重叠
+@mixin respond-to($breakpoint) {
+  @if $breakpoint == 'xs' {
+    @media (max-width: #{$breakpoint-xs - 1px}) {
+      @content;
+    }
+  } @else if $breakpoint == 'sm' {
+    @media (min-width: #{$breakpoint-xs}) and (max-width: #{$breakpoint-sm - 1px}) {
+      @content;
+    }
+  } @else if $breakpoint == 'md' {
+    @media (min-width: #{$breakpoint-sm}) and (max-width: #{$breakpoint-md - 1px}) {
+      @content;
+    }
+  } @else if $breakpoint == 'lg' {
+    @media (min-width: #{$breakpoint-md}) and (max-width: #{$breakpoint-lg - 1px}) {
+      @content;
+    }
+  } @else if $breakpoint == 'xl' {
+    @media (min-width: #{$breakpoint-lg}) and (max-width: #{$breakpoint-xl - 1px}) {
+      @content;
+    }
+  } @else if $breakpoint == 'xxl' {
+    @media (min-width: #{$breakpoint-xl}) and (max-width: #{$breakpoint-xxl - 1px}) {
+      @content;
+    }
+  } @else if $breakpoint == 'xxxl' {
+    @media (min-width: #{$breakpoint-xxl}) {
+      @content;
+    }
+  }
+}
+
+// 向上兼容的断点混入
+@mixin respond-above($breakpoint) {
+  @if $breakpoint == 'xs' {
+    @media (min-width: #{$breakpoint-xs}) {
+      @content;
+    }
+  } @else if $breakpoint == 'sm' {
+    @media (min-width: #{$breakpoint-sm}) {
+      @content;
+    }
+  } @else if $breakpoint == 'md' {
+    @media (min-width: #{$breakpoint-md}) {
+      @content;
+    }
+  } @else if $breakpoint == 'lg' {
+    @media (min-width: #{$breakpoint-lg}) {
+      @content;
+    }
+  } @else if $breakpoint == 'xl' {
+    @media (min-width: #{$breakpoint-xl}) {
+      @content;
+    }
+  } @else if $breakpoint == 'xxl' {
+    @media (min-width: #{$breakpoint-xxl}) {
+      @content;
+    }
+  }
+}
+
+// 向下兼容的断点混入
+@mixin respond-below($breakpoint) {
+  @if $breakpoint == 'xs' {
+    @media (max-width: #{$breakpoint-xs - 1px}) {
+      @content;
+    }
+  } @else if $breakpoint == 'sm' {
+    @media (max-width: #{$breakpoint-sm - 1px}) {
+      @content;
+    }
+  } @else if $breakpoint == 'md' {
+    @media (max-width: #{$breakpoint-md - 1px}) {
+      @content;
+    }
+  } @else if $breakpoint == 'lg' {
+    @media (max-width: #{$breakpoint-lg - 1px}) {
+      @content;
+    }
+  } @else if $breakpoint == 'xl' {
+    @media (max-width: #{$breakpoint-xl - 1px}) {
+      @content;
+    }
+  } @else if $breakpoint == 'xxl' {
+    @media (max-width: #{$breakpoint-xxl - 1px}) {
+      @content;
+    }
+  }
+}
+
+// 容器最大宽度混入
+@mixin container-max-width($breakpoint) {
+  @if $breakpoint == 'xs' {
+    max-width: 100%;
+    padding: 0 8px;
+  } @else if $breakpoint == 'sm' {
+    max-width: 100%;
+    padding: 0 12px;
+  } @else if $breakpoint == 'md' {
+    max-width: 100%;
+    padding: 0 16px;
+  } @else if $breakpoint == 'lg' {
+    max-width: 100%;
+    padding: 0 20px;
+  } @else if $breakpoint == 'xl' {
+    max-width: 1200px;
+    padding: 0 24px;
+  } @else if $breakpoint == 'xxl' {
+    max-width: 1400px;
+    padding: 0 32px;
+  } @else if $breakpoint == 'xxxl' {
+    max-width: 1600px;
+    padding: 0 40px;
+  }
+}
+
+// 网格列数混入
+@mixin grid-columns($breakpoint) {
+  @if $breakpoint == 'xs' {
+    grid-template-columns: 1fr;
+  } @else if $breakpoint == 'sm' {
+    grid-template-columns: repeat(2, 1fr);
+  } @else if $breakpoint == 'md' {
+    grid-template-columns: repeat(3, 1fr);
+  } @else if $breakpoint == 'lg' {
+    grid-template-columns: repeat(4, 1fr);
+  } @else if $breakpoint == 'xl' {
+    grid-template-columns: repeat(5, 1fr);
+  } @else if $breakpoint == 'xxl' {
+    grid-template-columns: repeat(6, 1fr);
+  } @else if $breakpoint == 'xxxl' {
+    grid-template-columns: repeat(8, 1fr);
+  }
+}
+
+// 字体大小混入
+@mixin font-size($breakpoint) {
+  @if $breakpoint == 'xs' {
+    font-size: 12px;
+  } @else if $breakpoint == 'sm' {
+    font-size: 13px;
+  } @else if $breakpoint == 'md' {
+    font-size: 14px;
+  } @else if $breakpoint == 'lg' {
+    font-size: 15px;
+  } @else if $breakpoint == 'xl' {
+    font-size: 16px;
+  } @else if $breakpoint == 'xxl' {
+    font-size: 17px;
+  } @else if $breakpoint == 'xxxl' {
+    font-size: 18px;
+  }
+}
+
+// 间距混入
+@mixin spacing($breakpoint) {
+  @if $breakpoint == 'xs' {
+    padding: 4px;
+    margin: 4px;
+  } @else if $breakpoint == 'sm' {
+    padding: 6px;
+    margin: 6px;
+  } @else if $breakpoint == 'md' {
+    padding: 8px;
+    margin: 8px;
+  } @else if $breakpoint == 'lg' {
+    padding: 12px;
+    margin: 12px;
+  } @else if $breakpoint == 'xl' {
+    padding: 16px;
+    margin: 16px;
+  } @else if $breakpoint == 'xxl' {
+    padding: 20px;
+    margin: 20px;
+  } @else if $breakpoint == 'xxxl' {
+    padding: 24px;
+    margin: 24px;
+  }
+}
+
+// 响应式工具类
+.responsive-container {
+  width: 100%;
+  margin: 0 auto;
+  
+  @include respond-to('xs') {
+    @include container-max-width('xs');
+  }
+  
+  @include respond-to('sm') {
+    @include container-max-width('sm');
+  }
+  
+  @include respond-to('md') {
+    @include container-max-width('md');
+  }
+  
+  @include respond-to('lg') {
+    @include container-max-width('lg');
+  }
+  
+  @include respond-to('xl') {
+    @include container-max-width('xl');
+  }
+  
+  @include respond-to('xxl') {
+    @include container-max-width('xxl');
+  }
+  
+  @include respond-to('xxxl') {
+    @include container-max-width('xxxl');
+  }
+}
+
+.responsive-grid {
+  display: grid;
+  gap: 16px;
+  
+  @include respond-to('xs') {
+    @include grid-columns('xs');
+    gap: 8px;
+  }
+  
+  @include respond-to('sm') {
+    @include grid-columns('sm');
+    gap: 10px;
+  }
+  
+  @include respond-to('md') {
+    @include grid-columns('md');
+    gap: 12px;
+  }
+  
+  @include respond-to('lg') {
+    @include grid-columns('lg');
+    gap: 14px;
+  }
+  
+  @include respond-to('xl') {
+    @include grid-columns('xl');
+    gap: 16px;
+  }
+  
+  @include respond-to('xxl') {
+    @include grid-columns('xxl');
+    gap: 18px;
+  }
+  
+  @include respond-to('xxxl') {
+    @include grid-columns('xxxl');
+    gap: 20px;
+  }
+}
+
+// 响应式显示/隐藏工具类
+@each $breakpoint in (xs, sm, md, lg, xl, xxl, xxxl) {
+  .hidden-#{$breakpoint} {
+    @include respond-to($breakpoint) {
+      display: none !important;
+    }
+  }
+  
+  .visible-#{$breakpoint} {
+    @include respond-to($breakpoint) {
+      display: block !important;
+    }
+  }
+  
+  .flex-#{$breakpoint} {
+    @include respond-to($breakpoint) {
+      display: flex !important;
+    }
+  }
+  
+  .grid-#{$breakpoint} {
+    @include respond-to($breakpoint) {
+      display: grid !important;
+    }
+  }
+}
+
+// 响应式文本工具类
+@each $breakpoint in (xs, sm, md, lg, xl, xxl, xxxl) {
+  .text-#{$breakpoint} {
+    @include respond-to($breakpoint) {
+      @include font-size($breakpoint);
+    }
+  }
+}
+
+// 响应式间距工具类
+@each $breakpoint in (xs, sm, md, lg, xl, xxl, xxxl) {
+  .p-#{$breakpoint} {
+    @include respond-to($breakpoint) {
+      @include spacing($breakpoint);
+    }
+  }
+}
