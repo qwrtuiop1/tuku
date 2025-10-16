@@ -30,3 +30,7 @@ INSERT IGNORE INTO user_notification_settings (user_id, email_notifications, sto
 SELECT id, TRUE, TRUE, TRUE FROM users;
 
 
+
+
+
+

@@ -21,3 +21,7 @@ ADD CONSTRAINT uk_users_wechat_openid UNIQUE (wechat_openid);
 
 -- 更新现有用户数据
 UPDATE users SET third_party_type = 'local' WHERE third_party_type IS NULL;
+
+
+
+
