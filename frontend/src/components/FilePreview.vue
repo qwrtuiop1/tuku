@@ -137,7 +137,6 @@ const formatDuration = (seconds?: number): string => {
 // 图片加载完成
 const onImageLoad = () => {
   loading.value = false
-  console.log('图片加载完成')
 }
 
 // 图片加载错误
@@ -148,13 +147,11 @@ const onImageError = () => {
 
 // 视频开始加载
 const onVideoLoadStart = () => {
-  console.log('视频开始加载')
 }
 
 // 视频元数据加载完成
 const onVideoLoaded = () => {
   loading.value = false
-  console.log('视频元数据加载完成')
 }
 
 // 视频加载错误
@@ -182,12 +179,10 @@ const handleVideoError = () => {
 
 // 视频播放
 const onVideoPlay = () => {
-  console.log('视频开始播放')
 }
 
 // 视频暂停
 const onVideoPause = () => {
-  console.log('视频暂停')
 }
 
 // 切换图片缩放

@@ -74,7 +74,6 @@ onMounted(async () => {
       throw new Error(response.data.message || 'QQ登录失败')
     }
   } catch (err: any) {
-    console.error('QQ登录回调处理失败:', err)
     error.value = err.message || 'QQ登录失败，请重试'
     loading.value = false
   }

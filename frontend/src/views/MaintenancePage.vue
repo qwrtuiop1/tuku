@@ -106,7 +106,6 @@ const fetchMaintenanceInfo = async () => {
     // maintenanceTime.value = response.data.time
     // maintenanceMessage.value = response.data.message
   } catch (error) {
-    console.error('获取维护信息失败:', error)
   }
 }
 

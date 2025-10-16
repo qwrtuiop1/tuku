@@ -425,7 +425,6 @@ const refreshProfile = async () => {
     await fetchProfile()
     ElMessage.success('个人信息已刷新')
   } catch (error) {
-    console.error('刷新个人信息失败:', error)
     ElMessage.error('刷新个人信息失败')
   } finally {
     loading.value = false
@@ -455,7 +454,6 @@ const fetchProfile = async () => {
     // 保存原始邮箱用于比较
     originalEmail.value = userData.email
   } catch (error) {
-    console.error('获取个人信息失败:', error)
     throw error
   }
 }
@@ -507,7 +505,6 @@ const saveProfile = async () => {
     // 更新认证状态
     await authStore.checkAuth()
   } catch (error: any) {
-    console.error('保存个人信息失败:', error)
     const errorMessage = error.response?.data?.message || '保存个人信息失败'
     ElMessage.error(errorMessage)
   } finally {
@@ -546,7 +543,6 @@ const changePassword = async () => {
     ElMessage.success('密码修改成功')
     resetPasswordForm()
   } catch (error) {
-    console.error('修改密码失败:', error)
     ElMessage.error('修改密码失败')
   } finally {
     changingPassword.value = false
@@ -569,18 +565,14 @@ const handleAvatarSuccess = (response: any) => {
   uploadProgress.value = 0
   progressText.value = ''
   
-  console.log('头像上传响应:', response) // 调试信息
   
   // 后端返回的格式是 { success: true, message: '...', data: { url: '...' } }
   if (response && response.success && response.data && response.data.url) {
-    console.log('头像URL:', response.data.url) // 调试信息
-    console.log('更新前头像URL:', profileForm.avatar_url) // 调试信息
     
     // 后端已经返回完整URL，直接使用并添加时间戳防止缓存
     const avatarUrl = response.data.url + '?t=' + Date.now()
     profileForm.avatar_url = avatarUrl
     
-    console.log('更新后头像URL:', profileForm.avatar_url) // 调试信息
     
     ElMessage.success(response.message || '头像上传成功')
     
@@ -610,7 +602,6 @@ const handleAvatarError = (error: any) => {
   uploadProgress.value = 0
   progressText.value = ''
   
-  console.error('头像上传失败:', error)
   
   // 更详细的错误处理
   if (error.message) {

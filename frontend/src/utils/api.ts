@@ -16,7 +16,6 @@ const retryRequest = async (config: any, retryCount = 0): Promise<any> => {
   } catch (error: any) {
     if (error.response?.status === 429 && retryCount < RETRY_CONFIG.maxRetries) {
       const delay = RETRY_CONFIG.retryDelay * Math.pow(RETRY_CONFIG.retryDelayMultiplier, retryCount)
-      console.log(`请求被限流，${delay}ms后重试 (${retryCount + 1}/${RETRY_CONFIG.maxRetries})`)
       
       await new Promise(resolve => setTimeout(resolve, delay))
       return retryRequest(config, retryCount + 1)
@@ -97,7 +96,6 @@ api.interceptors.response.use(
           break
         case 429:
           // 请求过于频繁，尝试重试
-          console.warn('请求被限流，尝试重试...')
           try {
             return await retryRequest(config)
           } catch (retryError) {

@@ -456,7 +456,6 @@ const refreshSettings = async () => {
     await fetchSettings()
     ElMessage.success('设置已刷新')
   } catch (error) {
-    console.error('刷新设置失败:', error)
     ElMessage.error('刷新设置失败')
   } finally {
     loading.value = false
@@ -499,7 +498,6 @@ const fetchSettings = async () => {
     appearanceSettings.sidebarWidth = parseInt(settings.sidebar_width?.value) || 240
     appearanceSettings.enableAnimation = settings.enable_animation?.value === 'true'
   } catch (error) {
-    console.error('获取设置失败:', error)
     throw error
   }
 }
@@ -519,7 +517,6 @@ const saveGeneralSettings = async () => {
     await api.put('/admin/settings', { settings })
     ElMessage.success('常规设置保存成功')
   } catch (error) {
-    console.error('保存常规设置失败:', error)
     ElMessage.error('保存常规设置失败')
   } finally {
     saving.value = false
@@ -544,7 +541,6 @@ const saveStorageSettings = async () => {
     await api.put('/admin/settings', { settings })
     ElMessage.success('存储设置保存成功')
   } catch (error) {
-    console.error('保存存储设置失败:', error)
     ElMessage.error('保存存储设置失败')
   } finally {
     saving.value = false
@@ -569,7 +565,6 @@ const saveSecuritySettings = async () => {
     await api.put('/admin/settings', { settings })
     ElMessage.success('安全设置保存成功')
   } catch (error) {
-    console.error('保存安全设置失败:', error)
     ElMessage.error('保存安全设置失败')
   } finally {
     saving.value = false
@@ -591,7 +586,6 @@ const saveNotificationSettings = async () => {
     await api.put('/admin/settings', { settings })
     ElMessage.success('通知设置保存成功')
   } catch (error) {
-    console.error('保存通知设置失败:', error)
     ElMessage.error('保存通知设置失败')
   } finally {
     saving.value = false
@@ -612,7 +606,6 @@ const saveAppearanceSettings = async () => {
     await api.put('/admin/settings', { settings })
     ElMessage.success('外观设置保存成功')
   } catch (error) {
-    console.error('保存外观设置失败:', error)
     ElMessage.error('保存外观设置失败')
   } finally {
     saving.value = false

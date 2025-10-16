@@ -171,7 +171,6 @@ router.beforeEach(async (to, from, next) => {
         }
       }
     } catch (error) {
-      console.error('检查维护模式失败:', error)
       // 如果检查失败，继续正常流程
     }
   }

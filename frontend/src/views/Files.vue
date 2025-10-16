@@ -596,7 +596,6 @@ const loadViewSettings = () => {
       }
     }
   } catch (error) {
-    console.error('加载视图设置失败:', error)
   }
 }
 
@@ -772,7 +771,6 @@ const updateFolderPath = async (folderId: number) => {
     // 重置长按状态，确保返回时按钮回到初始状态
     resetLongPressState()
   } catch (error) {
-    console.error('获取文件夹路径失败:', error)
     folderPath.value = []
   }
 }

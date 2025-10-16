@@ -338,7 +338,6 @@ const sendEmailCode = async () => {
       ElMessage.error(data.message || '发送验证码失败')
     }
   } catch (error: any) {
-    console.error('发送验证码失败:', error)
     ElMessage.error('发送验证码失败，请稍后重试')
   }
 }
@@ -416,7 +415,6 @@ const handleRegister = async () => {
       router.push('/')
     }
   } catch (error) {
-    console.error('注册失败:', error)
   }
 }
 

@@ -397,7 +397,6 @@ const handleEmailSubmit = async () => {
       ElMessage.error('该邮箱地址未注册')
     }
   } catch (error: any) {
-    console.error('邮箱验证失败:', error)
     const errorMessage = error.response?.data?.message || '邮箱验证失败'
     ElMessage.error(errorMessage)
   } finally {
@@ -416,7 +415,6 @@ const sendEmailCode = async () => {
     ElMessage.success('验证码已发送到您的邮箱')
     startEmailCodeCooldown()
   } catch (error: any) {
-    console.error('发送验证码失败:', error)
     const errorMessage = error.response?.data?.message || '发送验证码失败'
     ElMessage.error(errorMessage)
   }
@@ -456,7 +454,6 @@ const handleVerifySubmit = async () => {
       ElMessage.error('用户名、邮箱或验证码不正确')
     }
   } catch (error: any) {
-    console.error('身份验证失败:', error)
     const errorMessage = error.response?.data?.message || '身份验证失败'
     ElMessage.error(errorMessage)
   } finally {
@@ -508,7 +505,6 @@ const handlePasswordSubmit = async () => {
       }, 2000)
     }
   } catch (error: any) {
-    console.error('密码重置失败:', error)
     const errorMessage = error.response?.data?.message || '密码重置失败'
     ElMessage.error(errorMessage)
   } finally {

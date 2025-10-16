@@ -204,7 +204,6 @@ const handleLogin = async () => {
       router.push('/')
     }
   } catch (error) {
-    console.error('登录失败:', error)
   }
 }
 
@@ -228,7 +227,6 @@ const handleQQLogin = async () => {
       ElMessage.error('QQ登录服务暂不可用')
     }
   } catch (error) {
-    console.error('QQ登录失败:', error)
     ElMessage.error('QQ登录失败，请重试')
   }
 }

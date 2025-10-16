@@ -672,7 +672,6 @@ const showNotification = (title: string, options?: NotificationOptions) => {
     
     return notification
   } catch (error) {
-    console.error('显示通知失败:', error)
   }
 }
 
@@ -686,7 +685,6 @@ const loadQuickSettings = () => {
       quickSettings.notifications = settings.notifications ?? true
     }
   } catch (error) {
-    console.error('加载快捷设置失败:', error)
   }
 }
 
@@ -699,7 +697,6 @@ const loadUserPreferences = () => {
       preferences.defaultView = userPrefs.defaultView ?? 'grid'
     }
   } catch (error) {
-    console.error('加载用户偏好设置失败:', error)
   }
 }
 
@@ -740,9 +737,7 @@ const loadUserSettingsFromServer = async () => {
       preferences.securityAlerts = notifData.securityAlerts ?? true
     }
     
-    console.log('用户设置已从服务器同步')
   } catch (error: any) {
-    console.error('从服务器加载用户设置失败:', error)
     
     // 如果服务器加载失败，使用本地存储的默认值
     if (error.response?.status === 401) {
@@ -764,7 +759,6 @@ const loadNotificationSettings = () => {
       preferences.securityAlerts = notifSettings.securityAlerts ?? true
     }
   } catch (error) {
-    console.error('加载通知设置失败:', error)
   }
 }
 
@@ -853,13 +847,11 @@ const storagePercentage = computed(() => {
   if (!userInfo.used_storage || userInfo.used_storage === 0) return 0
   
   const percentage = Math.round((userInfo.used_storage / userInfo.storage_limit) * 100)
-  console.log('存储计算:', {
+  return {
     used_storage: userInfo.used_storage,
     storage_limit: userInfo.storage_limit,
     percentage: percentage
-  })
-  
-  return percentage
+  }
 })
 
 const storageColor = computed(() => {
@@ -926,15 +918,9 @@ const loadUserInfo = async () => {
     const userData = response.data.user
     
     // 调试：打印用户数据
-    console.log('用户数据:', userData)
-    console.log('created_at:', userData.created_at)
-    console.log('avatar_url原始:', userData.avatar_url)
-    console.log('used_storage:', userData.used_storage)
-    console.log('storage_limit:', userData.storage_limit)
     
     // 后端已经返回完整URL，直接使用
     let avatarUrl = userData.avatar_url || ''
-    console.log('avatar_url处理后:', avatarUrl)
     
     Object.assign(userInfo, {
       username: userData.username,
@@ -955,7 +941,6 @@ const loadUserInfo = async () => {
       bio: userData.bio || ''
     })
   } catch (error) {
-    console.error('加载用户信息失败:', error)
     ElMessage.error('加载用户信息失败')
   }
 }
@@ -971,7 +956,6 @@ const loadUserStats = async () => {
       loginCount: stats.loginCount || 0
     })
   } catch (error) {
-    console.error('加载用户统计失败:', error)
     // 不显示错误消息，因为这是可选功能
   }
 }
@@ -985,7 +969,6 @@ const refreshStorageInfo = async (showSuccessMessage = true) => {
       ElMessage.success('存储信息已刷新')
     }
   } catch (error) {
-    console.error('刷新存储信息失败:', error)
     ElMessage.error('刷新存储信息失败')
   } finally {
     refreshingStorage.value = false
@@ -1006,7 +989,6 @@ const loadStorageDetails = async () => {
       otherCount: details.otherCount || 0
     })
   } catch (error) {
-    console.error('加载存储详情失败:', error)
     // 不显示错误消息，因为这是可选功能
   }
 }
@@ -1031,7 +1013,6 @@ const performCleanup = async () => {
     // 刷新存储信息
     await refreshStorageInfo()
   } catch (error) {
-    console.error('存储清理失败:', error)
     ElMessage.error('存储清理失败')
   } finally {
     cleaning.value = false
@@ -1083,7 +1064,6 @@ const saveProfile = async () => {
       ElMessage.error(response.data.message || '保存失败')
     }
   } catch (error: any) {
-    console.error('保存个人信息失败:', error)
     
     if (error.response?.status === 400) {
       ElMessage.error(error.response.data.message || '数据验证失败')
@@ -1134,7 +1114,6 @@ const savePreferences = async () => {
       ElMessage.error(response.data.message || '保存失败')
     }
   } catch (error: any) {
-    console.error('保存界面设置失败:', error)
     
     if (error.response?.status === 400) {
       ElMessage.error('设置数据无效')
@@ -1189,7 +1168,6 @@ const saveNotificationSettings = async () => {
       ElMessage.error(response.data.message || '保存失败')
     }
   } catch (error: any) {
-    console.error('保存通知设置失败:', error)
     
     if (error.response?.status === 400) {
       ElMessage.error('通知设置数据无效')
@@ -1223,7 +1201,6 @@ const sendEmailCode = async () => {
     // 开始倒计时
     startCountdown()
   } catch (error) {
-    console.error('发送验证码失败:', error)
     ElMessage.error('发送验证码失败')
   } finally {
     sendingCode.value = false
@@ -1277,7 +1254,6 @@ const changePassword = async () => {
     // 清理倒计时
     clearCountdown()
   } catch (error) {
-    console.error('修改密码失败:', error)
     ElMessage.error('修改密码失败')
   } finally {
     changingPassword.value = false
@@ -1316,8 +1292,6 @@ const handleAvatarSuccess = (response: any) => {
 
 // 头像加载错误处理
 const handleAvatarError = (event: Event) => {
-  console.error('头像加载失败:', event)
-  console.log('头像URL:', userInfo.avatar_url)
   ElMessage.warning('头像加载失败，将显示默认头像')
 }
 
@@ -1361,7 +1335,6 @@ const saveAllSettings = async () => {
     
     ElMessage.success('所有设置已保存')
   } catch (error) {
-    console.error('保存设置失败:', error)
     ElMessage.error('保存设置失败')
   } finally {
     saving.value = false
@@ -1427,46 +1400,35 @@ const goToForgotPassword = () => {
 
 // 生命周期
 onMounted(async () => {
-  console.log('UserCenter组件开始加载...')
   
   try {
     // 先加载用户基本信息（头像、存储等）
-    console.log('1. 加载用户基本信息...')
     await loadUserInfo()
     
     // 然后加载用户设置（个人资料、偏好等）
-    console.log('2. 加载用户设置...')
     await loadUserSettingsFromServer()
     
     // 加载本地设置作为备用
-    console.log('3. 加载本地设置...')
     loadQuickSettings()
     loadUserPreferences()
     loadNotificationSettings()
     
     // 初始化通知功能
-    console.log('4. 初始化通知功能...')
     await initNotifications()
     
     // 加载其他数据
-    console.log('5. 加载用户统计...')
     await loadUserStats()
-    console.log('6. 加载存储详情...')
     await loadStorageDetails()
     
     // 启动自动刷新（如果启用）
     if (quickSettings.autoRefresh) {
-      console.log('7. 启动自动刷新...')
       startAutoRefresh()
     }
     
     // 检查存储警告
-    console.log('8. 检查存储警告...')
     checkStorageWarning()
     
-    console.log('UserCenter组件加载完成!')
   } catch (error) {
-    console.error('UserCenter组件加载失败:', error)
     ElMessage.error('页面加载失败，请刷新重试')
   }
 })

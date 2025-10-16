@@ -975,7 +975,6 @@ const refreshAllData = async () => {
     
     ElMessage.success('数据刷新成功')
   } catch (error) {
-    console.error('刷新数据失败:', error)
     ElMessage.error('刷新数据失败')
   } finally {
     refreshing.value = false
@@ -992,7 +991,6 @@ const fetchSystemStats = async () => {
     systemStats.totalFiles = data.total_files || 0
     systemStats.totalStorage = data.total_file_size || 0
   } catch (error) {
-    console.error('获取系统统计失败:', error)
     throw error
   }
 }
@@ -1035,7 +1033,6 @@ const fetchUsers = async () => {
     // 设置同步滚动
     setupSyncScroll()
   } catch (error) {
-    console.error('获取用户列表失败:', error)
     throw error
   }
 }
@@ -1046,7 +1043,6 @@ const fetchLogs = async () => {
     const response = await api.get('/admin/logs')
     logs.value = response.data.logs || []
   } catch (error) {
-    console.error('获取系统日志失败:', error)
     throw error
   }
 }
@@ -1069,7 +1065,6 @@ const fetchSystemSettings = async () => {
     systemSettings.thumbnailSize = parseInt(settings.thumbnail_size?.value) || 300
     systemSettings.autoCleanLogs = settings.auto_clean_logs?.value === 'true'
   } catch (error) {
-    console.error('获取系统设置失败:', error)
     ElMessage.error('获取系统设置失败')
     throw error
   } finally {
@@ -1196,7 +1191,6 @@ const handleUserAction = async (command: string, user: any) => {
     if (error === 'cancel') {
       ElMessage.info('操作已取消')
     } else {
-    console.error('用户操作失败:', error)
       ElMessage.error('操作失败，请重试')
     }
   }
@@ -1216,7 +1210,6 @@ const toggleUserRole = async (user: any) => {
     
     ElMessage.success(`用户角色已更新为${newRole === 'admin' ? '管理员' : '普通用户'}`)
   } catch (error) {
-    console.error('切换用户角色失败:', error)
     ElMessage.error('切换用户角色失败')
     throw error
   }
@@ -1236,7 +1229,6 @@ const toggleUserStatus = async (user: any) => {
     
     ElMessage.success(`用户状态已更新为${newStatus === 'active' ? '正常' : '已禁用'}`)
   } catch (error) {
-    console.error('切换用户状态失败:', error)
     ElMessage.error('切换用户状态失败')
     throw error
   }
@@ -1268,7 +1260,6 @@ const manageUserStorage = async (user: any) => {
     ElMessage.success('用户存储限制已更新')
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('管理用户存储失败:', error)
       ElMessage.error('管理用户存储失败')
     }
   }
@@ -1296,7 +1287,6 @@ const deleteUser = async (user: any) => {
     ElMessage.success(`用户 "${user.username}" 已删除`)
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('删除用户失败:', error)
       ElMessage.error('删除用户失败')
     }
   }
@@ -1324,7 +1314,6 @@ const searchUsers = async () => {
     
     ElMessage.success('搜索完成')
   } catch (error) {
-    console.error('搜索用户失败:', error)
     ElMessage.error('搜索用户失败')
   }
 }
@@ -1344,7 +1333,6 @@ const resetUserFilter = async () => {
     await fetchUsers()
     ElMessage.success('筛选已重置')
   } catch (error) {
-    console.error('重置筛选失败:', error)
     ElMessage.error('重置筛选失败')
   }
 }
@@ -1379,7 +1367,6 @@ const createUser = async () => {
     // 刷新用户列表
     await fetchUsers()
   } catch (error) {
-    console.error('创建用户失败:', error)
     ElMessage.error('创建用户失败')
   } finally {
     creatingUser.value = false
@@ -1403,7 +1390,6 @@ const searchLogs = async () => {
     
     ElMessage.success('日志搜索完成')
   } catch (error) {
-    console.error('搜索日志失败:', error)
     ElMessage.error('搜索日志失败')
   }
 }
@@ -1426,7 +1412,6 @@ const clearLogs = async () => {
     ElMessage.success('日志已清空')
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('清空日志失败:', error)
       ElMessage.error('清空日志失败')
     }
   }
@@ -1473,7 +1458,6 @@ const saveSystemSettings = async () => {
       )
     }
   } catch (error) {
-    console.error('保存设置失败:', error)
     ElMessage.error('保存设置失败')
   } finally {
     savingSettings.value = false
@@ -1574,7 +1558,6 @@ onMounted(async () => {
     // 设置同步滚动
     setupSyncScroll()
   } catch (error) {
-    console.error('初始化数据失败:', error)
     ElMessage.error('初始化数据失败')
   }
 })

@@ -105,7 +105,6 @@ export const useFilesStore = defineStore('files', () => {
       files.value = response.data.files
       pagination.value = response.data.pagination
     } catch (error: any) {
-      console.error('获取文件列表失败:', error)
     } finally {
       loading.value = false
     }
@@ -121,7 +120,6 @@ export const useFilesStore = defineStore('files', () => {
       const response = await api.get('/folders', { params })
       folders.value = response.data.folders
     } catch (error: any) {
-      console.error('获取文件夹列表失败:', error)
     }
   }
 
@@ -131,7 +129,6 @@ export const useFilesStore = defineStore('files', () => {
       const response = await api.get(`/folders/path/${folderId}`)
       return response.data.path
     } catch (error: any) {
-      console.error('获取文件夹路径失败:', error)
       return []
     }
   }
@@ -189,7 +186,6 @@ export const useFilesStore = defineStore('files', () => {
       // 重新获取文件列表以确保数据同步
       await fetchFiles(1)
     } catch (error: any) {
-      console.error('删除文件失败:', error)
       throw error
     }
   }
@@ -212,7 +208,6 @@ export const useFilesStore = defineStore('files', () => {
       })
       await fetchFolders()
     } catch (error: any) {
-      console.error('创建文件夹失败:', error)
       throw error
     }
   }
@@ -223,7 +218,6 @@ export const useFilesStore = defineStore('files', () => {
       await api.delete(`/folders/${folderId}`)
       await fetchFolders()
     } catch (error: any) {
-      console.error('删除文件夹失败:', error)
       throw error
     }
   }
@@ -236,7 +230,6 @@ export const useFilesStore = defineStore('files', () => {
       })
       await fetchFolders()
     } catch (error: any) {
-      console.error('重命名文件夹失败:', error)
       throw error
     }
   }
@@ -248,7 +241,6 @@ export const useFilesStore = defineStore('files', () => {
       })
       await fetchFiles()
     } catch (error: any) {
-      console.error('重命名文件失败:', error)
       throw error
     }
   }

@@ -123,9 +123,6 @@ const files = computed(() => {
 
 const currentFile = computed(() => {
   const file = files.value[currentIndex.value] || null
-  console.log('EnhancedPreviewDialog currentFile computed:', file)
-  console.log('files.value:', files.value)
-  console.log('currentIndex.value:', currentIndex.value)
   return file
 })
 

@@ -619,7 +619,6 @@ const loadDashboardData = async () => {
       trends: data.trends || []
     }
   } catch (error) {
-    console.error('加载仪表盘数据失败:', error)
     // 如果API失败，使用本地数据作为备选
     await loadLocalStats()
   }
@@ -628,7 +627,6 @@ const loadDashboardData = async () => {
 // 备选方案：使用本地数据计算统计
 const loadLocalStats = async () => {
   try {
-    console.log('⚠️ 使用备选方案加载统计数据...')
     
     // 获取用户所有文件的统计信息（包含趋势数据）
     const response = await api.get('/files/stats')
@@ -653,9 +651,7 @@ const loadLocalStats = async () => {
       trends: data.trends || []
     }
     
-    console.log('✅ 备选方案加载统计数据成功')
   } catch (error) {
-    console.error('❌ 备选方案加载统计数据失败:', error)
     
     // 如果连备选方案都失败，使用空数据
     stats.value = {
@@ -685,7 +681,6 @@ const refreshTrends = async () => {
     await loadDashboardData()
     ElMessage.success('趋势数据已刷新')
   } catch (error) {
-    console.error('刷新趋势数据失败:', error)
     ElMessage.error('刷新趋势数据失败')
   } finally {
     loadingTrends.value = false

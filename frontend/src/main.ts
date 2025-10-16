@@ -36,9 +36,7 @@ app.config.errorHandler = (err, instance, info) => {
   
   // 显示用户友好的错误信息
   if (typeof err === 'string') {
-    console.warn('应用错误:', err)
   } else if (err instanceof Error) {
-    console.warn('应用错误:', err.message)
   }
 }
 

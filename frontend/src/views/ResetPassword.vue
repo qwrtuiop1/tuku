@@ -209,7 +209,6 @@ const handleResetPassword = async () => {
       }, 2000)
     }
   } catch (error: any) {
-    console.error('重置密码失败:', error)
   } finally {
     loading.value = false
   }
