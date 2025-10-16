@@ -1042,6 +1042,78 @@ router.put('/settings', [
 }));
 
 
+// 测试第三方连接
+router.post('/test-connection', [
+  body('type').isIn(['qq', 'wechat']).withMessage('连接类型必须是qq或wechat'),
+  body('appId').notEmpty().withMessage('应用ID不能为空')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ message: '参数错误', errors: errors.array() });
+  }
+
+  const { type, appId, appKey, appSecret } = req.body;
+  
+  try {
+    if (type === 'qq') {
+      // 测试QQ连接
+      const qqOAuthService = require('../services/qqOAuthService');
+      
+      // 验证配置
+      qqOAuthService.validateConfig();
+      
+      // 尝试生成授权URL来测试连接
+      const authUrl = qqOAuthService.generateAuthUrl('test');
+      
+      res.json({
+        success: true,
+        message: 'QQ连接测试成功',
+        authUrl: authUrl
+      });
+    } else if (type === 'wechat') {
+      // 测试微信连接
+      const axios = require('axios');
+      
+      // 使用微信API测试连接
+      const response = await axios.get('https://api.weixin.qq.com/cgi-bin/token', {
+        params: {
+          grant_type: 'client_credential',
+          appid: appId,
+          secret: appSecret
+        },
+        timeout: 10000
+      });
+      
+      if (response.data.access_token) {
+        res.json({
+          success: true,
+          message: '微信连接测试成功',
+          token: response.data.access_token.substring(0, 10) + '...'
+        });
+      } else {
+        res.json({
+          success: false,
+          message: response.data.errmsg || '微信连接测试失败'
+        });
+      }
+    }
+  } catch (error) {
+    console.error(`${type}连接测试失败:`, error);
+    
+    let errorMessage = `${type}连接测试失败`;
+    if (error.response) {
+      errorMessage = error.response.data?.errmsg || errorMessage;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    res.json({
+      success: false,
+      message: errorMessage
+    });
+  }
+}));
+
 // 重置用户密码
 router.put('/users/:id/password', [
   body('password').isLength({ min: 6 }).withMessage('密码长度至少6位')

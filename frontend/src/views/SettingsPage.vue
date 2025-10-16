@@ -35,10 +35,6 @@
                 <el-icon><Folder /></el-icon>
                 <span>存储设置</span>
               </el-menu-item>
-              <el-menu-item index="users">
-                <el-icon><User /></el-icon>
-                <span>用户管理</span>
-              </el-menu-item>
               <el-menu-item index="security">
                 <el-icon><Lock /></el-icon>
                 <span>安全设置</span>
@@ -50,14 +46,6 @@
               <el-menu-item index="appearance">
                 <el-icon><Monitor /></el-icon>
                 <span>外观设置</span>
-              </el-menu-item>
-              <el-menu-item index="maintenance">
-                <el-icon><Tools /></el-icon>
-                <span>维护设置</span>
-              </el-menu-item>
-              <el-menu-item index="performance">
-                <el-icon><Timer /></el-icon>
-                <span>性能设置</span>
               </el-menu-item>
               <el-menu-item index="integration">
                 <el-icon><Connection /></el-icon>
@@ -344,11 +332,226 @@
                   <span class="form-description">是否启用页面切换动画</span>
                 </el-form-item>
                 
+                <el-form-item label="系统Logo">
+                  <el-input 
+                    v-model="appearanceSettings.logoUrl" 
+                    placeholder="请输入Logo URL"
+                    clearable
+                  />
+                  <span class="form-description">系统Logo的URL地址</span>
+                </el-form-item>
+                
+                <el-form-item label="网站图标">
+                  <el-input 
+                    v-model="appearanceSettings.faviconUrl" 
+                    placeholder="请输入Favicon URL"
+                    clearable
+                  />
+                  <span class="form-description">网站图标的URL地址</span>
+                </el-form-item>
+                
                 <el-form-item>
                   <el-button type="primary" @click="saveAppearanceSettings" :loading="saving">
                     <el-icon><Check /></el-icon>
                     保存设置
                   </el-button>
+                </el-form-item>
+              </el-form>
+            </div>
+
+            <!-- 第三方集成设置 -->
+            <div v-if="activeTab === 'integration'" class="settings-section integration-section">
+              <div class="section-header">
+                <h3>第三方集成</h3>
+                <p>配置第三方登录和集成服务</p>
+              </div>
+              
+              <el-form :model="integrationSettings" ref="integrationFormRef" label-width="140px" class="settings-form">
+                <!-- QQ登录设置 -->
+                <el-divider content-position="left">
+                  <el-icon><Connection /></el-icon>
+                  QQ登录集成
+                </el-divider>
+                
+                <el-form-item label="启用QQ登录">
+                  <el-switch 
+                    v-model="integrationSettings.qqLoginEnabled"
+                    active-text="开启"
+                    inactive-text="关闭"
+                    @change="handleQQLoginToggle"
+                  />
+                  <span class="form-description">允许用户使用QQ账号登录系统</span>
+                </el-form-item>
+                
+                <el-form-item 
+                  label="QQ应用ID" 
+                  prop="qqAppId"
+                  :rules="[{ required: integrationSettings.qqLoginEnabled, message: 'QQ应用ID不能为空', trigger: 'blur' }]"
+                >
+                  <el-input 
+                    v-model="integrationSettings.qqAppId" 
+                    placeholder="请输入QQ应用ID"
+                    :disabled="!integrationSettings.qqLoginEnabled"
+                    clearable
+                  />
+                  <div class="form-description">
+                    <el-link type="primary" href="https://connect.qq.com/" target="_blank">
+                      获取QQ应用ID
+                    </el-link>
+                  </div>
+                </el-form-item>
+                
+                <el-form-item 
+                  label="QQ应用密钥" 
+                  prop="qqAppKey"
+                  :rules="[{ required: integrationSettings.qqLoginEnabled, message: 'QQ应用密钥不能为空', trigger: 'blur' }]"
+                >
+                  <el-input 
+                    v-model="integrationSettings.qqAppKey" 
+                    type="password"
+                    placeholder="请输入QQ应用密钥"
+                    :disabled="!integrationSettings.qqLoginEnabled"
+                    show-password
+                    clearable
+                  />
+                  <div class="form-description">QQ应用的密钥，用于验证应用身份</div>
+                </el-form-item>
+                
+                <el-form-item v-if="integrationSettings.qqLoginEnabled">
+                  <el-alert
+                    title="QQ登录配置说明"
+                    type="info"
+                    :closable="false"
+                    show-icon
+                  >
+                    <template #default>
+                      <p>1. 在QQ互联平台创建应用并获取App ID和App Key</p>
+                      <p>2. 设置回调地址为：<code>{{ getCallbackUrl('qq') }}</code></p>
+                      <p>3. 确保应用状态为"已上线"</p>
+                    </template>
+                  </el-alert>
+                </el-form-item>
+
+                <!-- 微信登录设置 -->
+                <el-divider content-position="left">
+                  <el-icon><Connection /></el-icon>
+                  微信登录集成
+                </el-divider>
+                
+                <el-form-item label="启用微信登录">
+                  <el-switch 
+                    v-model="integrationSettings.wechatLoginEnabled"
+                    active-text="开启"
+                    inactive-text="关闭"
+                    @change="handleWechatLoginToggle"
+                  />
+                  <span class="form-description">允许用户使用微信账号登录系统</span>
+                </el-form-item>
+                
+                <el-form-item 
+                  label="微信应用ID" 
+                  prop="wechatAppId"
+                  :rules="[{ required: integrationSettings.wechatLoginEnabled, message: '微信应用ID不能为空', trigger: 'blur' }]"
+                >
+                  <el-input 
+                    v-model="integrationSettings.wechatAppId" 
+                    placeholder="请输入微信应用ID"
+                    :disabled="!integrationSettings.wechatLoginEnabled"
+                    clearable
+                  />
+                  <div class="form-description">
+                    <el-link type="primary" href="https://developers.weixin.qq.com/" target="_blank">
+                      获取微信应用ID
+                    </el-link>
+                  </div>
+                </el-form-item>
+                
+                <el-form-item 
+                  label="微信应用密钥" 
+                  prop="wechatAppSecret"
+                  :rules="[{ required: integrationSettings.wechatLoginEnabled, message: '微信应用密钥不能为空', trigger: 'blur' }]"
+                >
+                  <el-input 
+                    v-model="integrationSettings.wechatAppSecret" 
+                    type="password"
+                    placeholder="请输入微信应用密钥"
+                    :disabled="!integrationSettings.wechatLoginEnabled"
+                    show-password
+                    clearable
+                  />
+                  <div class="form-description">微信应用的密钥，用于验证应用身份</div>
+                </el-form-item>
+                
+                <el-form-item v-if="integrationSettings.wechatLoginEnabled">
+                  <el-alert
+                    title="微信登录配置说明"
+                    type="info"
+                    :closable="false"
+                    show-icon
+                  >
+                    <template #default>
+                      <p>1. 在微信开放平台创建网站应用</p>
+                      <p>2. 设置回调地址为：<code>{{ getCallbackUrl('wechat') }}</code></p>
+                      <p>3. 确保应用已通过审核</p>
+                    </template>
+                  </el-alert>
+                </el-form-item>
+
+                <!-- 测试连接 -->
+                <el-divider content-position="left">
+                  <el-icon><Tools /></el-icon>
+                  连接测试
+                </el-divider>
+                
+                <el-form-item label="测试连接">
+                  <el-button 
+                    type="success" 
+                    @click="testQQConnection"
+                    :disabled="!integrationSettings.qqLoginEnabled || !integrationSettings.qqAppId"
+                    :loading="testingQQ"
+                  >
+                    <el-icon><Connection /></el-icon>
+                    测试QQ连接
+                  </el-button>
+                  
+                  <el-button 
+                    type="success" 
+                    @click="testWechatConnection"
+                    :disabled="!integrationSettings.wechatLoginEnabled || !integrationSettings.wechatAppId"
+                    :loading="testingWechat"
+                    style="margin-left: 12px"
+                  >
+                    <el-icon><Connection /></el-icon>
+                    测试微信连接
+                  </el-button>
+                  
+                  <div class="form-description">测试第三方登录配置是否正确</div>
+                </el-form-item>
+                
+                <el-form-item>
+                  <el-button 
+                    type="primary" 
+                    @click="saveIntegrationSettings" 
+                    :loading="saving"
+                    :disabled="!hasIntegrationChanges"
+                  >
+                    <el-icon><Check /></el-icon>
+                    {{ hasIntegrationChanges ? '保存设置' : '已保存' }}
+                  </el-button>
+                  
+                  <el-button 
+                    @click="resetIntegrationSettings" 
+                    style="margin-left: 12px"
+                    :disabled="!hasIntegrationChanges"
+                  >
+                    <el-icon><Refresh /></el-icon>
+                    重置
+                  </el-button>
+                  
+                  <div v-if="hasIntegrationChanges" class="form-description" style="margin-top: 8px; color: #e6a23c;">
+                    <el-icon><Warning /></el-icon>
+                    检测到未保存的更改
+                  </div>
                 </el-form-item>
               </el-form>
             </div>
@@ -360,7 +563,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import {
   Refresh,
@@ -370,10 +573,9 @@ import {
   Bell,
   Monitor,
   Check,
-  User,
+  Connection,
   Tools,
-  Timer,
-  Connection
+  Warning
 } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 
@@ -385,12 +587,16 @@ const storageFormRef = ref<FormInstance>()
 const securityFormRef = ref<FormInstance>()
 const notificationFormRef = ref<FormInstance>()
 const appearanceFormRef = ref<FormInstance>()
+const integrationFormRef = ref<FormInstance>()
+
+// 测试连接状态
+const testingQQ = ref(false)
+const testingWechat = ref(false)
 
 // 常规设置
 const generalSettings = reactive({
   systemName: '',
-  systemDescription: '',
-  systemVersion: ''
+  systemDescription: ''
 })
 
 // 存储设置
@@ -399,17 +605,7 @@ const storageSettings = reactive({
   maxUploadFiles: 10,
   allowedImageTypes: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
   allowedVideoTypes: ['mp4', 'webm', 'mov'],
-  allowedDocumentTypes: ['pdf', 'doc', 'docx', 'txt'],
-  thumbnailSize: 300,
-  maxStoragePerUser: 1024
-})
-
-// 用户管理设置
-const userManagementSettings = reactive({
-  enableRegistration: true,
-  requireEmailVerification: false,
-  defaultUserRole: 'user',
-  maxUsers: 1000
+  thumbnailSize: 300
 })
 
 // 安全设置
@@ -418,9 +614,7 @@ const securitySettings = reactive({
   enableLoginLock: true,
   maxLoginAttempts: 5,
   lockoutDuration: 15,
-  sessionTimeout: 120,
-  enableTwoFactor: false,
-  passwordComplexity: 'medium'
+  sessionTimeout: 120
 })
 
 // 通知设置
@@ -432,8 +626,7 @@ const notificationSettings = reactive({
   smtpPassword: '',
   senderEmail: '',
   senderName: '图库系统',
-  enableSystemNotification: true,
-  notificationRetentionDays: 30
+  enableSystemNotification: true
 })
 
 // 外观设置
@@ -446,24 +639,6 @@ const appearanceSettings = reactive({
   faviconUrl: ''
 })
 
-// 维护设置
-const maintenanceSettings = reactive({
-  maintenanceMode: false,
-  maintenanceMessage: '系统正在维护中，请稍后再试',
-  backupEnabled: false,
-  backupFrequency: 'daily',
-  backupRetentionDays: 7
-})
-
-// 性能设置
-const performanceSettings = reactive({
-  cacheEnabled: true,
-  cacheTtl: 3600,
-  maxConcurrentUploads: 5,
-  imageCompressionQuality: 85,
-  videoCompressionEnabled: false
-})
-
 // 第三方集成设置
 const integrationSettings = reactive({
   qqLoginEnabled: false,
@@ -472,6 +647,24 @@ const integrationSettings = reactive({
   wechatLoginEnabled: false,
   wechatAppId: '',
   wechatAppSecret: ''
+})
+
+// 保存状态跟踪
+const lastSavedSettings = ref({
+  qqLoginEnabled: false,
+  wechatLoginEnabled: false,
+  qqAppId: '',
+  wechatAppId: ''
+})
+
+// 检查设置是否有变化
+const hasIntegrationChanges = computed(() => {
+  return (
+    integrationSettings.qqLoginEnabled !== lastSavedSettings.value.qqLoginEnabled ||
+    integrationSettings.wechatLoginEnabled !== lastSavedSettings.value.wechatLoginEnabled ||
+    integrationSettings.qqAppId !== lastSavedSettings.value.qqAppId ||
+    integrationSettings.wechatAppId !== lastSavedSettings.value.wechatAppId
+  )
 })
 
 // 表单验证规则
@@ -537,22 +730,13 @@ const fetchSettings = async () => {
     // 更新常规设置
     generalSettings.systemName = settings.system_name?.value || '图库系统'
     generalSettings.systemDescription = settings.system_description?.value || ''
-    generalSettings.systemVersion = settings.system_version?.value || '1.0.0'
     
     // 更新存储设置
     storageSettings.maxFileSize = parseInt(settings.max_file_size?.value) || 100
     storageSettings.maxUploadFiles = parseInt(settings.max_upload_files?.value) || 10
     storageSettings.allowedImageTypes = settings.allowed_image_types?.value?.split(',') || ['jpg', 'jpeg', 'png', 'gif', 'webp']
     storageSettings.allowedVideoTypes = settings.allowed_video_types?.value?.split(',') || ['mp4', 'webm', 'mov']
-    storageSettings.allowedDocumentTypes = settings.allowed_document_types?.value?.split(',') || ['pdf', 'doc', 'docx', 'txt']
     storageSettings.thumbnailSize = parseInt(settings.thumbnail_size?.value) || 300
-    storageSettings.maxStoragePerUser = parseInt(settings.max_storage_per_user?.value) || 1024
-    
-    // 更新用户管理设置
-    userManagementSettings.enableRegistration = settings.enable_registration?.value === 'true'
-    userManagementSettings.requireEmailVerification = settings.require_email_verification?.value === 'true'
-    userManagementSettings.defaultUserRole = settings.default_user_role?.value || 'user'
-    userManagementSettings.maxUsers = parseInt(settings.max_users?.value) || 1000
     
     // 更新安全设置
     securitySettings.minPasswordLength = parseInt(settings.min_password_length?.value) || 6
@@ -560,8 +744,6 @@ const fetchSettings = async () => {
     securitySettings.maxLoginAttempts = parseInt(settings.max_login_attempts?.value) || 5
     securitySettings.lockoutDuration = parseInt(settings.lockout_duration?.value) || 15
     securitySettings.sessionTimeout = parseInt(settings.session_timeout?.value) || 120
-    securitySettings.enableTwoFactor = settings.enable_two_factor?.value === 'true'
-    securitySettings.passwordComplexity = settings.password_complexity?.value || 'medium'
     
     // 更新通知设置
     notificationSettings.enableEmailNotification = settings.enable_email_notification?.value === 'true'
@@ -572,7 +754,6 @@ const fetchSettings = async () => {
     notificationSettings.senderEmail = settings.sender_email?.value || ''
     notificationSettings.senderName = settings.sender_name?.value || '图库系统'
     notificationSettings.enableSystemNotification = settings.enable_system_notification?.value === 'true'
-    notificationSettings.notificationRetentionDays = parseInt(settings.notification_retention_days?.value) || 30
     
     // 更新外观设置
     appearanceSettings.themeMode = settings.theme_mode?.value || 'light'
@@ -582,20 +763,6 @@ const fetchSettings = async () => {
     appearanceSettings.logoUrl = settings.logo_url?.value || ''
     appearanceSettings.faviconUrl = settings.favicon_url?.value || ''
     
-    // 更新维护设置
-    maintenanceSettings.maintenanceMode = settings.maintenance_mode?.value === 'true'
-    maintenanceSettings.maintenanceMessage = settings.maintenance_message?.value || '系统正在维护中，请稍后再试'
-    maintenanceSettings.backupEnabled = settings.backup_enabled?.value === 'true'
-    maintenanceSettings.backupFrequency = settings.backup_frequency?.value || 'daily'
-    maintenanceSettings.backupRetentionDays = parseInt(settings.backup_retention_days?.value) || 7
-    
-    // 更新性能设置
-    performanceSettings.cacheEnabled = settings.cache_enabled?.value === 'true'
-    performanceSettings.cacheTtl = parseInt(settings.cache_ttl?.value) || 3600
-    performanceSettings.maxConcurrentUploads = parseInt(settings.max_concurrent_uploads?.value) || 5
-    performanceSettings.imageCompressionQuality = parseInt(settings.image_compression_quality?.value) || 85
-    performanceSettings.videoCompressionEnabled = settings.video_compression_enabled?.value === 'true'
-    
     // 更新第三方集成设置
     integrationSettings.qqLoginEnabled = settings.qq_login_enabled?.value === 'true'
     integrationSettings.qqAppId = settings.qq_app_id?.value || ''
@@ -603,6 +770,15 @@ const fetchSettings = async () => {
     integrationSettings.wechatLoginEnabled = settings.wechat_login_enabled?.value === 'true'
     integrationSettings.wechatAppId = settings.wechat_app_id?.value || ''
     integrationSettings.wechatAppSecret = settings.wechat_app_secret?.value || ''
+    
+    // 更新保存状态
+    lastSavedSettings.value = {
+      qqLoginEnabled: integrationSettings.qqLoginEnabled,
+      wechatLoginEnabled: integrationSettings.wechatLoginEnabled,
+      qqAppId: integrationSettings.qqAppId,
+      wechatAppId: integrationSettings.wechatAppId
+    }
+    
   } catch (error) {
     throw error
   }
@@ -685,7 +861,10 @@ const saveNotificationSettings = async () => {
       enable_email_notification: notificationSettings.enableEmailNotification.toString(),
       smtp_host: notificationSettings.smtpHost,
       smtp_port: notificationSettings.smtpPort.toString(),
+      smtp_username: notificationSettings.smtpUsername,
+      smtp_password: notificationSettings.smtpPassword,
       sender_email: notificationSettings.senderEmail,
+      sender_name: notificationSettings.senderName,
       enable_system_notification: notificationSettings.enableSystemNotification.toString()
     }
     
@@ -706,7 +885,9 @@ const saveAppearanceSettings = async () => {
       theme_mode: appearanceSettings.themeMode,
       primary_color: appearanceSettings.primaryColor,
       sidebar_width: appearanceSettings.sidebarWidth.toString(),
-      enable_animation: appearanceSettings.enableAnimation.toString()
+      enable_animation: appearanceSettings.enableAnimation.toString(),
+      logo_url: appearanceSettings.logoUrl,
+      favicon_url: appearanceSettings.faviconUrl
     }
     
     await api.put('/admin/settings', { settings })
@@ -716,6 +897,192 @@ const saveAppearanceSettings = async () => {
   } finally {
     saving.value = false
   }
+}
+
+const saveIntegrationSettings = async () => {
+  if (!integrationFormRef.value) return
+  
+  try {
+    await integrationFormRef.value.validate()
+    
+    // 检查是否有启用的服务需要确认
+    const enabledServices = []
+    if (integrationSettings.qqLoginEnabled) enabledServices.push('QQ登录')
+    if (integrationSettings.wechatLoginEnabled) enabledServices.push('微信登录')
+    
+    // 如果有启用的服务，显示确认对话框
+    if (enabledServices.length > 0) {
+      const { ElMessageBox } = await import('element-plus')
+      await ElMessageBox.confirm(
+        `确定要启用 ${enabledServices.join('、')} 吗？\n\n启用后用户将可以使用这些第三方账号登录系统。`,
+        '确认启用第三方登录',
+        {
+          confirmButtonText: '确定启用',
+          cancelButtonText: '取消',
+          type: 'warning',
+          dangerouslyUseHTMLString: false
+        }
+      )
+    }
+    
+    saving.value = true
+    
+    // 构建设置对象
+    const settings: Record<string, string> = {
+      qq_login_enabled: integrationSettings.qqLoginEnabled.toString(),
+      wechat_login_enabled: integrationSettings.wechatLoginEnabled.toString()
+    }
+    
+    // 只有当启用时才保存相关配置
+    if (integrationSettings.qqLoginEnabled) {
+      settings.qq_app_id = integrationSettings.qqAppId
+      settings.qq_app_key = integrationSettings.qqAppKey
+    } else {
+      // 如果禁用，清空相关配置
+      settings.qq_app_id = ''
+      settings.qq_app_key = ''
+    }
+    
+    if (integrationSettings.wechatLoginEnabled) {
+      settings.wechat_app_id = integrationSettings.wechatAppId
+      settings.wechat_app_secret = integrationSettings.wechatAppSecret
+    } else {
+      // 如果禁用，清空相关配置
+      settings.wechat_app_id = ''
+      settings.wechat_app_secret = ''
+    }
+    
+    console.log('保存第三方集成设置:', settings)
+    
+    const response = await api.put('/admin/settings', { settings })
+    
+    if (response.data.success !== false) {
+      ElMessage.success('第三方集成设置保存成功')
+      
+      // 更新保存状态
+      lastSavedSettings.value = {
+        qqLoginEnabled: integrationSettings.qqLoginEnabled,
+        wechatLoginEnabled: integrationSettings.wechatLoginEnabled,
+        qqAppId: integrationSettings.qqAppId,
+        wechatAppId: integrationSettings.wechatAppId
+      }
+      
+      // 记录保存的设置项
+      if (enabledServices.length > 0) {
+        ElMessage.info(`已启用: ${enabledServices.join('、')}`)
+      } else {
+        ElMessage.info('所有第三方登录服务已禁用')
+      }
+    } else {
+      ElMessage.error(response.data.message || '保存第三方集成设置失败')
+    }
+  } catch (error: any) {
+    console.error('保存第三方集成设置失败:', error)
+    
+    // 如果是用户取消确认对话框，不显示错误
+    if (error === 'cancel') {
+      return
+    }
+    
+    if (error.response?.data?.errors) {
+      // 显示具体的验证错误
+      const errors = error.response.data.errors
+      ElMessage.error(`设置验证失败: ${errors.join(', ')}`)
+    } else if (error.response?.data?.message) {
+      ElMessage.error(error.response.data.message)
+    } else {
+      ElMessage.error('保存第三方集成设置失败，请检查网络连接')
+    }
+  } finally {
+    saving.value = false
+  }
+}
+
+// 处理QQ登录开关变化
+const handleQQLoginToggle = (value: boolean) => {
+  if (!value) {
+    integrationSettings.qqAppId = ''
+    integrationSettings.qqAppKey = ''
+  }
+}
+
+// 处理微信登录开关变化
+const handleWechatLoginToggle = (value: boolean) => {
+  if (!value) {
+    integrationSettings.wechatAppId = ''
+    integrationSettings.wechatAppSecret = ''
+  }
+}
+
+// 获取回调URL
+const getCallbackUrl = (type: string) => {
+  const baseUrl = window.location.origin
+  return `${baseUrl}/api/auth/${type}/callback`
+}
+
+// 测试QQ连接
+const testQQConnection = async () => {
+  if (!integrationSettings.qqAppId) {
+    ElMessage.warning('请先填写QQ应用ID')
+    return
+  }
+  
+  testingQQ.value = true
+  try {
+    const response = await api.post('/admin/test-connection', {
+      type: 'qq',
+      appId: integrationSettings.qqAppId,
+      appKey: integrationSettings.qqAppKey
+    })
+    
+    if (response.data.success) {
+      ElMessage.success('QQ连接测试成功')
+    } else {
+      ElMessage.error(response.data.message || 'QQ连接测试失败')
+    }
+  } catch (error) {
+    ElMessage.error('QQ连接测试失败，请检查配置')
+  } finally {
+    testingQQ.value = false
+  }
+}
+
+// 测试微信连接
+const testWechatConnection = async () => {
+  if (!integrationSettings.wechatAppId) {
+    ElMessage.warning('请先填写微信应用ID')
+    return
+  }
+  
+  testingWechat.value = true
+  try {
+    const response = await api.post('/admin/test-connection', {
+      type: 'wechat',
+      appId: integrationSettings.wechatAppId,
+      appSecret: integrationSettings.wechatAppSecret
+    })
+    
+    if (response.data.success) {
+      ElMessage.success('微信连接测试成功')
+    } else {
+      ElMessage.error(response.data.message || '微信连接测试失败')
+    }
+  } catch (error) {
+    ElMessage.error('微信连接测试失败，请检查配置')
+  } finally {
+    testingWechat.value = false
+  }
+}
+
+// 重置第三方集成设置
+const resetIntegrationSettings = () => {
+  integrationSettings.qqLoginEnabled = false
+  integrationSettings.qqAppId = ''
+  integrationSettings.qqAppKey = ''
+  integrationSettings.wechatLoginEnabled = false
+  integrationSettings.wechatAppId = ''
+  integrationSettings.wechatAppSecret = ''
+  ElMessage.info('第三方集成设置已重置')
 }
 
 // 生命周期
@@ -814,6 +1181,144 @@ onMounted(() => {
           color: #909399;
           font-size: 12px;
           line-height: 1.4;
+        }
+        
+        .el-divider {
+          margin: 32px 0 24px 0;
+          
+          .el-divider__text {
+            font-weight: 600;
+            color: #606266;
+            background-color: #f5f7fa;
+            padding: 0 16px;
+          }
+        }
+        
+        .el-alert {
+          margin-top: 12px;
+          
+          code {
+            background-color: #f4f4f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #e6a23c;
+          }
+          
+          p {
+            margin: 4px 0;
+            line-height: 1.5;
+          }
+        }
+        
+        .el-button {
+          margin-right: 12px;
+          
+          &:last-child {
+            margin-right: 0;
+          }
+        }
+      }
+      
+      // 第三方集成特殊样式
+      &.integration-section {
+        .integration-card {
+          border: 1px solid #e4e7ed;
+          border-radius: 8px;
+          padding: 20px;
+          margin-bottom: 20px;
+          background: #fafafa;
+          
+          &.qq-card {
+            border-left: 4px solid #12b7f5;
+          }
+          
+          &.wechat-card {
+            border-left: 4px solid #07c160;
+          }
+          
+          .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 16px;
+            
+            .card-icon {
+              width: 32px;
+              height: 32px;
+              margin-right: 12px;
+              border-radius: 6px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              color: white;
+              font-weight: bold;
+              
+              &.qq-icon {
+                background: linear-gradient(135deg, #12b7f5, #0ea5e9);
+              }
+              
+              &.wechat-icon {
+                background: linear-gradient(135deg, #07c160, #06ad56);
+              }
+            }
+            
+            .card-title {
+              font-size: 16px;
+              font-weight: 600;
+              color: #303133;
+              margin: 0;
+            }
+          }
+          
+          .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            
+            &.enabled {
+              background-color: #f0f9ff;
+              color: #0369a1;
+              border: 1px solid #bae6fd;
+            }
+            
+            &.disabled {
+              background-color: #fef2f2;
+              color: #dc2626;
+              border: 1px solid #fecaca;
+            }
+          }
+        }
+        
+        .test-section {
+          background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          padding: 20px;
+          margin-top: 24px;
+          
+          .test-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e293b;
+            margin: 0 0 12px 0;
+            display: flex;
+            align-items: center;
+            
+            .el-icon {
+              margin-right: 8px;
+              color: #3b82f6;
+            }
+          }
+          
+          .test-buttons {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+          }
         }
       }
     }
