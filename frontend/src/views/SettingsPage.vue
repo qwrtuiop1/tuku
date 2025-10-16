@@ -35,6 +35,10 @@
                 <el-icon><Folder /></el-icon>
                 <span>存储设置</span>
               </el-menu-item>
+              <el-menu-item index="users">
+                <el-icon><User /></el-icon>
+                <span>用户管理</span>
+              </el-menu-item>
               <el-menu-item index="security">
                 <el-icon><Lock /></el-icon>
                 <span>安全设置</span>
@@ -46,6 +50,18 @@
               <el-menu-item index="appearance">
                 <el-icon><Monitor /></el-icon>
                 <span>外观设置</span>
+              </el-menu-item>
+              <el-menu-item index="maintenance">
+                <el-icon><Tools /></el-icon>
+                <span>维护设置</span>
+              </el-menu-item>
+              <el-menu-item index="performance">
+                <el-icon><Timer /></el-icon>
+                <span>性能设置</span>
+              </el-menu-item>
+              <el-menu-item index="integration">
+                <el-icon><Connection /></el-icon>
+                <span>第三方集成</span>
               </el-menu-item>
             </el-menu>
           </el-card>
@@ -353,7 +369,11 @@ import {
   Lock,
   Bell,
   Monitor,
-  Check
+  Check,
+  User,
+  Tools,
+  Timer,
+  Connection
 } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 
@@ -369,7 +389,8 @@ const appearanceFormRef = ref<FormInstance>()
 // 常规设置
 const generalSettings = reactive({
   systemName: '',
-  systemDescription: ''
+  systemDescription: '',
+  systemVersion: ''
 })
 
 // 存储设置
@@ -378,7 +399,17 @@ const storageSettings = reactive({
   maxUploadFiles: 10,
   allowedImageTypes: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
   allowedVideoTypes: ['mp4', 'webm', 'mov'],
-  thumbnailSize: 300
+  allowedDocumentTypes: ['pdf', 'doc', 'docx', 'txt'],
+  thumbnailSize: 300,
+  maxStoragePerUser: 1024
+})
+
+// 用户管理设置
+const userManagementSettings = reactive({
+  enableRegistration: true,
+  requireEmailVerification: false,
+  defaultUserRole: 'user',
+  maxUsers: 1000
 })
 
 // 安全设置
@@ -387,7 +418,9 @@ const securitySettings = reactive({
   enableLoginLock: true,
   maxLoginAttempts: 5,
   lockoutDuration: 15,
-  sessionTimeout: 120
+  sessionTimeout: 120,
+  enableTwoFactor: false,
+  passwordComplexity: 'medium'
 })
 
 // 通知设置
@@ -395,8 +428,12 @@ const notificationSettings = reactive({
   enableEmailNotification: false,
   smtpHost: '',
   smtpPort: 587,
+  smtpUsername: '',
+  smtpPassword: '',
   senderEmail: '',
-  enableSystemNotification: true
+  senderName: '图库系统',
+  enableSystemNotification: true,
+  notificationRetentionDays: 30
 })
 
 // 外观设置
@@ -404,7 +441,37 @@ const appearanceSettings = reactive({
   themeMode: 'light',
   primaryColor: '#409EFF',
   sidebarWidth: 240,
-  enableAnimation: true
+  enableAnimation: true,
+  logoUrl: '',
+  faviconUrl: ''
+})
+
+// 维护设置
+const maintenanceSettings = reactive({
+  maintenanceMode: false,
+  maintenanceMessage: '系统正在维护中，请稍后再试',
+  backupEnabled: false,
+  backupFrequency: 'daily',
+  backupRetentionDays: 7
+})
+
+// 性能设置
+const performanceSettings = reactive({
+  cacheEnabled: true,
+  cacheTtl: 3600,
+  maxConcurrentUploads: 5,
+  imageCompressionQuality: 85,
+  videoCompressionEnabled: false
+})
+
+// 第三方集成设置
+const integrationSettings = reactive({
+  qqLoginEnabled: false,
+  qqAppId: '',
+  qqAppKey: '',
+  wechatLoginEnabled: false,
+  wechatAppId: '',
+  wechatAppSecret: ''
 })
 
 // 表单验证规则
@@ -470,13 +537,22 @@ const fetchSettings = async () => {
     // 更新常规设置
     generalSettings.systemName = settings.system_name?.value || '图库系统'
     generalSettings.systemDescription = settings.system_description?.value || ''
+    generalSettings.systemVersion = settings.system_version?.value || '1.0.0'
     
     // 更新存储设置
     storageSettings.maxFileSize = parseInt(settings.max_file_size?.value) || 100
     storageSettings.maxUploadFiles = parseInt(settings.max_upload_files?.value) || 10
     storageSettings.allowedImageTypes = settings.allowed_image_types?.value?.split(',') || ['jpg', 'jpeg', 'png', 'gif', 'webp']
     storageSettings.allowedVideoTypes = settings.allowed_video_types?.value?.split(',') || ['mp4', 'webm', 'mov']
+    storageSettings.allowedDocumentTypes = settings.allowed_document_types?.value?.split(',') || ['pdf', 'doc', 'docx', 'txt']
     storageSettings.thumbnailSize = parseInt(settings.thumbnail_size?.value) || 300
+    storageSettings.maxStoragePerUser = parseInt(settings.max_storage_per_user?.value) || 1024
+    
+    // 更新用户管理设置
+    userManagementSettings.enableRegistration = settings.enable_registration?.value === 'true'
+    userManagementSettings.requireEmailVerification = settings.require_email_verification?.value === 'true'
+    userManagementSettings.defaultUserRole = settings.default_user_role?.value || 'user'
+    userManagementSettings.maxUsers = parseInt(settings.max_users?.value) || 1000
     
     // 更新安全设置
     securitySettings.minPasswordLength = parseInt(settings.min_password_length?.value) || 6
@@ -484,19 +560,49 @@ const fetchSettings = async () => {
     securitySettings.maxLoginAttempts = parseInt(settings.max_login_attempts?.value) || 5
     securitySettings.lockoutDuration = parseInt(settings.lockout_duration?.value) || 15
     securitySettings.sessionTimeout = parseInt(settings.session_timeout?.value) || 120
+    securitySettings.enableTwoFactor = settings.enable_two_factor?.value === 'true'
+    securitySettings.passwordComplexity = settings.password_complexity?.value || 'medium'
     
     // 更新通知设置
     notificationSettings.enableEmailNotification = settings.enable_email_notification?.value === 'true'
     notificationSettings.smtpHost = settings.smtp_host?.value || ''
     notificationSettings.smtpPort = parseInt(settings.smtp_port?.value) || 587
+    notificationSettings.smtpUsername = settings.smtp_username?.value || ''
+    notificationSettings.smtpPassword = settings.smtp_password?.value || ''
     notificationSettings.senderEmail = settings.sender_email?.value || ''
+    notificationSettings.senderName = settings.sender_name?.value || '图库系统'
     notificationSettings.enableSystemNotification = settings.enable_system_notification?.value === 'true'
+    notificationSettings.notificationRetentionDays = parseInt(settings.notification_retention_days?.value) || 30
     
     // 更新外观设置
     appearanceSettings.themeMode = settings.theme_mode?.value || 'light'
     appearanceSettings.primaryColor = settings.primary_color?.value || '#409EFF'
     appearanceSettings.sidebarWidth = parseInt(settings.sidebar_width?.value) || 240
     appearanceSettings.enableAnimation = settings.enable_animation?.value === 'true'
+    appearanceSettings.logoUrl = settings.logo_url?.value || ''
+    appearanceSettings.faviconUrl = settings.favicon_url?.value || ''
+    
+    // 更新维护设置
+    maintenanceSettings.maintenanceMode = settings.maintenance_mode?.value === 'true'
+    maintenanceSettings.maintenanceMessage = settings.maintenance_message?.value || '系统正在维护中，请稍后再试'
+    maintenanceSettings.backupEnabled = settings.backup_enabled?.value === 'true'
+    maintenanceSettings.backupFrequency = settings.backup_frequency?.value || 'daily'
+    maintenanceSettings.backupRetentionDays = parseInt(settings.backup_retention_days?.value) || 7
+    
+    // 更新性能设置
+    performanceSettings.cacheEnabled = settings.cache_enabled?.value === 'true'
+    performanceSettings.cacheTtl = parseInt(settings.cache_ttl?.value) || 3600
+    performanceSettings.maxConcurrentUploads = parseInt(settings.max_concurrent_uploads?.value) || 5
+    performanceSettings.imageCompressionQuality = parseInt(settings.image_compression_quality?.value) || 85
+    performanceSettings.videoCompressionEnabled = settings.video_compression_enabled?.value === 'true'
+    
+    // 更新第三方集成设置
+    integrationSettings.qqLoginEnabled = settings.qq_login_enabled?.value === 'true'
+    integrationSettings.qqAppId = settings.qq_app_id?.value || ''
+    integrationSettings.qqAppKey = settings.qq_app_key?.value || ''
+    integrationSettings.wechatLoginEnabled = settings.wechat_login_enabled?.value === 'true'
+    integrationSettings.wechatAppId = settings.wechat_app_id?.value || ''
+    integrationSettings.wechatAppSecret = settings.wechat_app_secret?.value || ''
   } catch (error) {
     throw error
   }
