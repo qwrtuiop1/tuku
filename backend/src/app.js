@@ -24,37 +24,80 @@ app.set('trust proxy', 1);
 
 // 安全中间件
 app.use(helmet());
-// CORS配置
+// CORS配置 - 简化版本确保兼容性
 const corsOptions = {
   origin: function (origin, callback) {
-    const allowedOrigins = process.env.NODE_ENV === 'production' 
-      ? ['https://tukufrontend.vtart.cn', 'https://tukubackend.vtart.cn'] 
-      : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3008', 'http://localhost:3010'];
+    // 生产环境允许的域名
+    const allowedOrigins = [
+      'https://tukufrontend.vtart.cn',
+      'https://tukubackend.vtart.cn',
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3008',
+      'http://localhost:3010'
+    ];
     
-    // 允许没有origin的请求（如移动应用）
-    if (!origin) return callback(null, true);
+    // 允许没有origin的请求（如移动应用、Postman等）
+    if (!origin) {
+      console.log('CORS: Allowing request without origin');
+      return callback(null, true);
+    }
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    // 检查origin是否在允许列表中
+    if (allowedOrigins.includes(origin)) {
+      console.log('CORS: Allowing origin:', origin);
       callback(null, true);
     } else {
-      console.log('CORS blocked origin:', origin);
+      console.log('CORS: Blocking origin:', origin);
+      console.log('CORS: Allowed origins:', allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Content-Type', 'Content-Length', 'Cache-Control', 'Last-Modified', 'ETag']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+    'Access-Control-Request-Method',
+    'Access-Control-Request-Headers'
+  ],
+  exposedHeaders: [
+    'Content-Type', 
+    'Content-Length', 
+    'Cache-Control', 
+    'Last-Modified', 
+    'ETag',
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Credentials'
+  ],
+  optionsSuccessStatus: 200 // 支持旧版浏览器
 };
 
 app.use(cors(corsOptions));
 
 // CORS调试中间件
 app.use((req, res, next) => {
+  console.log('=== CORS Debug Info ===');
   console.log('Request Origin:', req.headers.origin);
   console.log('Request Method:', req.method);
   console.log('Request URL:', req.url);
+  console.log('Request Headers:', req.headers);
+  console.log('========================');
   next();
+});
+
+// 手动处理OPTIONS请求
+app.options('*', (req, res) => {
+  console.log('Handling OPTIONS request for:', req.url);
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
 });
 
 // 请求限制 - 排除静态文件

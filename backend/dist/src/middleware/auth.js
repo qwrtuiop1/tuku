@@ -16,7 +16,8 @@ const authenticateToken = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(finalToken, process.env.JWT_SECRET);
+    const jwtSecret = process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback';
+    const decoded = jwt.verify(finalToken, jwtSecret);
     
     // 验证用户是否存在 - 使用安全的字段查询
     let users;
@@ -73,9 +74,16 @@ const requireAdmin = (req, res, next) => {
 
 // 生成JWT令牌
 const generateToken = (userId, expiresIn = null) => {
+  const jwtSecret = process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback';
+  
+  if (!jwtSecret || jwtSecret === 'your_jwt_secret_key_here') {
+    console.error('❌ JWT_SECRET 未正确配置！请检查环境变量');
+    throw new Error('JWT密钥未配置');
+  }
+  
   return jwt.sign(
     { userId },
-    process.env.JWT_SECRET,
+    jwtSecret,
     { expiresIn: expiresIn || process.env.JWT_EXPIRES_IN || '7d' }
   );
 };
