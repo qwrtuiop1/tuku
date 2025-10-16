@@ -185,15 +185,29 @@ router.post('/login', [
     return res.status(401).json({ message: '用户名或密码错误' });
   }
 
-  // 更新登录时间和次数（如果字段存在）
+  // 更新登录时间和次数
   try {
     await pool.execute(
       'UPDATE users SET last_login = NOW(), login_count = COALESCE(login_count, 0) + 1 WHERE id = ?',
       [user.id]
     );
+    
+    // 记录登录日志
+    await pool.execute(
+      'INSERT INTO user_login_logs (user_id, login_time, ip_address, user_agent, login_method, success) VALUES (?, NOW(), ?, ?, ?, ?)',
+      [
+        user.id,
+        req.ip || req.connection.remoteAddress || 'unknown',
+        req.get('User-Agent') || 'unknown',
+        'password',
+        true
+      ]
+    );
+    
+    console.log(`✅ 用户 ${user.username} 登录成功，登录次数已更新`);
   } catch (error) {
-    // 如果字段不存在，忽略错误
-    console.log('🔧 登录统计字段不存在，跳过更新');
+    console.error('❌ 更新登录统计失败:', error);
+    // 不影响登录流程，继续执行
   }
 
   // 生成JWT令牌
@@ -1620,9 +1634,15 @@ router.get('/stats', asyncHandler(async (req, res) => {
       [decoded.userId]
     );
     
-    // 获取用户登录次数（这里使用一个简单的估算，实际项目中可能需要单独的表记录）
-    const [loginStats] = await pool.execute(
-      'SELECT COUNT(*) as loginCount FROM users WHERE id = ?',
+    // 获取用户登录次数和最后登录时间
+    const [userInfo] = await pool.execute(
+      'SELECT login_count, last_login FROM users WHERE id = ?',
+      [decoded.userId]
+    );
+    
+    // 获取最近登录记录
+    const [recentLogins] = await pool.execute(
+      'SELECT login_time, ip_address, login_method FROM user_login_logs WHERE user_id = ? AND success = true ORDER BY login_time DESC LIMIT 5',
       [decoded.userId]
     );
     
@@ -1631,7 +1651,9 @@ router.get('/stats', asyncHandler(async (req, res) => {
       data: {
         totalFiles: fileStats[0].totalFiles || 0,
         totalFolders: folderStats[0].totalFolders || 0,
-        loginCount: 1 // 简化处理，实际项目中应该记录真实的登录次数
+        loginCount: userInfo[0]?.login_count || 0,
+        lastLogin: userInfo[0]?.last_login || null,
+        recentLogins: recentLogins || []
       }
     });
   } catch (error) {
@@ -1772,6 +1794,18 @@ router.post('/qq/callback', [
         'UPDATE users SET last_login = NOW(), login_count = COALESCE(login_count, 0) + 1 WHERE id = ?',
         [user.id]
       );
+      
+      // 记录QQ登录日志
+      await pool.execute(
+        'INSERT INTO user_login_logs (user_id, login_time, ip_address, user_agent, login_method, success) VALUES (?, NOW(), ?, ?, ?, ?)',
+        [
+          user.id,
+          req.ip || req.connection.remoteAddress || 'unknown',
+          req.get('User-Agent') || 'unknown',
+          'qq',
+          true
+        ]
+      );
     } else {
       // 创建新用户
       const username = `qq_${openId.slice(-8)}`; // 生成唯一用户名
@@ -1788,6 +1822,18 @@ router.post('/qq/callback', [
         [result.insertId]
       );
       user = users[0];
+      
+      // 为新用户记录首次登录日志
+      await pool.execute(
+        'INSERT INTO user_login_logs (user_id, login_time, ip_address, user_agent, login_method, success) VALUES (?, NOW(), ?, ?, ?, ?)',
+        [
+          user.id,
+          req.ip || req.connection.remoteAddress || 'unknown',
+          req.get('User-Agent') || 'unknown',
+          'qq',
+          true
+        ]
+      );
     }
 
     // 5. 生成JWT令牌
