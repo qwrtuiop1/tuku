@@ -24,15 +24,38 @@ app.set('trust proxy', 1);
 
 // 安全中间件
 app.use(helmet());
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://tukufrontend.vtart.cn', 'https://tukubackend.vtart.cn', '*'] 
-    : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3008', 'http://localhost:3010', '*'],
+// CORS配置
+const corsOptions = {
+  origin: function (origin, callback) {
+    const allowedOrigins = process.env.NODE_ENV === 'production' 
+      ? ['https://tukufrontend.vtart.cn', 'https://tukubackend.vtart.cn'] 
+      : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3008', 'http://localhost:3010'];
+    
+    // 允许没有origin的请求（如移动应用）
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders: ['Content-Type', 'Content-Length', 'Cache-Control', 'Last-Modified', 'ETag']
-}));
+};
+
+app.use(cors(corsOptions));
+
+// CORS调试中间件
+app.use((req, res, next) => {
+  console.log('Request Origin:', req.headers.origin);
+  console.log('Request Method:', req.method);
+  console.log('Request URL:', req.url);
+  next();
+});
 
 // 请求限制 - 排除静态文件
 const limiter = rateLimit({
