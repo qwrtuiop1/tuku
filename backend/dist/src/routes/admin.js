@@ -861,10 +861,138 @@ router.put('/settings', [
 
   const { settings } = req.body;
   
+  // 验证设置项
+  const validSettings = {
+    // 基本设置
+    'system_name': { type: 'string', maxLength: 50, required: false },
+    'system_description': { type: 'string', maxLength: 200, required: false },
+    'system_version': { type: 'string', maxLength: 20, required: false },
+    
+    // 存储设置
+    'max_file_size': { type: 'number', min: 1024, max: 10737418240, required: false }, // 1KB - 10GB
+    'max_upload_files': { type: 'number', min: 1, max: 100, required: false },
+    'allowed_image_types': { type: 'string', pattern: /^[a-zA-Z,]+$/, required: false },
+    'allowed_video_types': { type: 'string', pattern: /^[a-zA-Z,]+$/, required: false },
+    'allowed_document_types': { type: 'string', pattern: /^[a-zA-Z,]+$/, required: false },
+    'thumbnail_size': { type: 'number', min: 50, max: 1000, required: false },
+    'max_storage_per_user': { type: 'number', min: 1048576, max: 1099511627776, required: false }, // 1MB - 1TB
+    
+    // 用户管理设置
+    'enable_registration': { type: 'boolean', required: false },
+    'require_email_verification': { type: 'boolean', required: false },
+    'default_user_role': { type: 'string', enum: ['user', 'admin'], required: false },
+    'max_users': { type: 'number', min: 1, max: 100000, required: false },
+    
+    // 安全设置
+    'min_password_length': { type: 'number', min: 4, max: 32, required: false },
+    'enable_login_lock': { type: 'boolean', required: false },
+    'max_login_attempts': { type: 'number', min: 3, max: 20, required: false },
+    'lockout_duration': { type: 'number', min: 5, max: 1440, required: false }, // 5分钟 - 24小时
+    'session_timeout': { type: 'number', min: 15, max: 1440, required: false }, // 15分钟 - 24小时
+    'enable_two_factor': { type: 'boolean', required: false },
+    'password_complexity': { type: 'string', enum: ['low', 'medium', 'high'], required: false },
+    
+    // 通知设置
+    'enable_email_notification': { type: 'boolean', required: false },
+    'smtp_host': { type: 'string', maxLength: 255, required: false },
+    'smtp_port': { type: 'number', min: 1, max: 65535, required: false },
+    'smtp_username': { type: 'string', maxLength: 255, required: false },
+    'smtp_password': { type: 'string', maxLength: 255, required: false },
+    'sender_email': { type: 'string', pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, required: false },
+    'sender_name': { type: 'string', maxLength: 100, required: false },
+    'enable_system_notification': { type: 'boolean', required: false },
+    'notification_retention_days': { type: 'number', min: 1, max: 365, required: false },
+    
+    // 外观设置
+    'theme_mode': { type: 'string', enum: ['light', 'dark', 'auto'], required: false },
+    'primary_color': { type: 'string', pattern: /^#[0-9A-Fa-f]{6}$/, required: false },
+    'sidebar_width': { type: 'number', min: 200, max: 400, required: false },
+    'enable_animation': { type: 'boolean', required: false },
+    'logo_url': { type: 'string', maxLength: 500, required: false },
+    'favicon_url': { type: 'string', maxLength: 500, required: false },
+    
+    // 维护设置
+    'maintenance_mode': { type: 'boolean', required: false },
+    'maintenance_message': { type: 'string', maxLength: 500, required: false },
+    'backup_enabled': { type: 'boolean', required: false },
+    'backup_frequency': { type: 'string', enum: ['hourly', 'daily', 'weekly'], required: false },
+    'backup_retention_days': { type: 'number', min: 1, max: 365, required: false },
+    
+    // 性能设置
+    'cache_enabled': { type: 'boolean', required: false },
+    'cache_ttl': { type: 'number', min: 60, max: 86400, required: false }, // 1分钟 - 24小时
+    'max_concurrent_uploads': { type: 'number', min: 1, max: 20, required: false },
+    'image_compression_quality': { type: 'number', min: 10, max: 100, required: false },
+    'video_compression_enabled': { type: 'boolean', required: false },
+    
+    // 第三方集成
+    'qq_login_enabled': { type: 'boolean', required: false },
+    'qq_app_id': { type: 'string', maxLength: 50, required: false },
+    'qq_app_key': { type: 'string', maxLength: 100, required: false },
+    'wechat_login_enabled': { type: 'boolean', required: false },
+    'wechat_app_id': { type: 'string', maxLength: 50, required: false },
+    'wechat_app_secret': { type: 'string', maxLength: 100, required: false },
+    
+    // 其他设置
+    'auto_clean_logs': { type: 'boolean', required: false }
+  };
+  
+  // 验证设置项
+  const validationErrors = [];
+  for (const [key, value] of Object.entries(settings)) {
+    const rule = validSettings[key];
+    if (!rule) {
+      validationErrors.push(`未知的设置项: ${key}`);
+      continue;
+    }
+    
+    // 类型验证
+    if (rule.type === 'number') {
+      const numValue = parseFloat(value);
+      if (isNaN(numValue)) {
+        validationErrors.push(`${key} 必须是数字`);
+        continue;
+      }
+      if (rule.min !== undefined && numValue < rule.min) {
+        validationErrors.push(`${key} 不能小于 ${rule.min}`);
+      }
+      if (rule.max !== undefined && numValue > rule.max) {
+        validationErrors.push(`${key} 不能大于 ${rule.max}`);
+      }
+    } else if (rule.type === 'boolean') {
+      if (value !== 'true' && value !== 'false') {
+        validationErrors.push(`${key} 必须是 true 或 false`);
+      }
+    } else if (rule.type === 'string') {
+      if (typeof value !== 'string') {
+        validationErrors.push(`${key} 必须是字符串`);
+        continue;
+      }
+      if (rule.maxLength && value.length > rule.maxLength) {
+        validationErrors.push(`${key} 长度不能超过 ${rule.maxLength} 个字符`);
+      }
+      if (rule.pattern && !rule.pattern.test(value)) {
+        validationErrors.push(`${key} 格式不正确`);
+      }
+      if (rule.enum && !rule.enum.includes(value)) {
+        validationErrors.push(`${key} 必须是以下值之一: ${rule.enum.join(', ')}`);
+      }
+    }
+  }
+  
+  if (validationErrors.length > 0) {
+    return res.status(400).json({ 
+      message: '设置验证失败', 
+      errors: validationErrors 
+    });
+  }
+  
   // 记录修改前的设置
+  const settingKeys = Object.keys(settings);
+  const placeholders = settingKeys.map(() => '?').join(',');
   const [oldSettings] = await pool.execute(
-    'SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?)',
-    [Object.keys(settings)]
+    `SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (${placeholders})`,
+    settingKeys
   );
   
   const oldSettingsMap = {};
@@ -873,19 +1001,24 @@ router.put('/settings', [
   });
   
   // 更新设置
+  const updatePromises = [];
   for (const [key, value] of Object.entries(settings)) {
-    await pool.execute(
-      'UPDATE system_settings SET setting_value = ? WHERE setting_key = ?',
-      [value, key]
+    updatePromises.push(
+      pool.execute(
+        'UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?',
+        [value, key]
+      )
     );
   }
+  
+  await Promise.all(updatePromises);
   
   // 记录操作日志
   const changes = [];
   for (const [key, value] of Object.entries(settings)) {
     const oldValue = oldSettingsMap[key];
     if (oldValue !== value) {
-      changes.push(`${key}: ${oldValue} → ${value}`);
+      changes.push(`${key}: ${oldValue || '未设置'} → ${value}`);
     }
   }
   
@@ -901,9 +1034,85 @@ router.put('/settings', [
     );
   }
   
-  res.json({ message: '系统设置更新成功' });
+  res.json({ 
+    message: '系统设置更新成功',
+    updatedCount: changes.length,
+    changes: changes
+  });
 }));
 
+
+// 测试第三方连接
+router.post('/test-connection', [
+  body('type').isIn(['qq', 'wechat']).withMessage('连接类型必须是qq或wechat'),
+  body('appId').notEmpty().withMessage('应用ID不能为空')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ message: '参数错误', errors: errors.array() });
+  }
+
+  const { type, appId, appKey, appSecret } = req.body;
+  
+  try {
+    if (type === 'qq') {
+      // 测试QQ连接
+      const qqOAuthService = require('../services/qqOAuthService');
+      
+      // 验证配置
+      qqOAuthService.validateConfig();
+      
+      // 尝试生成授权URL来测试连接
+      const authUrl = qqOAuthService.generateAuthUrl('test');
+      
+      res.json({
+        success: true,
+        message: 'QQ连接测试成功',
+        authUrl: authUrl
+      });
+    } else if (type === 'wechat') {
+      // 测试微信连接
+      const axios = require('axios');
+      
+      // 使用微信API测试连接
+      const response = await axios.get('https://api.weixin.qq.com/cgi-bin/token', {
+        params: {
+          grant_type: 'client_credential',
+          appid: appId,
+          secret: appSecret
+        },
+        timeout: 10000
+      });
+      
+      if (response.data.access_token) {
+        res.json({
+          success: true,
+          message: '微信连接测试成功',
+          token: response.data.access_token.substring(0, 10) + '...'
+        });
+      } else {
+        res.json({
+          success: false,
+          message: response.data.errmsg || '微信连接测试失败'
+        });
+      }
+    }
+  } catch (error) {
+    console.error(`${type}连接测试失败:`, error);
+    
+    let errorMessage = `${type}连接测试失败`;
+    if (error.response) {
+      errorMessage = error.response.data?.errmsg || errorMessage;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    res.json({
+      success: false,
+      message: errorMessage
+    });
+  }
+}));
 
 // 重置用户密码
 router.put('/users/:id/password', [

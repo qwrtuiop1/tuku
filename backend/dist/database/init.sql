@@ -70,14 +70,77 @@ CREATE TABLE IF NOT EXISTS system_settings (
 
 -- 插入默认系统设置
 INSERT IGNORE INTO system_settings (setting_key, setting_value, description) VALUES
-('max_file_size', '104857600', '最大文件大小(字节)'),
-('allowed_image_types', 'jpg,jpeg,png,gif,webp,svg', '允许的图片类型'),
-('allowed_video_types', 'mp4,webm,mov', '允许的视频类型'),
-('thumbnail_size', '300', '缩略图尺寸'),
+-- 基本设置
 ('system_name', '图库系统', '系统名称'),
+('system_description', '一个功能强大的图库管理系统', '系统描述'),
+('system_version', '1.0.0', '系统版本'),
+
+-- 存储设置
+('max_file_size', '104857600', '最大文件大小(字节)'),
 ('max_upload_files', '10', '单次最大上传文件数'),
-('enable_registration', 'true', '是否允许注册'),
+('allowed_image_types', 'jpg,jpeg,png,gif,webp,svg', '允许的图片类型'),
+('allowed_video_types', 'mp4,webm,mov,avi', '允许的视频类型'),
+('allowed_document_types', 'pdf,doc,docx,txt', '允许的文档类型'),
+('thumbnail_size', '300', '缩略图尺寸'),
+('max_storage_per_user', '1073741824', '用户默认存储限制(字节)'),
+
+-- 用户管理设置
+('enable_registration', 'true', '是否允许用户注册'),
+('require_email_verification', 'false', '是否需要邮箱验证'),
+('default_user_role', 'user', '新用户默认角色'),
+('max_users', '1000', '最大用户数限制'),
+
+-- 安全设置
+('min_password_length', '6', '最小密码长度'),
+('enable_login_lock', 'true', '是否启用登录锁定'),
+('max_login_attempts', '5', '最大登录尝试次数'),
+('lockout_duration', '15', '锁定持续时间(分钟)'),
+('session_timeout', '120', '会话超时时间(分钟)'),
+('enable_two_factor', 'false', '是否启用双因子认证'),
+('password_complexity', 'medium', '密码复杂度要求'),
+
+-- 通知设置
+('enable_email_notification', 'false', '是否启用邮件通知'),
+('smtp_host', '', 'SMTP服务器地址'),
+('smtp_port', '587', 'SMTP端口'),
+('smtp_username', '', 'SMTP用户名'),
+('smtp_password', '', 'SMTP密码'),
+('sender_email', '', '发送者邮箱'),
+('sender_name', '图库系统', '发送者名称'),
+('enable_system_notification', 'true', '是否启用系统通知'),
+('notification_retention_days', '30', '通知保留天数'),
+
+-- 外观设置
+('theme_mode', 'light', '主题模式'),
+('primary_color', '#409EFF', '主色调'),
+('sidebar_width', '240', '侧边栏宽度'),
+('enable_animation', 'true', '是否启用动画效果'),
+('logo_url', '/logo.png', '系统Logo URL'),
+('favicon_url', '/logo.png', '网站图标URL'),
+
+-- 维护设置
 ('maintenance_mode', 'false', '维护模式'),
+('maintenance_message', '系统正在维护中，请稍后再试', '维护模式提示信息'),
+('backup_enabled', 'false', '是否启用自动备份'),
+('backup_frequency', 'daily', '备份频率'),
+('backup_retention_days', '7', '备份保留天数'),
+
+-- 性能设置
+('cache_enabled', 'true', '是否启用缓存'),
+('cache_ttl', '3600', '缓存生存时间(秒)'),
+('max_concurrent_uploads', '5', '最大并发上传数'),
+('image_compression_quality', '85', '图片压缩质量'),
+('video_compression_enabled', 'false', '是否启用视频压缩'),
+
+-- 第三方集成
+('qq_login_enabled', 'false', '是否启用QQ登录'),
+('qq_app_id', '', 'QQ应用ID'),
+('qq_app_key', '', 'QQ应用密钥'),
+('wechat_login_enabled', 'false', '是否启用微信登录'),
+('wechat_app_id', '', '微信应用ID'),
+('wechat_app_secret', '', '微信应用密钥'),
+
+-- 其他设置
 ('auto_clean_logs', 'false', '自动清理日志');
 
 -- 系统日志表
