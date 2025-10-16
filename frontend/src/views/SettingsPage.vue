@@ -635,8 +635,8 @@ const appearanceSettings = reactive({
   primaryColor: '#409EFF',
   sidebarWidth: 240,
   enableAnimation: true,
-  logoUrl: '',
-  faviconUrl: ''
+  logoUrl: '/logo.png',
+  faviconUrl: '/logo.png'
 })
 
 // 第三方集成设置
@@ -760,8 +760,8 @@ const fetchSettings = async () => {
     appearanceSettings.primaryColor = settings.primary_color?.value || '#409EFF'
     appearanceSettings.sidebarWidth = parseInt(settings.sidebar_width?.value) || 240
     appearanceSettings.enableAnimation = settings.enable_animation?.value === 'true'
-    appearanceSettings.logoUrl = settings.logo_url?.value || ''
-    appearanceSettings.faviconUrl = settings.favicon_url?.value || ''
+    appearanceSettings.logoUrl = settings.logo_url?.value || '/logo.png'
+    appearanceSettings.faviconUrl = settings.favicon_url?.value || '/logo.png'
     
     // 更新第三方集成设置
     integrationSettings.qqLoginEnabled = settings.qq_login_enabled?.value === 'true'

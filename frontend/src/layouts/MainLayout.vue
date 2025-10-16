@@ -15,7 +15,7 @@
     }">
       <div class="sidebar-header">
         <div class="logo" @click="expandSidebar">
-          <el-icon class="logo-icon"><Picture /></el-icon>
+          <img src="/logo.png" alt="图库系统" class="logo-image" />
           <span v-if="!sidebarCollapsed" class="logo-text">图库系统</span>
         </div>
         <el-button
@@ -519,8 +519,10 @@ onUnmounted(() => {
       width: 48px;
       height: 48px;
       
-      .logo-icon {
-        font-size: 20px;
+      .logo-image {
+        width: 24px;
+        height: 24px;
+        object-fit: contain;
       }
     }
     
@@ -587,9 +589,10 @@ onUnmounted(() => {
     background: rgba(102, 126, 234, 0.1);
   }
   
-  .logo-icon {
-    font-size: 24px;
-    color: #667eea;
+  .logo-image {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
     transition: all 0.3s ease;
   }
   

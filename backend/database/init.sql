@@ -115,8 +115,8 @@ INSERT IGNORE INTO system_settings (setting_key, setting_value, description) VAL
 ('primary_color', '#409EFF', '主色调'),
 ('sidebar_width', '240', '侧边栏宽度'),
 ('enable_animation', 'true', '是否启用动画效果'),
-('logo_url', '', '系统Logo URL'),
-('favicon_url', '', '网站图标URL'),
+('logo_url', '/logo.png', '系统Logo URL'),
+('favicon_url', '/logo.png', '网站图标URL'),
 
 -- 维护设置
 ('maintenance_mode', 'false', '维护模式'),
