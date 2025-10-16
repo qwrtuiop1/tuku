@@ -60,7 +60,8 @@
           <el-form-item class="remember-row">
             <div class="remember-forgot-container">
               <el-checkbox v-model="rememberMe" class="remember-checkbox">
-                记住我
+                <span class="remember-text">记住我</span>
+                <span class="remember-hint">（30天内免登录）</span>
               </el-checkbox>
               <el-button type="text" class="forgot-password" @click="goToForgotPassword">
                 忘记密码？
@@ -166,6 +167,7 @@ import {
   StarFilled
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import api from '@/utils/api'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -181,7 +183,7 @@ const loginForm = reactive({
   password: ''
 })
 
-const rememberMe = ref(false)
+const rememberMe = ref(localStorage.getItem('rememberMe') === 'true')
 
 const loginRules: FormRules = {
   username: [
@@ -198,7 +200,10 @@ const handleLogin = async () => {
   
   try {
     await loginFormRef.value.validate()
-    const success = await authStore.login(loginForm)
+    const success = await authStore.login({
+      ...loginForm,
+      rememberMe: rememberMe.value
+    })
     
     if (success) {
       router.push('/')
@@ -218,16 +223,32 @@ const goToForgotPassword = () => {
 // QQ登录处理
 const handleQQLogin = async () => {
   try {
+    console.log('开始获取QQ授权URL...')
     // 获取QQ授权URL
     const response = await api.get('/auth/qq/auth')
+    console.log('QQ授权URL响应:', response.data)
+    
     if (response.data.success) {
+      console.log('跳转到QQ授权页面:', response.data.authUrl)
       // 跳转到QQ授权页面
       window.location.href = response.data.authUrl
     } else {
-      ElMessage.error('QQ登录服务暂不可用')
+      console.error('QQ授权URL获取失败:', response.data.message)
+      ElMessage.error(`QQ登录服务暂不可用: ${response.data.message}`)
     }
   } catch (error) {
-    ElMessage.error('QQ登录失败，请重试')
+    console.error('QQ登录请求失败:', error)
+    
+    // 提供更详细的错误信息
+    if (error.code === 'ERR_NETWORK') {
+      ElMessage.error('网络连接失败，请检查网络连接')
+    } else if (error.response?.status === 404) {
+      ElMessage.error('QQ登录接口不存在')
+    } else if (error.response?.status === 500) {
+      ElMessage.error('服务器内部错误，请联系管理员')
+    } else {
+      ElMessage.error(`QQ登录失败: ${error.message || '请重试'}`)
+    }
   }
 }
 
@@ -384,6 +405,19 @@ onMounted(() => {
       :deep(.el-checkbox__label) {
         color: #7f8c8d;
         font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      
+      .remember-text {
+        font-weight: 500;
+      }
+      
+      .remember-hint {
+        color: #95a5a6;
+        font-size: 12px;
+        font-weight: 400;
       }
     }
     

@@ -15,7 +15,57 @@ export interface User {
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
-  const token = ref<string | null>(localStorage.getItem('token'))
+  // 检查token是否有效（未过期）
+  const isValidToken = (tokenValue: string, expiryValue: string | null): boolean => {
+    if (!tokenValue || !expiryValue) return false
+    
+    const now = Date.now()
+    const expiry = parseInt(expiryValue)
+    
+    // 如果过期时间小于当前时间，说明已过期
+    if (expiry <= now) {
+      return false
+    }
+    
+    // 如果token在24小时内过期，提前刷新（可选）
+    const hoursUntilExpiry = (expiry - now) / (1000 * 60 * 60)
+    if (hoursUntilExpiry < 24) {
+      console.log('Token将在24小时内过期，建议刷新')
+    }
+    
+    return true
+  }
+
+  // 获取有效的token
+  const getValidToken = (): string | null => {
+    // 优先检查localStorage
+    const localToken = localStorage.getItem('token')
+    const localExpiry = localStorage.getItem('tokenExpiry')
+    
+    if (localToken && isValidToken(localToken, localExpiry)) {
+      return localToken
+    }
+    
+    // 如果localStorage无效，检查sessionStorage
+    const sessionToken = sessionStorage.getItem('token')
+    const sessionExpiry = sessionStorage.getItem('tokenExpiry')
+    
+    if (sessionToken && isValidToken(sessionToken, sessionExpiry)) {
+      return sessionToken
+    }
+    
+    // 如果都无效，清除所有存储
+    localStorage.removeItem('token')
+    localStorage.removeItem('tokenExpiry')
+    localStorage.removeItem('rememberMe')
+    sessionStorage.removeItem('token')
+    sessionStorage.removeItem('tokenExpiry')
+    
+    return null
+  }
+
+  // 初始化token
+  const token = ref<string | null>(getValidToken())
   const loading = ref(false)
 
   const isAuthenticated = computed(() => !!token.value && !!user.value)
@@ -26,7 +76,7 @@ export const useAuthStore = defineStore('auth', () => {
   })
 
   // 登录
-  const login = async (credentials: { username: string; password: string }) => {
+  const login = async (credentials: { username: string; password: string; rememberMe?: boolean }) => {
     loading.value = true
     try {
       const response = await api.post('/auth/login', credentials)
@@ -40,7 +90,30 @@ export const useAuthStore = defineStore('auth', () => {
       
       token.value = newToken
       user.value = userData
-      localStorage.setItem('token', newToken)
+      
+      // 根据记住我选项决定存储方式和过期时间
+      const now = Date.now()
+      const expiryTime = credentials.rememberMe 
+        ? now + (30 * 24 * 60 * 60 * 1000) // 30天
+        : now + (7 * 24 * 60 * 60 * 1000)   // 7天
+      
+      if (credentials.rememberMe) {
+        // 记住我：使用localStorage，30天过期
+        localStorage.setItem('token', newToken)
+        localStorage.setItem('tokenExpiry', expiryTime.toString())
+        localStorage.setItem('rememberMe', 'true')
+        // 清除sessionStorage
+        sessionStorage.removeItem('token')
+        sessionStorage.removeItem('tokenExpiry')
+      } else {
+        // 不记住我：使用sessionStorage，7天过期
+        sessionStorage.setItem('token', newToken)
+        sessionStorage.setItem('tokenExpiry', expiryTime.toString())
+        localStorage.removeItem('rememberMe')
+        // 清除localStorage中的token
+        localStorage.removeItem('token')
+        localStorage.removeItem('tokenExpiry')
+      }
       
       ElMessage.success('登录成功')
       return true
@@ -94,15 +167,74 @@ export const useAuthStore = defineStore('auth', () => {
   const logout = (showMessage = true) => {
     token.value = null
     user.value = null
+    
+    // 清除所有存储
     localStorage.removeItem('token')
+    localStorage.removeItem('tokenExpiry')
+    localStorage.removeItem('rememberMe')
+    sessionStorage.removeItem('token')
+    sessionStorage.removeItem('tokenExpiry')
+    
     if (showMessage) {
       ElMessage.success('已登出')
+    }
+  }
+
+  // 刷新token（如果即将过期）
+  const refreshTokenIfNeeded = async (): Promise<boolean> => {
+    if (!token.value) return false
+    
+    try {
+      // 检查当前token的过期时间
+      const localExpiry = localStorage.getItem('tokenExpiry')
+      const sessionExpiry = sessionStorage.getItem('tokenExpiry')
+      const expiry = localExpiry || sessionExpiry
+      
+      if (!expiry) return false
+      
+      const now = Date.now()
+      const expiryTime = parseInt(expiry)
+      const hoursUntilExpiry = (expiryTime - now) / (1000 * 60 * 60)
+      
+      // 如果token在24小时内过期，尝试刷新
+      if (hoursUntilExpiry < 24 && hoursUntilExpiry > 0) {
+        console.log('Token即将过期，尝试刷新...')
+        
+        const response = await api.post('/auth/refresh', { token: token.value })
+        if (response.data.success) {
+          const { token: newToken } = response.data
+          
+          // 更新token和过期时间
+          token.value = newToken
+          const newExpiryTime = now + (7 * 24 * 60 * 60 * 1000) // 新的7天过期时间
+          
+          // 根据当前存储方式更新
+          if (localStorage.getItem('token')) {
+            localStorage.setItem('token', newToken)
+            localStorage.setItem('tokenExpiry', newExpiryTime.toString())
+          } else if (sessionStorage.getItem('token')) {
+            sessionStorage.setItem('token', newToken)
+            sessionStorage.setItem('tokenExpiry', newExpiryTime.toString())
+          }
+          
+          console.log('Token刷新成功')
+          return true
+        }
+      }
+      
+      return false
+    } catch (error) {
+      console.error('Token刷新失败:', error)
+      return false
     }
   }
 
   // 检查认证状态
   const checkAuth = async () => {
     if (!token.value) return false
+    
+    // 尝试刷新token（如果需要）
+    await refreshTokenIfNeeded()
     
     try {
       const response = await api.get('/auth/me')
@@ -198,6 +330,7 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     logout,
     checkAuth,
+    refreshTokenIfNeeded,
     updateUser,
     forgotPassword,
     resetPassword

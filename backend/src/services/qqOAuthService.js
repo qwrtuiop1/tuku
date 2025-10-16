@@ -2,8 +2,8 @@ const axios = require('axios');
 
 class QQOAuthService {
   constructor() {
-    this.clientId = process.env.QQ_APP_ID;
-    this.clientSecret = process.env.QQ_APP_KEY;
+    this.clientId = process.env.QQ_APP_ID || '102815554';
+    this.clientSecret = process.env.QQ_APP_KEY || '3zhARWP4VggU8Zns';
     this.redirectUri = process.env.QQ_REDIRECT_URI || 'https://tukufrontend.vtart.cn/auth/qq/callback';
     this.baseUrl = 'https://graph.qq.com';
   }
@@ -95,10 +95,20 @@ class QQOAuthService {
         openId: openId,
         nickname: data.nickname,
         avatar: data.figureurl_qq_2 || data.figureurl_qq_1 || data.figureurl_2 || data.figureurl_1,
+        avatar30: data.figureurl, // 30x30像素头像
+        avatar50: data.figureurl_1, // 50x50像素头像
+        avatar100: data.figureurl_2, // 100x100像素头像
+        avatarQQ40: data.figureurl_qq_1, // 40x40像素QQ头像
+        avatarQQ100: data.figureurl_qq_2, // 100x100像素QQ头像
         gender: data.gender === '男' ? 'male' : data.gender === '女' ? 'female' : 'unknown',
+        genderType: data.gender_type,
         province: data.province,
         city: data.city,
-        year: data.year
+        year: data.year,
+        constellation: data.constellation,
+        isYellowVip: data.is_yellow_vip === '1',
+        yellowVipLevel: data.yellow_vip_level,
+        isYellowYearVip: data.is_yellow_year_vip === '1'
       };
     } catch (error) {
       console.error('获取QQ用户信息失败:', error);

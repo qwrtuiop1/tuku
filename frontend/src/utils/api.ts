@@ -36,8 +36,8 @@ const api = axios.create({
 // 请求拦截器
 api.interceptors.request.use(
   (config) => {
-    // 直接从localStorage获取token，避免store初始化问题
-    const token = localStorage.getItem('token')
+    // 优先从localStorage获取token，然后从sessionStorage获取
+    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }

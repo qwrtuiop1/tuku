@@ -7,6 +7,7 @@ const { asyncHandler } = require('../middleware/errorHandler');
 const { checkMaintenanceMode, checkRegistrationEnabled } = require('../middleware/maintenance');
 const SettingsHistoryService = require('../services/settingsHistoryService');
 const { sendPasswordResetEmail, sendEmailVerificationCode } = require('../services/emailService');
+const { validatePasswordComplexity, getPasswordRequirements } = require('../utils/passwordValidator');
 const { 
   createVerificationCode, 
   checkRateLimit, 
@@ -55,6 +56,27 @@ router.post('/register', checkRegistrationEnabled, [
   }
 
   const { username, email, password, emailCode } = req.body;
+
+  // 获取安全设置
+  const [settingsRows] = await pool.execute(
+    'SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?, ?)',
+    ['min_password_length', 'password_complexity']
+  );
+  
+  const settings = {};
+  settingsRows.forEach(row => {
+    settings[row.setting_key] = row.setting_value;
+  });
+
+  // 验证密码复杂度
+  const passwordValidation = validatePasswordComplexity(password, settings);
+  if (!passwordValidation.isValid) {
+    return res.status(400).json({
+      message: '密码不符合安全要求',
+      errors: passwordValidation.errors,
+      requirements: getPasswordRequirements(settings)
+    });
+  }
 
   // 验证邮箱验证码
   if (emailCode) {
@@ -132,7 +154,8 @@ router.post('/register', checkRegistrationEnabled, [
 // 用户登录
 router.post('/login', [
   body('username').notEmpty().withMessage('用户名不能为空'),
-  body('password').notEmpty().withMessage('密码不能为空')
+  body('password').notEmpty().withMessage('密码不能为空'),
+  body('rememberMe').optional().isBoolean().withMessage('记住我选项必须是布尔值')
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -142,7 +165,7 @@ router.post('/login', [
     });
   }
 
-  const { username, password } = req.body;
+  const { username, password, rememberMe = false } = req.body;
 
   // 查找用户 - 使用安全的字段查询
   let users;
@@ -210,8 +233,9 @@ router.post('/login', [
     // 不影响登录流程，继续执行
   }
 
-  // 生成JWT令牌
-  const token = generateToken(user.id);
+  // 生成JWT令牌 - 根据记住我选项设置过期时间
+  const tokenExpiry = rememberMe ? '30d' : '7d'; // 记住我：30天，否则7天
+  const token = generateToken(user.id, tokenExpiry);
 
   // 获取用户的所有设置
   let userPreferences = { defaultView: 'grid' };
@@ -727,6 +751,27 @@ router.post('/reset-password', [
       return res.status(404).json({ message: '用户不存在' });
     }
 
+    // 获取安全设置
+    const [settingsRows] = await pool.execute(
+      'SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?, ?)',
+      ['min_password_length', 'password_complexity']
+    );
+    
+    const settings = {};
+    settingsRows.forEach(row => {
+      settings[row.setting_key] = row.setting_value;
+    });
+
+    // 验证密码复杂度
+    const passwordValidation = validatePasswordComplexity(password, settings);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({
+        message: '密码不符合安全要求',
+        errors: passwordValidation.errors,
+        requirements: getPasswordRequirements(settings)
+      });
+    }
+
     // 加密新密码
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -1008,6 +1053,27 @@ router.post('/reset-password-new', [
       if (users.length === 0) {
         return res.status(400).json({ message: '用户名和邮箱不匹配' });
       }
+    }
+
+    // 获取安全设置
+    const [settingsRows] = await pool.execute(
+      'SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?, ?)',
+      ['min_password_length', 'password_complexity']
+    );
+    
+    const settings = {};
+    settingsRows.forEach(row => {
+      settings[row.setting_key] = row.setting_value;
+    });
+
+    // 验证密码复杂度
+    const passwordValidation = validatePasswordComplexity(newPassword, settings);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({
+        message: '密码不符合安全要求',
+        errors: passwordValidation.errors,
+        requirements: getPasswordRequirements(settings)
+      });
     }
 
     // 检查新密码是否与原密码相同
@@ -1836,8 +1902,8 @@ router.post('/qq/callback', [
       );
     }
 
-    // 5. 生成JWT令牌
-    const token = generateToken(user.id);
+    // 5. 生成JWT令牌 - QQ登录默认使用较长的过期时间（30天）
+    const token = generateToken(user.id, '30d');
 
     // 6. 获取用户设置
     let userPreferences = { defaultView: 'grid' };

@@ -56,7 +56,9 @@ onMounted(async () => {
       
       authStore.token = token
       authStore.user = user
+      // QQ登录默认使用localStorage（相当于记住我）
       localStorage.setItem('token', token)
+      localStorage.setItem('rememberMe', 'true')
       
       // 保存用户设置
       if (settings) {

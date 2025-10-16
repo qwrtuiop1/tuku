@@ -154,7 +154,8 @@ router.post('/register', checkRegistrationEnabled, [
 // 用户登录
 router.post('/login', [
   body('username').notEmpty().withMessage('用户名不能为空'),
-  body('password').notEmpty().withMessage('密码不能为空')
+  body('password').notEmpty().withMessage('密码不能为空'),
+  body('rememberMe').optional().isBoolean().withMessage('记住我选项必须是布尔值')
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -164,7 +165,7 @@ router.post('/login', [
     });
   }
 
-  const { username, password } = req.body;
+  const { username, password, rememberMe = false } = req.body;
 
   // 查找用户 - 使用安全的字段查询
   let users;
@@ -232,8 +233,9 @@ router.post('/login', [
     // 不影响登录流程，继续执行
   }
 
-  // 生成JWT令牌
-  const token = generateToken(user.id);
+  // 生成JWT令牌 - 根据记住我选项设置过期时间
+  const tokenExpiry = rememberMe ? '30d' : '7d'; // 记住我：30天，否则7天
+  const token = generateToken(user.id, tokenExpiry);
 
   // 获取用户的所有设置
   let userPreferences = { defaultView: 'grid' };
@@ -1900,8 +1902,8 @@ router.post('/qq/callback', [
       );
     }
 
-    // 5. 生成JWT令牌
-    const token = generateToken(user.id);
+    // 5. 生成JWT令牌 - QQ登录默认使用较长的过期时间（30天）
+    const token = generateToken(user.id, '30d');
 
     // 6. 获取用户设置
     let userPreferences = { defaultView: 'grid' };

@@ -156,7 +156,18 @@ router.beforeEach(async (to, from, next) => {
   // 检查维护模式（除了登录、注册、维护页面本身）
   if (!['Login', 'Register', 'Maintenance', 'QQCallback'].includes(to.name as string)) {
     try {
-      const response = await fetch('/api/admin/settings')
+      // 获取当前token
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token')
+      
+      const response = await fetch('https://tukubackend.vtart.cn/api/admin/settings', {
+        headers: token ? {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        } : {
+          'Content-Type': 'application/json'
+        }
+      })
+      
       if (response.ok) {
         const data = await response.json()
         const isMaintenanceMode = data.settings?.maintenance_mode?.value === 'true'
@@ -172,6 +183,7 @@ router.beforeEach(async (to, from, next) => {
       }
     } catch (error) {
       // 如果检查失败，继续正常流程
+      console.log('维护模式检查失败:', error)
     }
   }
   
