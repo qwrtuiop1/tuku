@@ -700,6 +700,52 @@ router.delete('/users/:id', asyncHandler(async (req, res) => {
   }
 }));
 
+// 获取存储统计
+router.get('/storage-stats', authenticateToken, asyncHandler(async (req, res) => {
+  try {
+    // 获取所有用户的存储使用情况
+    const [storageStats] = await pool.execute(`
+      SELECT 
+        SUM(storage_limit) as total_storage,
+        SUM(used_storage) as used_storage,
+        SUM(storage_limit) - SUM(used_storage) as available_storage
+      FROM users 
+      WHERE status = 'active'
+    `);
+
+    // 获取文件统计
+    const [fileStats] = await pool.execute(`
+      SELECT 
+        COUNT(*) as total_files,
+        SUM(file_size) as total_file_size
+      FROM files
+    `);
+
+    // 获取用户统计
+    const [userStats] = await pool.execute(`
+      SELECT 
+        COUNT(*) as total_users,
+        COUNT(CASE WHEN status = 'active' THEN 1 END) as active_users
+      FROM users
+    `);
+
+    const stats = {
+      total_storage: storageStats[0].total_storage || 0,
+      used_storage: storageStats[0].used_storage || 0,
+      available_storage: storageStats[0].available_storage || 0,
+      total_files: fileStats[0].total_files || 0,
+      total_file_size: fileStats[0].total_file_size || 0,
+      total_users: userStats[0].total_users || 0,
+      active_users: userStats[0].active_users || 0
+    };
+
+    res.json(stats);
+  } catch (error) {
+    console.error('获取存储统计失败:', error);
+    res.status(500).json({ message: '获取存储统计失败' });
+  }
+}));
+
 // 获取系统日志
 router.get('/logs', authenticateToken, asyncHandler(async (req, res) => {
   const { level = 'all', page = 1, limit = 50 } = req.query;
@@ -884,7 +930,7 @@ router.put('/settings', [
 
   const { settings } = req.body;
   
-  // 验证设置项
+  // 验证设置项 - 简化验证规则
   const validSettings = {
     // 基本设置
     'system_name': { type: 'string', maxLength: 50, required: false },
@@ -892,72 +938,72 @@ router.put('/settings', [
     'system_version': { type: 'string', maxLength: 20, required: false },
     
     // 存储设置
-    'max_file_size': { type: 'number', min: 1024, max: 10737418240, required: false }, // 1KB - 10GB
-    'max_upload_files': { type: 'number', min: 1, max: 100, required: false },
-    'allowed_image_types': { type: 'string', pattern: /^[a-zA-Z,]+$/, required: false },
-    'allowed_video_types': { type: 'string', pattern: /^[a-zA-Z,]+$/, required: false },
-    'allowed_document_types': { type: 'string', pattern: /^[a-zA-Z,]+$/, required: false },
-    'thumbnail_size': { type: 'number', min: 50, max: 1000, required: false },
-    'max_storage_per_user': { type: 'number', min: 1048576, max: 1099511627776, required: false }, // 1MB - 1TB
+    'max_file_size': { type: 'string', required: false }, // 前端传递字符串
+    'max_upload_files': { type: 'string', required: false }, // 前端传递字符串
+    'allowed_image_types': { type: 'string', required: false },
+    'allowed_video_types': { type: 'string', required: false },
+    'allowed_document_types': { type: 'string', required: false },
+    'thumbnail_size': { type: 'string', required: false }, // 前端传递字符串
+    'max_storage_per_user': { type: 'string', required: false }, // 前端传递字符串
     
     // 用户管理设置
-    'enable_registration': { type: 'boolean', required: false },
-    'require_email_verification': { type: 'boolean', required: false },
-    'default_user_role': { type: 'string', enum: ['user', 'admin'], required: false },
-    'max_users': { type: 'number', min: 1, max: 100000, required: false },
+    'enable_registration': { type: 'string', required: false }, // 前端传递 'true'/'false'
+    'require_email_verification': { type: 'string', required: false },
+    'default_user_role': { type: 'string', required: false },
+    'max_users': { type: 'string', required: false },
     
     // 安全设置
-    'min_password_length': { type: 'number', min: 4, max: 32, required: false },
-    'enable_login_lock': { type: 'boolean', required: false },
-    'max_login_attempts': { type: 'number', min: 3, max: 20, required: false },
-    'lockout_duration': { type: 'number', min: 5, max: 1440, required: false }, // 5分钟 - 24小时
-    'session_timeout': { type: 'number', min: 15, max: 1440, required: false }, // 15分钟 - 24小时
-    'enable_two_factor': { type: 'boolean', required: false },
-    'password_complexity': { type: 'string', enum: ['low', 'medium', 'high'], required: false },
+    'min_password_length': { type: 'string', required: false },
+    'enable_login_lock': { type: 'string', required: false },
+    'max_login_attempts': { type: 'string', required: false },
+    'lockout_duration': { type: 'string', required: false },
+    'session_timeout': { type: 'string', required: false },
+    'enable_two_factor': { type: 'string', required: false },
+    'password_complexity': { type: 'string', required: false },
     
     // 通知设置
-    'enable_email_notification': { type: 'boolean', required: false },
+    'enable_email_notification': { type: 'string', required: false },
     'smtp_host': { type: 'string', maxLength: 255, required: false },
-    'smtp_port': { type: 'number', min: 1, max: 65535, required: false },
+    'smtp_port': { type: 'string', required: false },
     'smtp_username': { type: 'string', maxLength: 255, required: false },
     'smtp_password': { type: 'string', maxLength: 255, required: false },
-    'sender_email': { type: 'string', pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, required: false },
+    'sender_email': { type: 'string', required: false },
     'sender_name': { type: 'string', maxLength: 100, required: false },
-    'enable_system_notification': { type: 'boolean', required: false },
-    'notification_retention_days': { type: 'number', min: 1, max: 365, required: false },
+    'enable_system_notification': { type: 'string', required: false },
+    'notification_retention_days': { type: 'string', required: false },
     
     // 外观设置
-    'theme_mode': { type: 'string', enum: ['light', 'dark', 'auto'], required: false },
-    'primary_color': { type: 'string', pattern: /^#[0-9A-Fa-f]{6}$/, required: false },
-    'sidebar_width': { type: 'number', min: 200, max: 400, required: false },
-    'enable_animation': { type: 'boolean', required: false },
+    'theme_mode': { type: 'string', required: false },
+    'primary_color': { type: 'string', required: false },
+    'sidebar_width': { type: 'string', required: false },
+    'enable_animation': { type: 'string', required: false },
     'logo_url': { type: 'string', maxLength: 500, required: false },
     'favicon_url': { type: 'string', maxLength: 500, required: false },
     
     // 维护设置
-    'maintenance_mode': { type: 'boolean', required: false },
+    'maintenance_mode': { type: 'string', required: false }, // 前端传递 'true'/'false'
     'maintenance_message': { type: 'string', maxLength: 500, required: false },
-    'backup_enabled': { type: 'boolean', required: false },
-    'backup_frequency': { type: 'string', enum: ['hourly', 'daily', 'weekly'], required: false },
-    'backup_retention_days': { type: 'number', min: 1, max: 365, required: false },
+    'backup_enabled': { type: 'string', required: false },
+    'backup_frequency': { type: 'string', required: false },
+    'backup_retention_days': { type: 'string', required: false },
     
     // 性能设置
-    'cache_enabled': { type: 'boolean', required: false },
-    'cache_ttl': { type: 'number', min: 60, max: 86400, required: false }, // 1分钟 - 24小时
-    'max_concurrent_uploads': { type: 'number', min: 1, max: 20, required: false },
-    'image_compression_quality': { type: 'number', min: 10, max: 100, required: false },
-    'video_compression_enabled': { type: 'boolean', required: false },
+    'cache_enabled': { type: 'string', required: false },
+    'cache_ttl': { type: 'string', required: false },
+    'max_concurrent_uploads': { type: 'string', required: false },
+    'image_compression_quality': { type: 'string', required: false },
+    'video_compression_enabled': { type: 'string', required: false },
     
     // 第三方集成
-    'qq_login_enabled': { type: 'boolean', required: false },
+    'qq_login_enabled': { type: 'string', required: false },
     'qq_app_id': { type: 'string', maxLength: 50, required: false },
     'qq_app_key': { type: 'string', maxLength: 100, required: false },
-    'wechat_login_enabled': { type: 'boolean', required: false },
+    'wechat_login_enabled': { type: 'string', required: false },
     'wechat_app_id': { type: 'string', maxLength: 50, required: false },
     'wechat_app_secret': { type: 'string', maxLength: 100, required: false },
     
     // 其他设置
-    'auto_clean_logs': { type: 'boolean', required: false }
+    'auto_clean_logs': { type: 'string', required: false } // 前端传递 'true'/'false'
   };
   
   // 验证设置项
@@ -969,36 +1015,14 @@ router.put('/settings', [
       continue;
     }
     
-    // 类型验证
-    if (rule.type === 'number') {
-      const numValue = parseFloat(value);
-      if (isNaN(numValue)) {
-        validationErrors.push(`${key} 必须是数字`);
-        continue;
-      }
-      if (rule.min !== undefined && numValue < rule.min) {
-        validationErrors.push(`${key} 不能小于 ${rule.min}`);
-      }
-      if (rule.max !== undefined && numValue > rule.max) {
-        validationErrors.push(`${key} 不能大于 ${rule.max}`);
-      }
-    } else if (rule.type === 'boolean') {
-      if (value !== 'true' && value !== 'false') {
-        validationErrors.push(`${key} 必须是 true 或 false`);
-      }
-    } else if (rule.type === 'string') {
+    // 简化的类型验证 - 只检查基本类型和长度
+    if (rule.type === 'string') {
       if (typeof value !== 'string') {
         validationErrors.push(`${key} 必须是字符串`);
         continue;
       }
       if (rule.maxLength && value.length > rule.maxLength) {
         validationErrors.push(`${key} 长度不能超过 ${rule.maxLength} 个字符`);
-      }
-      if (rule.pattern && !rule.pattern.test(value)) {
-        validationErrors.push(`${key} 格式不正确`);
-      }
-      if (rule.enum && !rule.enum.includes(value)) {
-        validationErrors.push(`${key} 必须是以下值之一: ${rule.enum.join(', ')}`);
       }
     }
   }

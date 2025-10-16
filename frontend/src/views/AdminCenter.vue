@@ -39,6 +39,10 @@
                 <el-icon><Document /></el-icon>
                 <span>系统日志</span>
               </el-menu-item>
+              <el-menu-item index="storage">
+                <el-icon><Folder /></el-icon>
+                <span>存储管理</span>
+              </el-menu-item>
               <el-menu-item index="settings">
                 <el-icon><Setting /></el-icon>
                 <span>系统设置</span>
@@ -297,6 +301,14 @@
                             <el-icon><Folder /></el-icon>
                             管理存储
                           </el-dropdown-item>
+                          <el-dropdown-item command="resetPassword">
+                            <el-icon><Key /></el-icon>
+                            重置密码
+                          </el-dropdown-item>
+                          <el-dropdown-item command="forceLogout">
+                            <el-icon><Switch /></el-icon>
+                            强制登出
+                          </el-dropdown-item>
                           <el-dropdown-item command="delete" divided>
                             <el-icon><Delete /></el-icon>
                             删除用户
@@ -353,6 +365,10 @@
                       <el-icon><Search /></el-icon>
                       搜索
                     </el-button>
+                    <el-button @click="exportLogs">
+                      <el-icon><Download /></el-icon>
+                      导出日志
+                    </el-button>
                     <el-button @click="clearLogs" :loading="refreshing">
                       <el-icon><Delete /></el-icon>
                       清空日志
@@ -396,6 +412,109 @@
                   </template>
                 </el-table-column>
               </el-table>
+            </div>
+
+            <!-- 存储管理 -->
+            <div v-if="activeSection === 'storage'" class="admin-section">
+              <div class="section-header">
+                <h3>存储管理</h3>
+                <p>管理系统存储空间和使用情况</p>
+              </div>
+              
+              <!-- 存储统计 -->
+              <el-row :gutter="16" class="storage-stats">
+                <el-col :xs="24" :sm="8" :md="8" :lg="8" :xl="8">
+                  <el-card class="storage-stat-card">
+                    <div class="stat-content">
+                      <div class="stat-icon total">
+                        <el-icon><DataBoard /></el-icon>
+                      </div>
+                      <div class="stat-info">
+                        <div class="stat-value">{{ formatFileSize(storageStats.totalStorage) }}</div>
+                        <div class="stat-label">总存储空间</div>
+                      </div>
+                    </div>
+                  </el-card>
+                </el-col>
+                
+                <el-col :xs="24" :sm="8" :md="8" :lg="8" :xl="8">
+                  <el-card class="storage-stat-card">
+                    <div class="stat-content">
+                      <div class="stat-icon used">
+                        <el-icon><Folder /></el-icon>
+                      </div>
+                      <div class="stat-info">
+                        <div class="stat-value">{{ formatFileSize(storageStats.usedStorage) }}</div>
+                        <div class="stat-label">已使用空间</div>
+                      </div>
+                    </div>
+                  </el-card>
+                </el-col>
+                
+                <el-col :xs="24" :sm="8" :md="8" :lg="8" :xl="8">
+                  <el-card class="storage-stat-card">
+                    <div class="stat-content">
+                      <div class="stat-icon available">
+                        <el-icon><CircleCheck /></el-icon>
+                      </div>
+                      <div class="stat-info">
+                        <div class="stat-value">{{ formatFileSize(storageStats.availableStorage) }}</div>
+                        <div class="stat-label">可用空间</div>
+                      </div>
+                    </div>
+                  </el-card>
+                </el-col>
+              </el-row>
+              
+              <!-- 存储使用率 -->
+              <el-card class="storage-usage-card">
+                <template #header>
+                  <div class="card-header">
+                    <span>存储使用率</span>
+                    <el-button @click="refreshStorageStats" :loading="refreshing" size="small">
+                      <el-icon><Refresh /></el-icon>
+                      刷新
+                    </el-button>
+                  </div>
+                </template>
+                
+                <div class="usage-content">
+                  <el-progress
+                    :percentage="storageUsagePercentage"
+                    :stroke-width="20"
+                    :color="getStorageUsageColor(storageUsagePercentage)"
+                    :show-text="true"
+                    text-inside
+                  />
+                  <div class="usage-details">
+                    <span class="usage-text">
+                      已使用 {{ formatFileSize(storageStats.usedStorage) }} / {{ formatFileSize(storageStats.totalStorage) }}
+                    </span>
+                  </div>
+                </div>
+              </el-card>
+              
+              <!-- 存储操作 -->
+              <el-card class="storage-actions-card">
+                <template #header>
+                  <span>存储操作</span>
+                </template>
+                
+                <div class="action-buttons">
+                  <el-button type="primary" @click="showCleanupDialog = true">
+                    <el-icon><Delete /></el-icon>
+                    清理存储
+                  </el-button>
+                  <el-button @click="showStorageAnalysis">
+                    <el-icon><DataAnalysis /></el-icon>
+                    存储分析
+                  </el-button>
+                  <el-button @click="exportStorageReport">
+                    <el-icon><Download /></el-icon>
+                    导出报告
+                  </el-button>
+                </div>
+              </el-card>
             </div>
 
             <!-- 系统设置 -->
@@ -602,7 +721,12 @@ import {
   Search,
   User,
   Switch,
-  MoreFilled
+  MoreFilled,
+  Key,
+  CircleCheck,
+  DataAnalysis,
+  Download,
+  Refresh
 } from '@element-plus/icons-vue'
 import { formatFileSize } from '@/utils/helpers'
 import api from '@/utils/api'
@@ -617,6 +741,7 @@ const showCreateUserDialog = ref(false)
 const selectedUsers = ref([])
 const userFormRef = ref<FormInstance>()
 const openMenus = ref<Set<number>>(new Set()) // 跟踪打开的菜单
+const showCleanupDialog = ref(false)
 
 // 表格宽度调整
 const adjustTableWidth = () => {
@@ -862,6 +987,13 @@ const systemStats = reactive({
   totalStorage: 0
 })
 
+// 存储统计数据
+const storageStats = reactive({
+  totalStorage: 0,
+  usedStorage: 0,
+  availableStorage: 0
+})
+
 // 用户数据
 const users = ref([])
 
@@ -950,6 +1082,12 @@ const filteredLogs = computed(() => {
   return result
 })
 
+// 存储使用率计算
+const storageUsagePercentage = computed(() => {
+  if (storageStats.totalStorage === 0) return 0
+  return Math.round((storageStats.usedStorage / storageStats.totalStorage) * 100)
+})
+
 // 定时器
 let refreshTimer: NodeJS.Timeout | null = null
 
@@ -972,6 +1110,7 @@ const refreshAllData = async () => {
     await fetchUsers()
     await fetchLogs()
     await fetchSystemSettings()
+    await fetchStorageStats()
     
     ElMessage.success('数据刷新成功')
   } catch (error) {
@@ -1072,6 +1211,91 @@ const fetchSystemSettings = async () => {
   }
 }
 
+// 获取存储统计数据
+const fetchStorageStats = async () => {
+  try {
+    const response = await api.get('/admin/storage-stats')
+    const data = response.data
+    
+    storageStats.totalStorage = data.total_storage || 0
+    storageStats.usedStorage = data.used_storage || 0
+    storageStats.availableStorage = data.available_storage || 0
+  } catch (error) {
+    console.error('获取存储统计失败:', error)
+    // 如果API不存在，使用系统统计数据
+    storageStats.totalStorage = systemStats.totalStorage
+    storageStats.usedStorage = systemStats.totalStorage
+    storageStats.availableStorage = 0
+  }
+}
+
+// 刷新存储统计
+const refreshStorageStats = async () => {
+  try {
+    await fetchStorageStats()
+    ElMessage.success('存储统计已刷新')
+  } catch (error) {
+    ElMessage.error('刷新存储统计失败')
+  }
+}
+
+// 获取存储使用率颜色
+const getStorageUsageColor = (percentage: number) => {
+  if (percentage >= 90) return '#f56c6c'
+  if (percentage >= 70) return '#e6a23c'
+  return '#67c23a'
+}
+
+// 显示存储分析
+const showStorageAnalysis = () => {
+  ElMessageBox.alert(
+    `
+    <div style="text-align: left;">
+      <h4>存储分析报告：</h4>
+      <p><strong>总存储空间：</strong>${formatFileSize(storageStats.totalStorage)}</p>
+      <p><strong>已使用空间：</strong>${formatFileSize(storageStats.usedStorage)}</p>
+      <p><strong>可用空间：</strong>${formatFileSize(storageStats.availableStorage)}</p>
+      <p><strong>使用率：</strong>${storageUsagePercentage.value}%</p>
+      <hr style="margin: 10px 0;">
+      <p><strong>建议：</strong></p>
+      <p>${storageUsagePercentage.value >= 90 ? '⚠️ 存储空间严重不足，建议立即清理' : 
+         storageUsagePercentage.value >= 70 ? '⚠️ 存储空间使用率较高，建议定期清理' : 
+         '✅ 存储空间使用正常'}</p>
+    </div>
+    `,
+    '存储分析',
+    {
+      confirmButtonText: '确定',
+      dangerouslyUseHTMLString: true
+    }
+  )
+}
+
+// 导出存储报告
+const exportStorageReport = () => {
+  const report = {
+    timestamp: new Date().toLocaleString(),
+    totalStorage: storageStats.totalStorage,
+    usedStorage: storageStats.usedStorage,
+    availableStorage: storageStats.availableStorage,
+    usagePercentage: storageUsagePercentage.value,
+    totalUsers: systemStats.totalUsers,
+    totalFiles: systemStats.totalFiles
+  }
+  
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `storage-report-${new Date().toISOString().split('T')[0]}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  
+  ElMessage.success('存储报告已导出')
+}
+
 
 const handleUserSelectionChange = (selection: any[]) => {
   selectedUsers.value = selection
@@ -1163,11 +1387,15 @@ const handleUserAction = async (command: string, user: any) => {
       break
         
     case 'manageStorage':
-        ElMessage.info({
-          message: '存储管理功能开发中...',
-          duration: 2000,
-          showClose: true
-        })
+        await manageUserStorage(user)
+      break
+        
+    case 'resetPassword':
+        await resetUserPassword(user)
+      break
+        
+    case 'forceLogout':
+        await forceUserLogout(user)
       break
         
     case 'delete':
@@ -1237,30 +1465,155 @@ const toggleUserStatus = async (user: any) => {
 // 管理用户存储
 const manageUserStorage = async (user: any) => {
   try {
-    const { value } = await ElMessageBox.prompt(
-      `当前用户存储限制: ${formatFileSize(user.storage_limit || 0)}\n请输入新的存储限制 (字节):`,
-      '管理用户存储',
-      {
+    // 创建自定义对话框
+    const { value: formData } = await ElMessageBox({
+      title: '管理用户存储',
+      message: `
+        <div style="text-align: left;">
+          <p><strong>当前用户：</strong>${user.username}</p>
+          <p><strong>当前存储限制：</strong>${formatFileSize(user.storage_limit || 0)}</p>
+          <p><strong>已使用存储：</strong>${formatFileSize(user.used_storage || 0)}</p>
+          <hr style="margin: 15px 0;">
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; margin-bottom: 5px; font-weight: 500;">新的存储限制：</label>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <input id="storage-value" type="number" placeholder="请输入数值" 
+                     style="flex: 1; padding: 8px; border: 1px solid #dcdfe6; border-radius: 4px; font-size: 14px;" 
+                     min="1" step="0.1">
+              <select id="storage-unit" style="padding: 8px; border: 1px solid #dcdfe6; border-radius: 4px; font-size: 14px;">
+                <option value="MB">MB</option>
+                <option value="GB" selected>GB</option>
+                <option value="TB">TB</option>
+              </select>
+            </div>
+          </div>
+          <div style="color: #909399; font-size: 12px;">
+            <p>💡 提示：</p>
+            <p>• MB: 兆字节 (1MB = 1,048,576 字节)</p>
+            <p>• GB: 千兆字节 (1GB = 1,073,741,824 字节)</p>
+            <p>• TB: 太字节 (1TB = 1,099,511,627,776 字节)</p>
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
       confirmButtonText: '确定',
       cancelButtonText: '取消',
-        inputPattern: /^\d+$/,
-        inputErrorMessage: '请输入有效的数字'
-      }
-    )
-    
-    const newStorageLimit = parseInt(value)
-    await api.put(`/admin/users/${user.id}/storage`, { storage_limit: newStorageLimit })
-    
+      dangerouslyUseHTMLString: true,
+      beforeClose: (action, instance, done) => {
+        if (action === 'confirm') {
+          const valueInput = document.getElementById('storage-value') as HTMLInputElement
+          const unitSelect = document.getElementById('storage-unit') as HTMLSelectElement
+          
+          if (!valueInput.value || parseFloat(valueInput.value) <= 0) {
+            ElMessage.error('请输入有效的存储数值')
+            return
+          }
+          
+          const value = parseFloat(valueInput.value)
+          const unit = unitSelect.value
+          
+          // 转换为字节
+          let bytes = 0
+          switch (unit) {
+            case 'MB':
+              bytes = value * 1024 * 1024
+              break
+            case 'GB':
+              bytes = value * 1024 * 1024 * 1024
+              break
+            case 'TB':
+              bytes = value * 1024 * 1024 * 1024 * 1024
+              break
+          }
+          
+          // 检查是否小于已使用存储
+          if (bytes < (user.used_storage || 0)) {
+            ElMessage.error(`新容量不能小于已使用容量 (${formatFileSize(user.used_storage || 0)})`)
+            return
+          }
+          
+          instance.confirmButtonLoading = true
+          
+          // 调用API更新存储限制
+          api.put(`/admin/users/${user.id}/storage`, { storage_limit: Math.floor(bytes) })
+            .then(() => {
               // 更新本地数据
               const userIndex = users.value.findIndex(u => u.id === user.id)
               if (userIndex !== -1) {
-      users.value[userIndex].storage_limit = newStorageLimit
-    }
-    
-    ElMessage.success('用户存储限制已更新')
+                users.value[userIndex].storage_limit = Math.floor(bytes)
+              }
+              
+              ElMessage.success(`用户存储限制已更新为 ${value} ${unit}`)
+              done()
+            })
+            .catch(error => {
+              ElMessage.error('更新存储限制失败')
+              instance.confirmButtonLoading = false
+            })
+        } else {
+          done()
+        }
+      }
+    })
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('管理用户存储失败')
+    }
+  }
+}
+
+// 重置用户密码
+const resetUserPassword = async (user: any) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要重置用户 "${user.username}" 的密码吗？\n\n重置后用户需要使用新密码登录。`,
+      '重置密码确认',
+      {
+        confirmButtonText: '确定重置',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    const { value: newPassword } = await ElMessageBox.prompt(
+      `请输入用户 "${user.username}" 的新密码:`,
+      '设置新密码',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputType: 'password',
+        inputPattern: /^.{6,}$/,
+        inputErrorMessage: '密码长度至少6位'
+      }
+    )
+    
+    await api.put(`/admin/users/${user.id}/password`, { password: newPassword })
+    ElMessage.success('用户密码重置成功')
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('重置密码失败')
+    }
+  }
+}
+
+// 强制用户登出
+const forceUserLogout = async (user: any) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要强制用户 "${user.username}" 登出吗？\n\n这将清除该用户的所有登录会话。`,
+      '强制登出确认',
+      {
+        confirmButtonText: '确定登出',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    await api.post(`/admin/users/${user.id}/logout`)
+    ElMessage.success('用户已被强制登出')
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('强制登出失败')
     }
   }
 }
@@ -1292,8 +1645,37 @@ const deleteUser = async (user: any) => {
   }
 }
 
-const batchDeleteUsers = () => {
-  ElMessage.info('批量删除功能开发中...')
+const batchDeleteUsers = async () => {
+  if (selectedUsers.value.length === 0) {
+    ElMessage.warning('请先选择要删除的用户')
+    return
+  }
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedUsers.value.length} 个用户吗？\n\n此操作将删除：\n- 用户的所有文件\n- 用户的所有文件夹\n- 用户的登录记录\n- 相关的系统日志\n\n此操作不可撤销！`,
+      '批量删除确认',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        dangerouslyUseHTMLString: true
+      }
+    )
+    
+    const userIds = selectedUsers.value.map(user => user.id)
+    await api.delete('/admin/users/batch', { data: { user_ids: userIds } })
+    
+    // 从本地数据中移除已删除的用户
+    users.value = users.value.filter(user => !userIds.includes(user.id))
+    selectedUsers.value = []
+    
+    ElMessage.success(`已成功删除 ${userIds.length} 个用户`)
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('批量删除用户失败')
+    }
+  }
 }
 
 // 搜索用户
@@ -1415,6 +1797,43 @@ const clearLogs = async () => {
       ElMessage.error('清空日志失败')
     }
   }
+}
+
+// 导出日志
+const exportLogs = () => {
+  if (logs.value.length === 0) {
+    ElMessage.warning('没有日志数据可导出')
+    return
+  }
+  
+  const logData = logs.value.map(log => ({
+    时间: formatTimestamp(log.timestamp),
+    级别: getLevelText(log.level),
+    来源: log.source || '系统',
+    消息: log.message || '无消息内容',
+    用户ID: log.user_id || '系统'
+  }))
+  
+  // 创建CSV内容
+  const headers = ['时间', '级别', '来源', '消息', '用户ID']
+  const csvContent = [
+    headers.join(','),
+    ...logData.map(row => 
+      headers.map(header => `"${(row[header] || '').toString().replace(/"/g, '""')}"`).join(',')
+    )
+  ].join('\n')
+  
+  const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `system-logs-${new Date().toISOString().split('T')[0]}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  
+  ElMessage.success(`已导出 ${logs.value.length} 条日志记录`)
 }
 
 const saveSystemSettings = async () => {
@@ -1971,6 +2390,87 @@ onUnmounted(() => {
           color: #909399;
           font-size: 12px;
           line-height: 1.4;
+        }
+      }
+      
+      // 存储管理样式
+      .storage-stats {
+        margin-bottom: 24px;
+        
+        .storage-stat-card {
+          .stat-content {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            
+            .stat-icon {
+              width: 48px;
+              height: 48px;
+              border-radius: 12px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 24px;
+              color: white;
+              
+              &.total {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              }
+              
+              &.used {
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+              }
+              
+              &.available {
+                background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+              }
+            }
+            
+            .stat-info {
+              .stat-value {
+                font-size: 20px;
+                font-weight: 600;
+                color: #303133;
+                line-height: 1;
+              }
+              
+              .stat-label {
+                font-size: 14px;
+                color: #909399;
+                margin-top: 4px;
+              }
+            }
+          }
+        }
+      }
+      
+      .storage-usage-card {
+        margin-bottom: 24px;
+        
+        .card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        
+        .usage-content {
+          .usage-details {
+            margin-top: 16px;
+            text-align: center;
+            
+            .usage-text {
+              font-size: 14px;
+              color: #606266;
+            }
+          }
+        }
+      }
+      
+      .storage-actions-card {
+        .action-buttons {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
         }
       }
     }

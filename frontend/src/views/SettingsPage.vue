@@ -51,6 +51,10 @@
                 <el-icon><Connection /></el-icon>
                 <span>第三方集成</span>
               </el-menu-item>
+              <el-menu-item index="maintenance">
+                <el-icon><Tools /></el-icon>
+                <span>维护设置</span>
+              </el-menu-item>
             </el-menu>
           </el-card>
         </el-col>
@@ -555,6 +559,106 @@
                 </el-form-item>
               </el-form>
             </div>
+
+            <!-- 维护设置 -->
+            <div v-if="activeTab === 'maintenance'" class="settings-section">
+              <div class="section-header">
+                <h3>维护设置</h3>
+                <p>配置系统维护相关参数</p>
+              </div>
+              
+              <el-form :model="maintenanceSettings" :rules="maintenanceRules" ref="maintenanceFormRef" label-width="120px" class="settings-form">
+                <el-form-item label="维护模式">
+                  <el-switch 
+                    v-model="maintenanceSettings.maintenanceMode"
+                    active-text="开启"
+                    inactive-text="关闭"
+                    @change="handleMaintenanceModeToggle"
+                  />
+                  <span class="form-description">开启后，非管理员用户将无法访问系统</span>
+                </el-form-item>
+                
+                <el-form-item 
+                  label="维护消息" 
+                  prop="maintenanceMessage"
+                  v-if="maintenanceSettings.maintenanceMode"
+                >
+                  <el-input 
+                    v-model="maintenanceSettings.maintenanceMessage" 
+                    type="textarea"
+                    :rows="4"
+                    placeholder="请输入维护提示消息"
+                    maxlength="500"
+                    show-word-limit
+                  />
+                  <div class="form-description">维护模式下显示给用户的提示信息</div>
+                </el-form-item>
+                
+                <el-form-item label="自动备份">
+                  <el-switch 
+                    v-model="maintenanceSettings.backupEnabled"
+                    active-text="开启"
+                    inactive-text="关闭"
+                  />
+                  <span class="form-description">定期自动备份系统数据</span>
+                </el-form-item>
+                
+                <el-form-item 
+                  label="备份频率" 
+                  prop="backupFrequency"
+                  v-if="maintenanceSettings.backupEnabled"
+                >
+                  <el-select v-model="maintenanceSettings.backupFrequency" placeholder="请选择备份频率">
+                    <el-option label="每小时" value="hourly" />
+                    <el-option label="每天" value="daily" />
+                    <el-option label="每周" value="weekly" />
+                  </el-select>
+                  <div class="form-description">选择数据备份的频率</div>
+                </el-form-item>
+                
+                <el-form-item 
+                  label="备份保留天数" 
+                  prop="backupRetentionDays"
+                  v-if="maintenanceSettings.backupEnabled"
+                >
+                  <el-input-number 
+                    v-model="maintenanceSettings.backupRetentionDays" 
+                    :min="1" 
+                    :max="365"
+                    controls-position="right"
+                    style="width: 200px"
+                  />
+                  <span class="form-unit">天</span>
+                  <span class="form-description">备份文件的保留时间</span>
+                </el-form-item>
+                
+                <el-form-item label="自动清理日志">
+                  <el-switch 
+                    v-model="maintenanceSettings.autoCleanLogs"
+                    active-text="开启"
+                    inactive-text="关闭"
+                  />
+                  <span class="form-description">定期清理过期的系统日志</span>
+                </el-form-item>
+                
+                <el-form-item>
+                  <el-button type="primary" @click="saveMaintenanceSettings" :loading="saving">
+                    <el-icon><Check /></el-icon>
+                    保存设置
+                  </el-button>
+                  
+                  <el-button 
+                    type="warning" 
+                    @click="testMaintenanceMode"
+                    style="margin-left: 12px"
+                    :disabled="!maintenanceSettings.maintenanceMode"
+                  >
+                    <el-icon><Tools /></el-icon>
+                    测试维护模式
+                  </el-button>
+                </el-form-item>
+              </el-form>
+            </div>
           </el-card>
         </el-col>
       </el-row>
@@ -588,6 +692,7 @@ const securityFormRef = ref<FormInstance>()
 const notificationFormRef = ref<FormInstance>()
 const appearanceFormRef = ref<FormInstance>()
 const integrationFormRef = ref<FormInstance>()
+const maintenanceFormRef = ref<FormInstance>()
 
 // 测试连接状态
 const testingQQ = ref(false)
@@ -649,6 +754,16 @@ const integrationSettings = reactive({
   wechatAppSecret: ''
 })
 
+// 维护设置
+const maintenanceSettings = reactive({
+  maintenanceMode: false,
+  maintenanceMessage: '',
+  backupEnabled: false,
+  backupFrequency: 'daily',
+  backupRetentionDays: 30,
+  autoCleanLogs: false
+})
+
 // 保存状态跟踪
 const lastSavedSettings = ref({
   qqLoginEnabled: false,
@@ -702,6 +817,19 @@ const securityRules: FormRules = {
   ],
   sessionTimeout: [
     { required: true, message: '请输入会话超时时间', trigger: 'blur' }
+  ]
+}
+
+const maintenanceRules: FormRules = {
+  maintenanceMessage: [
+    { max: 500, message: '维护消息不能超过500个字符', trigger: 'blur' }
+  ],
+  backupFrequency: [
+    { required: true, message: '请选择备份频率', trigger: 'change' }
+  ],
+  backupRetentionDays: [
+    { required: true, message: '请输入备份保留天数', trigger: 'blur' },
+    { type: 'number', min: 1, max: 365, message: '备份保留天数必须在1-365天之间', trigger: 'blur' }
   ]
 }
 
@@ -770,6 +898,14 @@ const fetchSettings = async () => {
     integrationSettings.wechatLoginEnabled = settings.wechat_login_enabled?.value === 'true'
     integrationSettings.wechatAppId = settings.wechat_app_id?.value || ''
     integrationSettings.wechatAppSecret = settings.wechat_app_secret?.value || ''
+    
+    // 更新维护设置
+    maintenanceSettings.maintenanceMode = settings.maintenance_mode?.value === 'true'
+    maintenanceSettings.maintenanceMessage = settings.maintenance_message?.value || ''
+    maintenanceSettings.backupEnabled = settings.backup_enabled?.value === 'true'
+    maintenanceSettings.backupFrequency = settings.backup_frequency?.value || 'daily'
+    maintenanceSettings.backupRetentionDays = parseInt(settings.backup_retention_days?.value) || 30
+    maintenanceSettings.autoCleanLogs = settings.auto_clean_logs?.value === 'true'
     
     // 更新保存状态
     lastSavedSettings.value = {
@@ -1077,6 +1213,61 @@ const testWechatConnection = async () => {
     ElMessage.error('微信连接测试失败，请检查配置')
   } finally {
     testingWechat.value = false
+  }
+}
+
+// 维护设置相关方法
+const handleMaintenanceModeToggle = (value: boolean) => {
+  if (value) {
+    ElMessage.warning('开启维护模式后，非管理员用户将无法访问系统')
+  }
+}
+
+const saveMaintenanceSettings = async () => {
+  if (!maintenanceFormRef.value) return
+  
+  try {
+    await maintenanceFormRef.value.validate()
+    saving.value = true
+    
+    const settings = {
+      maintenance_mode: maintenanceSettings.maintenanceMode.toString(),
+      maintenance_message: maintenanceSettings.maintenanceMessage,
+      backup_enabled: maintenanceSettings.backupEnabled.toString(),
+      backup_frequency: maintenanceSettings.backupFrequency,
+      backup_retention_days: maintenanceSettings.backupRetentionDays.toString(),
+      auto_clean_logs: maintenanceSettings.autoCleanLogs.toString()
+    }
+    
+    await api.put('/admin/settings', { settings })
+    ElMessage.success('维护设置保存成功')
+  } catch (error) {
+    ElMessage.error('保存维护设置失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+const testMaintenanceMode = async () => {
+  try {
+    const { ElMessageBox } = await import('element-plus')
+    await ElMessageBox.confirm(
+      '测试维护模式将模拟非管理员用户的访问体验。确定要继续吗？',
+      '测试维护模式',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    // 在新窗口中打开维护页面
+    const maintenanceUrl = `${window.location.origin}/maintenance`
+    window.open(maintenanceUrl, '_blank')
+    
+    ElMessage.success('已在新窗口中打开维护页面')
+  } catch (error) {
+    // 用户取消
   }
 }
 
