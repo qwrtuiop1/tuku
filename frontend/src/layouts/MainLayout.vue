@@ -1055,12 +1055,14 @@ onUnmounted(() => {
 // 桌面端默认样式 (1200px+)
 @media (min-width: 1200px) {
   .main-content {
-    margin-left: 200px;
-    padding-right: 200px; // 桌面端添加右边距
+    margin-left: 220px;
+    padding-left: 0px;
+    padding-right: 20px;
     
     &.sidebar-collapsed {
-      margin-left: 64px;
-      padding-right: 64px;
+      margin-left: 84px;
+      padding-left: 0px;
+      padding-right: 20px;
     }
   }
   
@@ -1085,12 +1087,14 @@ onUnmounted(() => {
 // 超大屏 (1920px+)
 @media (min-width: 1920px) {
   .main-content {
-    margin-left: 220px;
-    padding-right: 220px; // 右边距与左边空白一致
+    margin-left: 250px;
+    padding-left: 0px;
+    padding-right: 30px;
     
     &.sidebar-collapsed {
-      margin-left: 80px;
-      padding-right: 80px;
+      margin-left: 110px;
+      padding-left: 0px;
+      padding-right: 30px;
     }
   }
   
@@ -1117,12 +1121,14 @@ onUnmounted(() => {
 // 大屏桌面 (1440px - 1919px)
 @media (min-width: 1440px) and (max-width: 1919px) {
   .main-content {
-    margin-left: 210px;
-    padding-right: 210px; // 右边距与左边空白一致
+    margin-left: 235px;
+    padding-left: 0px;
+    padding-right: 25px;
     
     &.sidebar-collapsed {
-      margin-left: 70px;
-      padding-right: 70px;
+      margin-left: 95px;
+      padding-left: 0px;
+      padding-right: 25px;
     }
   }
   
@@ -1149,12 +1155,14 @@ onUnmounted(() => {
 // 桌面端 (1200px - 1439px)
 @media (min-width: 1200px) and (max-width: 1439px) {
   .main-content {
-    margin-left: 200px;
-    padding-right: 200px; // 右边距与左边空白一致
+    margin-left: 220px;
+    padding-left: 0px;
+    padding-right: 20px;
     
     &.sidebar-collapsed {
-      margin-left: 64px;
-      padding-right: 64px;
+      margin-left: 84px;
+      padding-left: 0px;
+      padding-right: 20px;
     }
   }
   
@@ -1181,12 +1189,14 @@ onUnmounted(() => {
 // 平板横屏/小屏笔记本 (1024px - 1199px)
 @media (min-width: 1024px) and (max-width: 1199px) {
   .main-content {
-    margin-left: 180px;
-    padding-right: 180px; // 右边距与左边空白一致
+    margin-left: 195px;
+    padding-left: 0px;
+    padding-right: 15px;
     
     &.sidebar-collapsed {
-      margin-left: 64px;
-      padding-right: 64px;
+      margin-left: 79px;
+      padding-left: 0px;
+      padding-right: 15px;
     }
   }
   

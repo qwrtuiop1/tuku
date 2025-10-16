@@ -91,7 +91,25 @@
               :prefix-icon="Lock"
               show-password
               class="custom-input"
+              @input="checkPasswordStrength"
             />
+            <!-- 密码强度提示 -->
+            <div v-if="registerForm.password" class="password-hint">
+              <div class="password-strength">
+                <span class="strength-label">密码强度：</span>
+                <span :class="['strength-level', passwordStrength.level]">
+                  {{ passwordStrength.text }}
+                </span>
+              </div>
+              <div v-if="passwordStrength.hints.length > 0" class="password-requirements">
+                <div class="requirement-title">密码要求：</div>
+                <ul class="requirement-list">
+                  <li v-for="hint in passwordStrength.hints" :key="hint" class="requirement-item">
+                    {{ hint }}
+                  </li>
+                </ul>
+              </div>
+            </div>
           </el-form-item>
           
           <el-form-item prop="confirmPassword">
@@ -245,6 +263,13 @@ const registerForm = reactive({
 
 const agreeTerms = ref(false)
 
+// 密码强度检查
+const passwordStrength = reactive({
+  level: 'weak',
+  text: '弱',
+  hints: [] as string[]
+})
+
 // 邮箱验证码相关
 const emailCode = ref('')
 const showEmailCodeInput = ref(false)
@@ -293,6 +318,69 @@ const validateConfirmPassword = (rule: any, value: string, callback: Function) =
   } else {
     callback()
   }
+}
+
+// 密码强度检查函数
+const checkPasswordStrength = () => {
+  const password = registerForm.password
+  if (!password) {
+    passwordStrength.level = 'weak'
+    passwordStrength.text = '弱'
+    passwordStrength.hints = []
+    return
+  }
+
+  const hints: string[] = []
+  let score = 0
+
+  // 检查长度
+  if (password.length < 6) {
+    hints.push('至少6个字符')
+  } else {
+    score++
+  }
+
+  // 检查小写字母
+  if (!/[a-z]/.test(password)) {
+    hints.push('包含小写字母')
+  } else {
+    score++
+  }
+
+  // 检查大写字母
+  if (!/[A-Z]/.test(password)) {
+    hints.push('包含大写字母')
+  } else {
+    score++
+  }
+
+  // 检查数字
+  if (!/[0-9]/.test(password)) {
+    hints.push('包含数字')
+  } else {
+    score++
+  }
+
+  // 检查特殊字符
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    hints.push('包含特殊字符')
+  } else {
+    score++
+  }
+
+  // 设置强度等级
+  if (score >= 4) {
+    passwordStrength.level = 'strong'
+    passwordStrength.text = '强'
+  } else if (score >= 2) {
+    passwordStrength.level = 'medium'
+    passwordStrength.text = '中'
+  } else {
+    passwordStrength.level = 'weak'
+    passwordStrength.text = '弱'
+  }
+
+  passwordStrength.hints = hints
 }
 
 const registerRules: FormRules = {
@@ -597,6 +685,69 @@ onUnmounted(() => {
         }
       }
     }
+  }
+
+  // 密码强度提示样式
+  .password-hint {
+    margin-top: 8px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+
+  .password-strength {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .strength-label {
+    color: #666;
+    margin-right: 8px;
+  }
+
+  .strength-level {
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+
+  .strength-level.weak {
+    background: #ffebee;
+    color: #c62828;
+  }
+
+  .strength-level.medium {
+    background: #fff3e0;
+    color: #ef6c00;
+  }
+
+  .strength-level.strong {
+    background: #e8f5e8;
+    color: #2e7d32;
+  }
+
+  .password-requirements {
+    margin-top: 8px;
+  }
+
+  .requirement-title {
+    color: #666;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+
+  .requirement-list {
+    margin: 0;
+    padding-left: 16px;
+  }
+
+  .requirement-item {
+    color: #999;
+    font-size: 12px;
+    margin-bottom: 2px;
   }
   
   // 邮箱验证码样式

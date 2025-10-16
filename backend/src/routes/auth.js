@@ -7,6 +7,7 @@ const { asyncHandler } = require('../middleware/errorHandler');
 const { checkMaintenanceMode, checkRegistrationEnabled } = require('../middleware/maintenance');
 const SettingsHistoryService = require('../services/settingsHistoryService');
 const { sendPasswordResetEmail, sendEmailVerificationCode } = require('../services/emailService');
+const { validatePasswordComplexity, getPasswordRequirements } = require('../utils/passwordValidator');
 const { 
   createVerificationCode, 
   checkRateLimit, 
@@ -55,6 +56,27 @@ router.post('/register', checkRegistrationEnabled, [
   }
 
   const { username, email, password, emailCode } = req.body;
+
+  // 获取安全设置
+  const [settingsRows] = await pool.execute(
+    'SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?, ?)',
+    ['min_password_length', 'password_complexity']
+  );
+  
+  const settings = {};
+  settingsRows.forEach(row => {
+    settings[row.setting_key] = row.setting_value;
+  });
+
+  // 验证密码复杂度
+  const passwordValidation = validatePasswordComplexity(password, settings);
+  if (!passwordValidation.isValid) {
+    return res.status(400).json({
+      message: '密码不符合安全要求',
+      errors: passwordValidation.errors,
+      requirements: getPasswordRequirements(settings)
+    });
+  }
 
   // 验证邮箱验证码
   if (emailCode) {
@@ -727,6 +749,27 @@ router.post('/reset-password', [
       return res.status(404).json({ message: '用户不存在' });
     }
 
+    // 获取安全设置
+    const [settingsRows] = await pool.execute(
+      'SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?, ?)',
+      ['min_password_length', 'password_complexity']
+    );
+    
+    const settings = {};
+    settingsRows.forEach(row => {
+      settings[row.setting_key] = row.setting_value;
+    });
+
+    // 验证密码复杂度
+    const passwordValidation = validatePasswordComplexity(password, settings);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({
+        message: '密码不符合安全要求',
+        errors: passwordValidation.errors,
+        requirements: getPasswordRequirements(settings)
+      });
+    }
+
     // 加密新密码
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -1008,6 +1051,27 @@ router.post('/reset-password-new', [
       if (users.length === 0) {
         return res.status(400).json({ message: '用户名和邮箱不匹配' });
       }
+    }
+
+    // 获取安全设置
+    const [settingsRows] = await pool.execute(
+      'SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?, ?)',
+      ['min_password_length', 'password_complexity']
+    );
+    
+    const settings = {};
+    settingsRows.forEach(row => {
+      settings[row.setting_key] = row.setting_value;
+    });
+
+    // 验证密码复杂度
+    const passwordValidation = validatePasswordComplexity(newPassword, settings);
+    if (!passwordValidation.isValid) {
+      return res.status(400).json({
+        message: '密码不符合安全要求',
+        errors: passwordValidation.errors,
+        requirements: getPasswordRequirements(settings)
+      });
     }
 
     // 检查新密码是否与原密码相同

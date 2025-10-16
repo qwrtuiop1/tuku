@@ -854,12 +854,18 @@ router.get('/settings', asyncHandler(async (req, res) => {
 router.put('/settings', [
   body('settings').isObject().withMessage('设置必须是对象格式')
 ], asyncHandler(async (req, res) => {
+  console.log('🔧 [ADMIN] 开始处理设置更新请求');
+  console.log('📋 [ADMIN] 请求体:', req.body);
+  console.log('👤 [ADMIN] 用户信息:', req.user);
+  
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.error('❌ [ADMIN] 请求验证失败:', errors.array());
     return res.status(400).json({ message: '参数错误', errors: errors.array() });
   }
 
   const { settings } = req.body;
+  console.log('📤 [ADMIN] 接收到的设置:', settings);
   
   // 验证设置项
   const validSettings = {
@@ -938,13 +944,17 @@ router.put('/settings', [
   };
   
   // 验证设置项
+  console.log('🔍 [ADMIN] 开始验证设置项...');
   const validationErrors = [];
   for (const [key, value] of Object.entries(settings)) {
+    console.log(`🔍 [ADMIN] 验证设置项: ${key} = ${value} (类型: ${typeof value})`);
     const rule = validSettings[key];
     if (!rule) {
+      console.error(`❌ [ADMIN] 未知的设置项: ${key}`);
       validationErrors.push(`未知的设置项: ${key}`);
       continue;
     }
+    console.log(`✅ [ADMIN] 找到验证规则:`, rule);
     
     // 类型验证
     if (rule.type === 'number') {
@@ -981,19 +991,27 @@ router.put('/settings', [
   }
   
   if (validationErrors.length > 0) {
+    console.error('❌ [ADMIN] 设置验证失败:', validationErrors);
     return res.status(400).json({ 
       message: '设置验证失败', 
       errors: validationErrors 
     });
   }
   
+  console.log('✅ [ADMIN] 所有设置验证通过');
+  
   // 记录修改前的设置
   const settingKeys = Object.keys(settings);
+  console.log('🔍 [ADMIN] 需要更新的设置键:', settingKeys);
+  
   const placeholders = settingKeys.map(() => '?').join(',');
+  console.log('🔍 [ADMIN] 查询旧设置的SQL:', `SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (${placeholders})`);
+  
   const [oldSettings] = await pool.execute(
     `SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (${placeholders})`,
     settingKeys
   );
+  console.log('📋 [ADMIN] 查询到的旧设置:', oldSettings);
   
   const oldSettingsMap = {};
   oldSettings.forEach(setting => {
@@ -1001,17 +1019,27 @@ router.put('/settings', [
   });
   
   // 更新设置
+  console.log('🔄 [ADMIN] 开始更新数据库设置...');
   const updatePromises = [];
   for (const [key, value] of Object.entries(settings)) {
+    console.log(`🔄 [ADMIN] 准备更新: ${key} = ${value}`);
     updatePromises.push(
       pool.execute(
         'UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?',
         [value, key]
-      )
+      ).then(result => {
+        console.log(`✅ [ADMIN] 更新成功: ${key}`, result);
+        return result;
+      }).catch(error => {
+        console.error(`❌ [ADMIN] 更新失败: ${key}`, error);
+        throw error;
+      })
     );
   }
   
+  console.log('⏳ [ADMIN] 等待所有更新完成...');
   await Promise.all(updatePromises);
+  console.log('✅ [ADMIN] 所有设置更新完成');
   
   // 记录操作日志
   const changes = [];
@@ -1023,22 +1051,32 @@ router.put('/settings', [
   }
   
   if (changes.length > 0) {
-    await pool.execute(
-      'INSERT INTO system_logs (level, message, source, user_id, timestamp) VALUES (?, ?, ?, ?, NOW())',
-      [
-        'info',
-        `管理员${req.user.username}修改了系统设置: ${changes.join(', ')}`,
-        'ADMIN_PANEL',
-        req.user.id
-      ]
-    );
+    try {
+      await pool.execute(
+        'INSERT INTO system_logs (level, message, source, user_id, timestamp) VALUES (?, ?, ?, ?, NOW())',
+        [
+          'info',
+          `管理员${req.user.username}修改了系统设置: ${changes.join(', ')}`,
+          'ADMIN_PANEL',
+          req.user.id
+        ]
+      );
+      console.log('✅ [ADMIN] 系统日志记录成功');
+    } catch (logError) {
+      console.warn('⚠️ [ADMIN] 系统日志记录失败（表可能不存在）:', logError.message);
+      // 日志记录失败不影响主流程，继续执行
+    }
   }
   
-  res.json({ 
+  console.log('📤 [ADMIN] 准备发送成功响应');
+  const response = { 
     message: '系统设置更新成功',
     updatedCount: changes.length,
     changes: changes
-  });
+  };
+  console.log('📤 [ADMIN] 响应数据:', response);
+  res.json(response);
+  console.log('✅ [ADMIN] 设置更新请求处理完成');
 }));
 
 

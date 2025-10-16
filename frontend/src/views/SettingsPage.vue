@@ -725,7 +725,7 @@ const refreshSettings = async () => {
 const fetchSettings = async () => {
   try {
     const response = await api.get('/admin/settings')
-    const settings = response.data.settings || {}
+    const settings = response.data.settings
     
     // 更新常规设置
     generalSettings.systemName = settings.system_name?.value || '图库系统'
@@ -847,7 +847,13 @@ const saveSecuritySettings = async () => {
     await api.put('/admin/settings', { settings })
     ElMessage.success('安全设置保存成功')
   } catch (error) {
-    ElMessage.error('保存安全设置失败')
+    if (error.response?.data?.message) {
+      ElMessage.error(`保存失败: ${error.response.data.message}`)
+    } else if (error.response?.data?.errors) {
+      ElMessage.error(`验证失败: ${error.response.data.errors.join(', ')}`)
+    } else {
+      ElMessage.error('保存安全设置失败，请检查网络连接')
+    }
   } finally {
     saving.value = false
   }

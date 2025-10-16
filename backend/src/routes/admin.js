@@ -4,6 +4,7 @@ const { body, validationResult } = require('express-validator');
 const { pool } = require('../config/database');
 const { requireAdmin, authenticateToken } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { validatePasswordComplexity, getPasswordRequirements } = require('../utils/passwordValidator');
 
 const router = express.Router();
 
@@ -48,6 +49,27 @@ router.post('/users', [
   }
 
   const { username, email, password, role = 'user' } = req.body;
+
+  // 获取安全设置
+  const [settingsRows] = await pool.execute(
+    'SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?, ?)',
+    ['min_password_length', 'password_complexity']
+  );
+  
+  const settings = {};
+  settingsRows.forEach(row => {
+    settings[row.setting_key] = row.setting_value;
+  });
+
+  // 验证密码复杂度
+  const passwordValidation = validatePasswordComplexity(password, settings);
+  if (!passwordValidation.isValid) {
+    return res.status(400).json({
+      message: '密码不符合安全要求',
+      errors: passwordValidation.errors,
+      requirements: getPasswordRequirements(settings)
+    });
+  }
 
   // 分别检查用户名和邮箱是否已存在
   const [usernameCheck] = await pool.execute(
@@ -854,6 +876,7 @@ router.get('/settings', asyncHandler(async (req, res) => {
 router.put('/settings', [
   body('settings').isObject().withMessage('设置必须是对象格式')
 ], asyncHandler(async (req, res) => {
+  
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ message: '参数错误', errors: errors.array() });
@@ -980,20 +1003,6 @@ router.put('/settings', [
     }
   }
   
-  if (validationErrors.length > 0) {
-    return res.status(400).json({ 
-      message: '设置验证失败', 
-      errors: validationErrors 
-    });
-  }
-  
-  // 记录修改前的设置
-  const settingKeys = Object.keys(settings);
-  const placeholders = settingKeys.map(() => '?').join(',');
-  const [oldSettings] = await pool.execute(
-    `SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (${placeholders})`,
-    settingKeys
-  );
   
   const oldSettingsMap = {};
   oldSettings.forEach(setting => {
@@ -1023,22 +1032,22 @@ router.put('/settings', [
   }
   
   if (changes.length > 0) {
-    await pool.execute(
-      'INSERT INTO system_logs (level, message, source, user_id, timestamp) VALUES (?, ?, ?, ?, NOW())',
-      [
-        'info',
-        `管理员${req.user.username}修改了系统设置: ${changes.join(', ')}`,
-        'ADMIN_PANEL',
-        req.user.id
-      ]
-    );
+    try {
+      await pool.execute(
+        'INSERT INTO system_logs (level, message, source, user_id, timestamp) VALUES (?, ?, ?, ?, NOW())',
+        [
+          'info',
+          `管理员${req.user.username}修改了系统设置: ${changes.join(', ')}`,
+          'ADMIN_PANEL',
+          req.user.id
+        ]
+      );
+    } catch (logError) {
+      // 日志记录失败不影响主流程，继续执行
+    }
   }
   
-  res.json({ 
-    message: '系统设置更新成功',
-    updatedCount: changes.length,
-    changes: changes
-  });
+  res.json(response);
 }));
 
 
@@ -1137,6 +1146,27 @@ router.put('/users/:id/password', [
   }
 
   const user = users[0];
+
+  // 获取安全设置
+  const [settingsRows] = await pool.execute(
+    'SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?, ?)',
+    ['min_password_length', 'password_complexity']
+  );
+  
+  const settings = {};
+  settingsRows.forEach(row => {
+    settings[row.setting_key] = row.setting_value;
+  });
+
+  // 验证密码复杂度
+  const passwordValidation = validatePasswordComplexity(password, settings);
+  if (!passwordValidation.isValid) {
+    return res.status(400).json({
+      message: '密码不符合安全要求',
+      errors: passwordValidation.errors,
+      requirements: getPasswordRequirements(settings)
+    });
+  }
 
   // 加密新密码
   const passwordHash = await bcrypt.hash(password, 10);
