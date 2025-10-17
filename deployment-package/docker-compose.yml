@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # 后端服务
+  backend:
+    build: ./backend
+    container_name: tuku-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DB_HOST: 134.175.220.243
+      DB_USER: tuku
+      DB_PASSWORD: RHd5biyaXmaAbyDC
+      DB_NAME: tuku
+      JWT_SECRET: your-production-jwt-secret-key
+      JWT_EXPIRES_IN: 7d
+      PORT: 3000
+      UPLOAD_PATH: /app/storage
+    volumes:
+      - backend_storage:/app/storage
+    networks:
+      - tuku-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`tukubackend.vtart.cn`)"
+      - "traefik.http.routers.backend.tls=true"
+      - "traefik.http.routers.backend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.backend.loadbalancer.server.port=3000"
+
+  # 前端服务
+  frontend:
+    build: ./frontend
+    container_name: tuku-frontend
+    restart: unless-stopped
+    networks:
+      - tuku-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`tukufrontend.vtart.cn`)"
+      - "traefik.http.routers.frontend.tls=true"
+      - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+
+volumes:
+  backend_storage:
+
+networks:
+  tuku-network:
+    driver: bridge
+
+
+
+
+
+
+
+

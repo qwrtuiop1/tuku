@@ -13,8 +13,8 @@ const router = express.Router();
 
 // 确保上传目录存在
 const ensureUploadDir = async (userId, folderId = null) => {
-  // 使用相对路径 - 后端根目录为dist
-  const baseUploadPath = process.env.UPLOAD_PATH || './storage';
+  // 使用绝对路径 - 避免dist更新时文件丢失
+  const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
   const userDir = path.join(baseUploadPath, 'users', `user_${userId}`);
   
   console.log(`📁 基础上传路径: ${baseUploadPath}`);
@@ -181,7 +181,7 @@ router.get('/', authenticateToken, asyncHandler(async (req, res) => {
 
   // 为每个文件添加完整的访问URL
   const backendDomain = process.env.BACKEND_DOMAIN || 'https://tukubackend.vtart.cn';
-  const baseUploadPath = process.env.UPLOAD_PATH || './storage';
+  const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
   
   const filesWithUrls = files.map(file => {
     // 处理文件名乱码问题
@@ -350,7 +350,7 @@ router.post('/upload', authenticateToken, upload.single('file'), asyncHandler(as
   }
 
   // 生成相对路径用于存储 - 相对于存储根目录
-  const baseUploadPath = process.env.UPLOAD_PATH || './storage';
+  const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
   const relativePath = path.relative(baseUploadPath, file.path);
   
   // 确保路径格式正确
@@ -569,7 +569,7 @@ router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
   // 删除物理文件
   try {
     // 解析文件路径
-    const baseUploadPath = process.env.UPLOAD_PATH || './storage';
+    const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
     let filePath;
     
     if (path.isAbsolute(file.file_path)) {
@@ -664,7 +664,7 @@ router.delete('/batch', authenticateToken, asyncHandler(async (req, res) => {
     // 删除物理文件
     try {
       // 解析文件路径
-      const baseUploadPath = process.env.UPLOAD_PATH || './storage';
+      const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
       let filePath;
       
       if (path.isAbsolute(file.file_path)) {
@@ -790,7 +790,7 @@ router.get('/preview/:id', authenticateToken, asyncHandler(async (req, res) => {
   console.log(`📁 文件信息: ${JSON.stringify(file, null, 2)}`);
 
   // 处理文件路径 - 基于存储根目录解析
-  const baseUploadPath = process.env.UPLOAD_PATH || './storage';
+  const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
   let filePath;
   
   if (path.isAbsolute(file.file_path)) {
@@ -1124,7 +1124,7 @@ router.get('/storage-details', authenticateToken, asyncHandler(async (req, res) 
     const userId = req.user.id;
     
     // 获取用户存储目录
-    const userDir = path.join(process.env.UPLOAD_PATH || './storage', 'users', `user_${userId}`);
+    const userDir = path.join(process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage', 'users', `user_${userId}`);
     
     // 初始化统计数据
     let imageSize = 0;

@@ -1662,7 +1662,7 @@ onUnmounted(() => {
 .files-page {
   display: block;
   background: transparent; // 透明背景，由父级提供
-  padding: 16px; // 增加内边距
+  padding: 24px; // 统一设置所有方向的内边距，确保左右一致
   border-radius: 16px; // 添加圆角
 }
 
@@ -2146,7 +2146,7 @@ onUnmounted(() => {
 .file-content {
   background: white;
   border-radius: 16px; // 增加圆角
-  padding: 20px; // 增加内边距
+  padding: 20px; // 统一设置所有方向的内边距
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); // 优化阴影
   border: 1px solid rgba(102, 126, 234, 0.1); // 优化边框
   overflow: hidden;
@@ -2445,7 +2445,7 @@ onUnmounted(() => {
 // 超大屏 (1920px+)
 @media (min-width: 1920px) {
   .files-page {
-    padding: 20px; // 增加内边距
+    padding: 32px; // 超大屏使用更大的内边距
   }
   
   .unified-toolbar {
@@ -2487,8 +2487,7 @@ onUnmounted(() => {
 // 大屏桌面 (1440px - 1919px)
 @media (min-width: 1440px) and (max-width: 1919px) {
   .files-page {
-    padding: 28px;
-    gap: 20px;
+    padding: 28px; // 大屏桌面使用适中的内边距
   }
   
   .file-grid {
@@ -2504,8 +2503,7 @@ onUnmounted(() => {
 // 桌面端 (1200px - 1439px)
 @media (min-width: 1200px) and (max-width: 1439px) {
   .files-page {
-    padding: 24px;
-    gap: 18px;
+    padding: 24px; // 桌面端使用标准内边距
   }
   
   .file-grid {
@@ -2522,8 +2520,7 @@ onUnmounted(() => {
 // 平板横屏/小屏笔记本 (1024px - 1199px)
 @media (min-width: 1024px) and (max-width: 1199px) {
   .files-page {
-    padding: 20px;
-    gap: 16px;
+    padding: 20px; // 平板横屏使用较小的内边距
   }
   
   .file-grid {
@@ -2539,7 +2536,7 @@ onUnmounted(() => {
 // 平板竖屏 (768px - 1023px)
 @media (min-width: 768px) and (max-width: 1023px) {
   .files-page {
-    padding: 0; // 移动端完全移除内边距
+    padding: 16px; // 平板竖屏使用统一的内边距
   }
   
   .desktop-toolbar {
@@ -2578,7 +2575,7 @@ onUnmounted(() => {
   }
   
   .file-content {
-    padding: 12px 0; // 只保留上下内边距，移除左右内边距
+    padding: 16px; // 平板竖屏使用统一的内边距
     margin-top: 8px;
   }
   
@@ -2693,7 +2690,7 @@ onUnmounted(() => {
 // 大屏手机 (480px - 767px)
 @media (min-width: 480px) and (max-width: 767px) {
   .files-page {
-    padding: 0; // 移动端完全移除内边距
+    padding: 12px; // 大屏手机使用统一的内边距
   }
   
   .desktop-toolbar {
@@ -2745,7 +2742,7 @@ onUnmounted(() => {
   }
   
   .file-content {
-    padding: 8px 0; // 只保留上下内边距，移除左右内边距
+    padding: 12px; // 大屏手机使用统一的内边距
     margin-top: 6px;
   }
   
@@ -2979,7 +2976,7 @@ onUnmounted(() => {
 // 小屏手机 (320px - 479px)
 @media (min-width: 320px) and (max-width: 479px) {
   .files-page {
-    padding: 0; // 移动端完全移除内边距
+    padding: 8px; // 小屏手机使用最小的内边距
   }
   
   .desktop-toolbar {
@@ -3037,7 +3034,7 @@ onUnmounted(() => {
   }
   
   .file-content {
-    padding: 6px 0; // 只保留上下内边距，移除左右内边距
+    padding: 8px; // 小屏手机使用最小的内边距
     margin-top: 4px;
   }
   
@@ -3135,8 +3132,7 @@ onUnmounted(() => {
 // 超小屏手机 (0px - 319px)
 @media (max-width: 319px) {
   .files-page {
-    padding: 6px;
-    gap: 6px;
+    padding: 6px; // 超小屏手机使用最小的内边距
   }
   
   // 隐藏桌面端工具栏，显示移动端工具栏

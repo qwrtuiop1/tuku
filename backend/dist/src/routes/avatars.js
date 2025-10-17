@@ -12,7 +12,7 @@ const router = express.Router();
 
 // 确保用户头像目录存在
 const ensureAvatarDir = async (userId) => {
-  const avatarDir = path.join(process.env.UPLOAD_PATH || './storage', 'users', `user_${userId}`, 'avatars');
+  const avatarDir = path.join(process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage', 'users', `user_${userId}`, 'avatars');
   await fs.ensureDir(avatarDir);
   return avatarDir;
 };
@@ -281,6 +281,7 @@ router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
 }));
 
 module.exports = router;
+
 
 
 

@@ -18,7 +18,7 @@
 
     <!-- 主要内容 -->
     <div class="admin-center-content">
-      <el-row :gutter="24">
+      <el-row>
         <!-- 左侧导航 -->
         <el-col :xs="24" :sm="8" :md="6" :lg="5" :xl="4">
           <el-card class="admin-nav-card">
@@ -62,9 +62,9 @@
               </div>
               
               <!-- 统计卡片 -->
-              <el-row :gutter="16" class="stats-cards">
+              <el-row class="stats-cards">
                 <el-col :xs="12" :sm="8" :md="8" :lg="8" :xl="8">
-                  <div class="stat-card">
+                  <div class="stat-card users-card">
                     <div class="stat-icon users">
                       <el-icon><UserFilled /></el-icon>
                     </div>
@@ -72,7 +72,7 @@
                       <div class="stat-value">{{ systemStats.totalUsers }}</div>
                       <div class="stat-label">总用户数</div>
                       <div class="stat-trend">
-                        <el-icon class="trend-icon"><ArrowUp /></el-icon>
+                        <el-icon class="trend-icon up"><ArrowUp /></el-icon>
                         <span class="trend-text">活跃用户</span>
                       </div>
                     </div>
@@ -80,7 +80,7 @@
                 </el-col>
                 
                 <el-col :xs="12" :sm="8" :md="8" :lg="8" :xl="8">
-                  <div class="stat-card">
+                  <div class="stat-card files-card">
                     <div class="stat-icon files">
                       <el-icon><Folder /></el-icon>
                     </div>
@@ -88,7 +88,7 @@
                       <div class="stat-value">{{ systemStats.totalFiles }}</div>
                       <div class="stat-label">总文件数</div>
                       <div class="stat-trend">
-                        <el-icon class="trend-icon"><ArrowUp /></el-icon>
+                        <el-icon class="trend-icon up"><ArrowUp /></el-icon>
                         <span class="trend-text">存储文件</span>
                       </div>
                     </div>
@@ -96,7 +96,7 @@
                 </el-col>
                 
                 <el-col :xs="24" :sm="8" :md="8" :lg="8" :xl="8">
-                  <div class="stat-card">
+                  <div class="stat-card storage-card">
                     <div class="stat-icon storage">
                       <el-icon><DataBoard /></el-icon>
                     </div>
@@ -104,7 +104,7 @@
                       <div class="stat-value">{{ formatFileSize(systemStats.totalStorage) }}</div>
                       <div class="stat-label">总存储量</div>
                       <div class="stat-trend">
-                        <el-icon class="trend-icon"><ArrowUp /></el-icon>
+                        <el-icon class="trend-icon up"><ArrowUp /></el-icon>
                         <span class="trend-text">已使用</span>
                       </div>
                     </div>
@@ -115,8 +115,8 @@
               <!-- 快速操作 -->
               <div class="quick-actions">
                 <h4>快速操作</h4>
-                <el-row :gutter="12">
-                <el-col :xs="12" :sm="6" :md="6" :lg="6" :xl="6">
+                <el-row class="quick-actions-row">
+                  <el-col :xs="12" :sm="6" :md="6" :lg="6" :xl="6">
                     <el-button class="quick-action-btn" @click="activeSection = 'users'">
                       <el-icon><UserFilled /></el-icon>
                       <span>用户管理</span>
@@ -139,8 +139,8 @@
                       <el-icon><Refresh /></el-icon>
                       <span>刷新数据</span>
                     </el-button>
-                </el-col>
-              </el-row>
+                  </el-col>
+                </el-row>
               </div>
             </div>
 
@@ -653,6 +653,99 @@
                   <div class="form-description">自动清理30天前的系统日志</div>
                 </el-form-item>
                 
+                <!-- 外观设置 -->
+                <el-divider content-position="left">
+                  <el-icon><Brush /></el-icon>
+                  外观设置
+                </el-divider>
+                
+                <el-form-item label="主题模式">
+                  <el-radio-group v-model="systemSettings.themeMode">
+                    <el-radio-button label="auto">自动</el-radio-button>
+                    <el-radio-button label="light">浅色</el-radio-button>
+                    <el-radio-button label="dark">深色</el-radio-button>
+                  </el-radio-group>
+                  <div class="form-description">自动模式会根据系统设置自动切换主题</div>
+                </el-form-item>
+                
+                <el-form-item label="主色调">
+                  <div class="color-picker-container">
+                    <el-color-picker 
+                      v-model="systemSettings.primaryColor"
+                      :predefine="predefineColors"
+                      show-alpha
+                      size="large"
+                    />
+                    <span class="color-value">{{ systemSettings.primaryColor }}</span>
+                  </div>
+                  <div class="form-description">系统的主要颜色，影响按钮、链接等元素</div>
+                </el-form-item>
+                
+                <el-form-item label="侧边栏宽度">
+                  <el-input-number 
+                    v-model="systemSettings.sidebarWidth" 
+                    :min="180" 
+                    :max="300"
+                    controls-position="right"
+                    style="width: 200px"
+                  />
+                  <span class="form-unit">px</span>
+                  <div class="form-description">侧边栏的宽度，影响整体布局</div>
+                </el-form-item>
+                
+                <el-form-item label="页面动画">
+                  <el-switch 
+                    v-model="systemSettings.enableAnimation"
+                    active-text="开启"
+                    inactive-text="关闭"
+                    active-color="#13ce66"
+                    inactive-color="#ff4949"
+                  />
+                  <div class="form-description">开启页面切换和交互动画效果</div>
+                </el-form-item>
+                
+                <el-form-item label="Logo地址">
+                  <el-input 
+                    v-model="systemSettings.logoUrl" 
+                    placeholder="请输入Logo图片URL"
+                    clearable
+                    maxlength="500"
+                    show-word-limit
+                  >
+                    <template #prefix>
+                      <el-icon><Picture /></el-icon>
+                    </template>
+                  </el-input>
+                  <div class="form-description">自定义Logo图片地址，留空使用默认Logo</div>
+                </el-form-item>
+                
+                <el-form-item label="网站图标">
+                  <el-input 
+                    v-model="systemSettings.faviconUrl" 
+                    placeholder="请输入网站图标URL"
+                    clearable
+                    maxlength="500"
+                    show-word-limit
+                  >
+                    <template #prefix>
+                      <el-icon><Star /></el-icon>
+                    </template>
+                  </el-input>
+                  <div class="form-description">自定义网站图标(favicon)地址</div>
+                </el-form-item>
+                
+                <el-form-item label="自定义CSS">
+                  <el-input 
+                    v-model="systemSettings.customCss" 
+                    type="textarea"
+                    :rows="4"
+                    placeholder="请输入自定义CSS代码"
+                    maxlength="2000"
+                    show-word-limit
+                  />
+                  <div class="form-description">添加自定义样式代码，支持CSS语法</div>
+                </el-form-item>
+                
                 <el-form-item>
                   <el-button type="primary" @click="saveSystemSettings" :loading="savingSettings">
                     <el-icon><Setting /></el-icon>
@@ -726,7 +819,13 @@ import {
   CircleCheck,
   DataAnalysis,
   Download,
-  Refresh
+  Refresh,
+  Brush,
+  Picture,
+  Star,
+  Upload,
+  Tools,
+  View
 } from '@element-plus/icons-vue'
 import { formatFileSize } from '@/utils/helpers'
 import api from '@/utils/api'
@@ -742,6 +841,13 @@ const selectedUsers = ref([])
 const userFormRef = ref<FormInstance>()
 const openMenus = ref<Set<number>>(new Set()) // 跟踪打开的菜单
 const showCleanupDialog = ref(false)
+
+// 系统统计数据
+const systemStats = reactive({
+  totalUsers: 0,
+  totalFiles: 0,
+  totalStorage: 0
+})
 
 // 表格宽度调整
 const adjustTableWidth = () => {
@@ -980,12 +1086,7 @@ const setupSyncScroll = () => {
   })
 }
 
-// 系统统计数据
-const systemStats = reactive({
-  totalUsers: 0,
-  totalFiles: 0,
-  totalStorage: 0
-})
+// 方法
 
 // 存储统计数据
 const storageStats = reactive({
@@ -1023,8 +1124,50 @@ const systemSettings = reactive({
   allowedImageTypes: ['jpg', 'png', 'gif', 'webp'],
   allowedVideoTypes: ['mp4', 'webm', 'mov'],
   thumbnailSize: 300,
-  autoCleanLogs: false
+  autoCleanLogs: false,
+  // 外观设置
+  themeMode: 'auto', // auto, light, dark
+  primaryColor: '#409eff',
+  sidebarWidth: 220,
+  enableAnimation: true,
+  logoUrl: '',
+  faviconUrl: '',
+  customCss: ''
 })
+
+// 预定义颜色
+const predefineColors = [
+  '#409eff',
+  '#67c23a',
+  '#e6a23c',
+  '#f56c6c',
+  '#909399',
+  '#c71585',
+  '#ff69b4',
+  '#ff1493',
+  '#dc143c',
+  '#b22222',
+  '#8b0000',
+  '#ff4500',
+  '#ff8c00',
+  '#ffa500',
+  '#ffd700',
+  '#ffff00',
+  '#9acd32',
+  '#32cd32',
+  '#00ff00',
+  '#00ff7f',
+  '#00ced1',
+  '#00bfff',
+  '#1e90ff',
+  '#4169e1',
+  '#0000ff',
+  '#8a2be2',
+  '#9932cc',
+  '#9400d3',
+  '#4b0082',
+  '#800080'
+]
 
 // 新用户表单
 const newUser = reactive({
@@ -1084,8 +1227,11 @@ const filteredLogs = computed(() => {
 
 // 存储使用率计算
 const storageUsagePercentage = computed(() => {
-  if (storageStats.totalStorage === 0) return 0
-  return Math.round((storageStats.usedStorage / storageStats.totalStorage) * 100)
+  const total = Number(storageStats.totalStorage) || 0
+  const used = Number(storageStats.usedStorage) || 0
+  
+  if (total === 0) return 0
+  return Math.round((used / total) * 100)
 })
 
 // 定时器
@@ -1126,9 +1272,9 @@ const fetchSystemStats = async () => {
     const response = await api.get('/admin/stats')
     const data = response.data
     
-    systemStats.totalUsers = data.total_users || 0
-    systemStats.totalFiles = data.total_files || 0
-    systemStats.totalStorage = data.total_file_size || 0
+    systemStats.totalUsers = Number(data.total_users) || 0
+    systemStats.totalFiles = Number(data.total_files) || 0
+    systemStats.totalStorage = Number(data.total_file_size) || 0
   } catch (error) {
     throw error
   }
@@ -1203,6 +1349,15 @@ const fetchSystemSettings = async () => {
     systemSettings.allowedVideoTypes = settings.allowed_video_types?.value?.split(',') || ['mp4', 'webm', 'mov']
     systemSettings.thumbnailSize = parseInt(settings.thumbnail_size?.value) || 300
     systemSettings.autoCleanLogs = settings.auto_clean_logs?.value === 'true'
+    
+    // 更新外观设置
+    systemSettings.themeMode = settings.theme_mode?.value || 'auto'
+    systemSettings.primaryColor = settings.primary_color?.value || '#409eff'
+    systemSettings.sidebarWidth = parseInt(settings.sidebar_width?.value) || 220
+    systemSettings.enableAnimation = settings.enable_animation?.value === 'true'
+    systemSettings.logoUrl = settings.logo_url?.value || ''
+    systemSettings.faviconUrl = settings.favicon_url?.value || ''
+    systemSettings.customCss = settings.custom_css?.value || ''
   } catch (error) {
     ElMessage.error('获取系统设置失败')
     throw error
@@ -1217,14 +1372,15 @@ const fetchStorageStats = async () => {
     const response = await api.get('/admin/storage-stats')
     const data = response.data
     
-    storageStats.totalStorage = data.total_storage || 0
-    storageStats.usedStorage = data.used_storage || 0
-    storageStats.availableStorage = data.available_storage || 0
+    // 确保数据是数字类型，避免NaN
+    storageStats.totalStorage = Number(data.total_storage) || 0
+    storageStats.usedStorage = Number(data.used_storage) || 0
+    storageStats.availableStorage = Number(data.available_storage) || 0
   } catch (error) {
     console.error('获取存储统计失败:', error)
     // 如果API不存在，使用系统统计数据
-    storageStats.totalStorage = systemStats.totalStorage
-    storageStats.usedStorage = systemStats.totalStorage
+    storageStats.totalStorage = Number(systemStats.totalStorage) || 0
+    storageStats.usedStorage = Number(systemStats.totalStorage) || 0
     storageStats.availableStorage = 0
   }
 }
@@ -1859,11 +2015,29 @@ const saveSystemSettings = async () => {
       allowed_image_types: systemSettings.allowedImageTypes.join(','),
       allowed_video_types: systemSettings.allowedVideoTypes.join(','),
       thumbnail_size: systemSettings.thumbnailSize.toString(),
-      auto_clean_logs: systemSettings.autoCleanLogs.toString()
+      auto_clean_logs: systemSettings.autoCleanLogs.toString(),
+      // 外观设置
+      theme_mode: systemSettings.themeMode,
+      primary_color: systemSettings.primaryColor,
+      sidebar_width: systemSettings.sidebarWidth.toString(),
+      enable_animation: systemSettings.enableAnimation.toString(),
+      logo_url: systemSettings.logoUrl.trim(),
+      favicon_url: systemSettings.faviconUrl.trim(),
+      custom_css: systemSettings.customCss.trim()
     }
     
     await api.put('/admin/settings', { settings })
     ElMessage.success('系统设置保存成功')
+    
+    // 发送全局事件通知其他组件设置已更新
+    window.dispatchEvent(new CustomEvent('system-settings-changed', {
+      detail: {
+        enable_animation: systemSettings.enableAnimation,
+        theme_mode: systemSettings.themeMode,
+        primary_color: systemSettings.primaryColor,
+        sidebar_width: systemSettings.sidebarWidth
+      }
+    }))
     
     // 如果开启了维护模式，显示警告
     if (systemSettings.maintenanceMode) {
@@ -1898,6 +2072,15 @@ const showSettingsPreview = () => {
       <p><strong>允许的视频类型：</strong>${systemSettings.allowedVideoTypes.join(', ')}</p>
       <p><strong>缩略图尺寸：</strong>${systemSettings.thumbnailSize}px</p>
       <p><strong>自动清理日志：</strong>${systemSettings.autoCleanLogs ? '开启' : '关闭'}</p>
+      <hr style="margin: 15px 0; border: none; border-top: 1px solid #eee;">
+      <h4 style="color: #409eff; margin-bottom: 10px;">外观设置：</h4>
+      <p><strong>主题模式：</strong>${systemSettings.themeMode === 'auto' ? '自动' : systemSettings.themeMode === 'light' ? '浅色' : '深色'}</p>
+      <p><strong>主色调：</strong><span style="color: ${systemSettings.primaryColor}; font-weight: bold;">${systemSettings.primaryColor}</span></p>
+      <p><strong>侧边栏宽度：</strong>${systemSettings.sidebarWidth}px</p>
+      <p><strong>页面动画：</strong>${systemSettings.enableAnimation ? '开启' : '关闭'}</p>
+      <p><strong>Logo地址：</strong>${systemSettings.logoUrl || '使用默认Logo'}</p>
+      <p><strong>网站图标：</strong>${systemSettings.faviconUrl || '使用默认图标'}</p>
+      <p><strong>自定义CSS：</strong>${systemSettings.customCss ? '已设置' : '未设置'}</p>
     </div>
     `,
     '设置预览',
@@ -2113,37 +2296,105 @@ onUnmounted(() => {
 }
 
 .admin-center-page {
-  padding: 24px;
+  padding: 24px; // 统一设置所有方向的内边距
   background: #f5f7fa;
   min-height: 100vh;
 }
 
 .page-header {
   margin-bottom: 24px;
+  padding: 20px 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  color: white;
   
   .header-content {
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
+    align-items: center;
+    padding: 0 24px;
     
     .header-left {
       .page-title {
         font-size: 28px;
-        font-weight: 600;
-        color: #303133;
+        font-weight: 700;
         margin: 0 0 8px 0;
+        color: white;
       }
       
       .page-subtitle {
-        font-size: 14px;
-        color: #909399;
+        font-size: 16px;
+        color: rgba(255, 255, 255, 0.8);
         margin: 0;
+      }
+    }
+    
+    .header-actions {
+      .el-button {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        
+        &:hover {
+          background: rgba(255, 255, 255, 0.3);
+          border-color: rgba(255, 255, 255, 0.5);
+        }
       }
     }
   }
 }
 
 .admin-center-content {
+  // 移除所有内边距，让父级容器控制间距
+  
+  // 重置Element Plus栅格系统，保持响应式布局
+  :deep(.el-row) {
+    display: flex !important;
+    flex-wrap: nowrap !important; // 改为不换行，保持侧边栏在左侧
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    gap: 24px; // 使用gap替代Element Plus的默认间距
+    
+    // 覆盖内联样式
+    &[style*="margin-left"] {
+      margin-left: 0 !important;
+    }
+    
+    &[style*="margin-right"] {
+      margin-right: 0 !important;
+    }
+    
+    .el-col {
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+      flex: 0 0 auto !important;
+      
+      // 覆盖内联样式
+      &[style*="padding-left"] {
+        padding-left: 0 !important;
+      }
+      
+      &[style*="padding-right"] {
+        padding-right: 0 !important;
+      }
+    }
+  }
+  
+  // 额外的强制重置
+  :deep(.el-col) {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    flex: 0 0 auto !important;
+    
+    &[style*="padding-left"] {
+      padding-left: 0 !important;
+    }
+    
+    &[style*="padding-right"] {
+      padding-right: 0 !important;
+    }
+  }
+  
   .admin-nav-card {
     .admin-menu {
       border: none;
@@ -2153,14 +2404,29 @@ onUnmounted(() => {
         line-height: 48px;
         margin-bottom: 4px;
         border-radius: 8px;
+        transition: all 0.3s ease;
         
         &.is-active {
-          background-color: #ecf5ff;
-            color: #409eff;
-          }
+          background: linear-gradient(135deg, #1890ff 0%, #40a9ff 100%);
+          color: white;
           
+          .el-icon {
+            color: white;
+          }
+        }
+        
         &:hover {
-          background-color: #f5f7fa;
+          background: #f0f9ff;
+          color: #1890ff;
+        }
+        
+        .el-icon {
+          margin-right: 8px;
+          font-size: 16px;
+        }
+        
+        span {
+          font-weight: 500;
         }
       }
     }
@@ -2189,6 +2455,15 @@ onUnmounted(() => {
       
       .stats-cards {
         margin-bottom: 24px;
+        gap: 16px;
+        display: flex !important;
+        flex-wrap: nowrap !important; // 桌面端不换行
+        
+        :deep(.el-col) {
+          padding-left: 0 !important;
+          padding-right: 0 !important;
+          flex: 0 0 auto !important;
+        }
         
         .stat-card {
           display: flex;
@@ -2198,6 +2473,15 @@ onUnmounted(() => {
           background: white;
           border-radius: 12px;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          transition: all 0.3s ease;
+          cursor: pointer;
+          border: 1px solid #f0f0f0;
+          
+          &:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            border-color: #e0e0e0;
+          }
           
           .stat-icon {
             width: 48px;
@@ -2223,33 +2507,43 @@ onUnmounted(() => {
           }
           
           .stat-info {
+            flex: 1;
+            
             .stat-value {
               font-size: 24px;
-              font-weight: 600;
-              color: #303133;
-              line-height: 1;
+              font-weight: 700;
+              color: #2c3e50;
+              line-height: 1.2;
+              margin-bottom: 4px;
             }
             
             .stat-label {
               font-size: 14px;
-              color: #909399;
-              margin-top: 4px;
+              color: #7f8c8d;
+              margin-bottom: 8px;
             }
             
             .stat-trend {
               display: flex;
               align-items: center;
               gap: 4px;
-              margin-top: 8px;
+              font-size: 12px;
               
               .trend-icon {
                 font-size: 12px;
-                color: #67c23a;
+                
+                &.up {
+                  color: #27ae60;
+                }
+                
+                &.down {
+                  color: #e74c3c;
+                }
               }
               
               .trend-text {
-                font-size: 12px;
-                color: #909399;
+                color: #95a5a6;
+                font-weight: 500;
               }
             }
           }
@@ -2266,8 +2560,20 @@ onUnmounted(() => {
         h4 {
           margin: 0 0 16px 0;
           font-size: 16px;
-              font-weight: 600;
-              color: #303133;
+          font-weight: 600;
+          color: #303133;
+        }
+        
+        .quick-actions-row {
+          gap: 12px;
+          display: flex !important;
+          flex-wrap: nowrap !important; // 桌面端不换行
+          
+          :deep(.el-col) {
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            flex: 0 0 auto !important;
+          }
         }
         
         .quick-action-btn {
@@ -2480,7 +2786,25 @@ onUnmounted(() => {
 // 响应式设计
 @media (max-width: 768px) {
   .admin-center-page {
-    padding: 16px;
+    padding: 16px; // 移动端也使用统一的内边距
+  }
+  
+  .admin-center-content {
+    // 移动端允许换行，让侧边栏显示在上方
+    :deep(.el-row) {
+      flex-wrap: wrap !important;
+      gap: 16px; // 移动端使用较小的间距
+    }
+    
+    .el-row {
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      
+      .el-col {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+      }
+    }
   }
   
   .page-header {
@@ -2501,6 +2825,15 @@ onUnmounted(() => {
           line-height: 40px;
         }
       }
+    }
+    
+    // 移动端允许其他行也换行
+    .stats-cards {
+      flex-wrap: wrap !important;
+    }
+    
+    .quick-actions-row {
+      flex-wrap: wrap !important;
     }
     
     .admin-panel-card {
@@ -3397,6 +3730,33 @@ onUnmounted(() => {
         margin-right: 20px;
         margin-bottom: 8px;
       }
+    }
+    
+    // 外观设置样式
+    .color-picker-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      
+      .color-value {
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+        color: #606266;
+        background: #f5f7fa;
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: 1px solid #dcdfe6;
+      }
+    }
+    
+    .el-radio-group {
+      .el-radio-button {
+        margin-right: 8px;
+      }
+    }
+    
+    .el-color-picker {
+      margin-right: 8px;
     }
   }
 }

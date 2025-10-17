@@ -281,7 +281,7 @@ onMounted(() => {
   .nav-content {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 0 20px;
+    padding: 0 24px; // 统一使用24px，与MainLayout保持一致
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -319,7 +319,7 @@ onMounted(() => {
   min-height: 100vh;
   align-items: center;
   justify-content: center;
-  padding: 100px 20px 20px;
+  padding: 100px 24px 24px; // 统一使用24px，与MainLayout保持一致
   gap: 60px;
   overflow-y: auto; // 确保可以垂直滚动
 }
@@ -695,13 +695,13 @@ onMounted(() => {
 
 @media (max-width: 1024px) {
   .login-content {
-    flex-direction: column; // 移动端垂直布局
-    gap: 40px;
-    padding: 80px 20px 20px;
+    flex-direction: row; // 平板端保持水平布局，与桌面端一致
+    gap: 60px; // 保持与桌面端相同的间距
+    padding: 100px 24px 24px; // 保持与桌面端相同的padding
   }
   
   .info-panel {
-    display: none; // 移动端隐藏info-panel
+    display: block; // 平板端显示info-panel
   }
 }
 
@@ -710,7 +710,7 @@ onMounted(() => {
     padding: 16px 0;
     
     .nav-content {
-      padding: 0 16px;
+      padding: 0 20px; // 移动端使用20px
     }
     
     .nav-logo {
@@ -733,7 +733,7 @@ onMounted(() => {
   
   .login-content {
     flex-direction: column; // 移动端垂直布局
-    padding: 80px 20px 20px;
+    padding: 80px 20px 20px; // 移动端使用20px
     gap: 30px;
     min-height: auto; // 移动端不强制最小高度
     align-items: flex-start; // 移动端顶部对齐而不是居中
@@ -915,7 +915,7 @@ onMounted(() => {
     padding: 12px 0;
     
     .nav-content {
-      padding: 0 12px;
+      padding: 0 16px; // 小屏幕使用16px
     }
     
     .nav-logo {
@@ -938,7 +938,7 @@ onMounted(() => {
   
   .login-content {
     flex-direction: column; // 小屏幕移动端垂直布局
-    padding: 60px 16px 16px;
+    padding: 60px 16px 16px; // 小屏幕使用16px
     gap: 24px;
     min-height: auto; // 移动端不强制最小高度
     align-items: flex-start; // 移动端顶部对齐而不是居中

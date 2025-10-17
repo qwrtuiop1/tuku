@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const { pool } = require('../config/database');
-const { generateToken } = require('../middleware/auth');
+const { generateToken, authenticateToken } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { checkMaintenanceMode, checkRegistrationEnabled } = require('../middleware/maintenance');
 const SettingsHistoryService = require('../services/settingsHistoryService');
@@ -146,7 +146,8 @@ router.post('/register', checkRegistrationEnabled, [
       last_login: new Date().toISOString(),
       login_count: 0,
       storage_limit: 1073741824, // 1GB
-      used_storage: 0
+      used_storage: 0,
+      created_at: new Date().toISOString()
     }
   });
 }));
@@ -171,14 +172,14 @@ router.post('/login', [
   let users;
   try {
     [users] = await pool.execute(
-      'SELECT id, username, email, password_hash, role, status, storage_limit, used_storage, avatar_url FROM users WHERE username = ? OR email = ?',
+      'SELECT id, username, email, password_hash, role, status, storage_limit, used_storage, avatar_url, created_at FROM users WHERE username = ? OR email = ?',
       [username, username]
     );
   } catch (error) {
     // 如果查询失败，可能是表结构问题，尝试基本查询
     console.log('🔧 尝试基本用户查询...');
     [users] = await pool.execute(
-      'SELECT id, username, email, password_hash, role, status, avatar_url FROM users WHERE username = ? OR email = ?',
+      'SELECT id, username, email, password_hash, role, status, avatar_url, created_at FROM users WHERE username = ? OR email = ?',
       [username, username]
     );
   }
@@ -288,7 +289,8 @@ router.post('/login', [
       login_count: (user.login_count || 0) + 1,
       avatar_url: user.avatar_url || '',
       nickname: user.nickname || '',
-      bio: user.bio || ''
+      bio: user.bio || '',
+      created_at: user.created_at
     },
     settings: {
       preferences: userPreferences,
@@ -298,95 +300,37 @@ router.post('/login', [
 }));
 
 // 获取当前用户信息
-router.get('/me', asyncHandler(async (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+router.get('/me', authenticateToken, asyncHandler(async (req, res) => {
+  // 用户信息已经在中间件中验证并设置到req.user
+  const user = req.user;
+  
+  console.log(`👤 用户信息查询结果: ${JSON.stringify(user, null, 2)}`);
 
-  if (!token) {
-    return res.status(401).json({ message: '访问令牌缺失' });
-  }
-
-  try {
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // 使用安全的字段查询
-    let users;
-    try {
-      [users] = await pool.execute(
-        'SELECT id, username, email, role, storage_limit, used_storage, avatar_url, nickname, bio, created_at FROM users WHERE id = ?',
-        [decoded.userId]
-      );
-    } catch (error) {
-      // 如果查询失败，可能是表结构问题，尝试基本查询
-      console.log('🔧 尝试基本用户信息查询...');
-      [users] = await pool.execute(
-        'SELECT id, username, email, role, avatar_url, nickname, bio, created_at FROM users WHERE id = ?',
-        [decoded.userId]
-      );
-    }
-
-    if (users.length === 0) {
-      return res.status(401).json({ message: '用户不存在' });
-    }
-
-    const user = users[0];
-    console.log(`👤 用户信息查询结果: ${JSON.stringify(user, null, 2)}`);
-
-    res.json({ user });
-  } catch (error) {
-    res.status(401).json({ message: '无效的访问令牌' });
-  }
+  res.json({ user });
 }));
 
 // 获取用户个人信息
-router.get('/profile', asyncHandler(async (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: '访问令牌缺失' });
-  }
-
-  try {
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    const [users] = await pool.execute(
-      'SELECT id, username, email, nickname, bio, avatar_url, created_at FROM users WHERE id = ?',
-      [decoded.userId]
-    );
-
-    if (users.length === 0) {
-      return res.status(404).json({ message: '用户不存在' });
+router.get('/profile', authenticateToken, asyncHandler(async (req, res) => {
+  // 用户信息已经在中间件中验证并设置到req.user
+  const user = req.user;
+  
+  res.json({
+    success: true,
+    data: {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      display_name: user.nickname || user.username,
+      bio: user.bio || '',
+      avatar_url: user.avatar_url,
+      created_at: user.created_at,
+      last_login: user.created_at // 使用创建时间作为最后登录时间
     }
-
-    const user = users[0];
-    
-    res.json({
-      success: true,
-      data: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        display_name: user.nickname || user.username,
-        bio: user.bio || '',
-        avatar_url: user.avatar_url,
-        created_at: user.created_at,
-        last_login: user.created_at // 使用创建时间作为最后登录时间
-      }
-    });
-  } catch (error) {
-    console.error('获取用户信息失败:', error);
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: '无效的访问令牌' });
-    }
-    return res.status(500).json({ message: '服务器内部错误' });
-  }
+  });
 }));
 
 // 更新个人资料
-router.put('/profile', [
+router.put('/profile', authenticateToken, [
   body('username')
     .optional()
     .isLength({ min: 3, max: 20 })
@@ -425,23 +369,14 @@ router.put('/profile', [
     });
   }
 
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: '访问令牌缺失' });
-  }
-
   try {
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
     const { username, email, nickname, bio, emailCode } = req.body;
+    const userId = req.user.id;
     
     // 获取当前用户信息
     const [currentUser] = await pool.execute(
       'SELECT username, email FROM users WHERE id = ?',
-      [decoded.userId]
+      [userId]
     );
     
     const currentUsername = currentUser[0]?.username;
@@ -485,7 +420,7 @@ router.put('/profile', [
       if (username && username !== currentUsername) {
         const [usernameCheck] = await pool.execute(
           'SELECT id FROM users WHERE username = ? AND id != ?',
-          [username, decoded.userId]
+          [username, userId]
         );
         
         if (usernameCheck.length > 0) {
@@ -498,7 +433,7 @@ router.put('/profile', [
       if (email && email !== currentEmail) {
         const [emailCheck] = await pool.execute(
           'SELECT id FROM users WHERE email = ? AND id != ?',
-          [email, decoded.userId]
+          [email, userId]
         );
         
         if (emailCheck.length > 0) {
@@ -545,7 +480,7 @@ router.put('/profile', [
     
     // 添加更新时间戳
     updateFields.push('updated_at = CURRENT_TIMESTAMP');
-    updateValues.push(decoded.userId);
+    updateValues.push(userId);
     
     // 执行更新 - 确保只更新当前用户的资料
     const [result] = await pool.execute(
@@ -555,16 +490,16 @@ router.put('/profile', [
     
     // 验证更新是否成功
     if (result.affectedRows === 0) {
-      console.error(`⚠️ 用户 ${decoded.userId} 个人资料更新失败`);
+      console.error(`⚠️ 用户 ${userId} 个人资料更新失败`);
       return res.status(500).json({ message: '个人资料更新失败' });
     }
     
-    console.log(`✅ 用户 ${decoded.userId} 个人资料更新成功`);
+    console.log(`✅ 用户 ${userId} 个人资料更新成功`);
 
     // 获取更新后的用户信息
     const [users] = await pool.execute(
       'SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, nickname, bio, last_login, login_count, created_at FROM users WHERE id = ?',
-      [decoded.userId]
+      [userId]
     );
 
     res.json({
@@ -574,6 +509,77 @@ router.put('/profile', [
   } catch (error) {
     console.error('更新个人资料失败:', error);
     res.status(500).json({ message: '更新个人资料失败' });
+  }
+}));
+
+// 简化的个人资料更新API - 专门处理nickname和bio
+router.put('/profile/simple', authenticateToken, [
+  body('nickname')
+    .optional()
+    .isLength({ max: 50 })
+    .withMessage('昵称长度不能超过50个字符'),
+  body('bio')
+    .optional()
+    .isLength({ max: 200 })
+    .withMessage('个人简介长度不能超过200个字符')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      message: '数据验证失败',
+      errors: errors.array()
+    });
+  }
+
+  try {
+    const { nickname, bio } = req.body;
+    const userId = req.user.id;
+    
+    // 构建更新字段
+    const updateFields = [];
+    const updateValues = [];
+    
+    if (nickname !== undefined) {
+      updateFields.push('nickname = ?');
+      updateValues.push(nickname);
+    }
+    
+    if (bio !== undefined) {
+      updateFields.push('bio = ?');
+      updateValues.push(bio);
+    }
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ message: '没有需要更新的字段' });
+    }
+    
+    // 添加更新时间戳
+    updateFields.push('updated_at = CURRENT_TIMESTAMP');
+    updateValues.push(userId);
+    
+    // 执行更新
+    const [result] = await pool.execute(
+      `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
+      updateValues
+    );
+    
+    if (result.affectedRows === 0) {
+      return res.status(500).json({ message: '个人资料更新失败' });
+    }
+    
+    // 获取更新后的用户信息
+    const [users] = await pool.execute(
+      'SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, nickname, bio, created_at FROM users WHERE id = ?',
+      [userId]
+    );
+
+    res.json({
+      message: '个人资料更新成功',
+      user: users[0]
+    });
+  } catch (error) {
+    console.error('更新个人资料失败:', error);
+    res.status(500).json({ message: '更新个人资料失败: ' + error.message });
   }
 }));
 
@@ -610,7 +616,7 @@ router.put('/password', [
     // 获取用户信息
     const [users] = await pool.execute(
       'SELECT id, email, password_hash FROM users WHERE id = ?',
-      [decoded.userId]
+      [userId]
     );
 
     if (users.length === 0) {
@@ -641,7 +647,7 @@ router.put('/password', [
     // 更新密码
     await pool.execute(
       'UPDATE users SET password_hash = ? WHERE id = ?',
-      [newPasswordHash, decoded.userId]
+      [newPasswordHash, userId]
     );
 
     // 验证码已在verifyCode函数中自动标记为已使用
@@ -1236,14 +1242,14 @@ router.get('/preferences', asyncHandler(async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // 验证用户ID的有效性
-    if (!decoded.userId || typeof decoded.userId !== 'number') {
+    if (!userId || typeof userId !== 'number') {
       return res.status(401).json({ message: '无效的用户ID' });
     }
     
     // 首先验证用户是否存在
     const [userCheck] = await pool.execute(
       'SELECT id FROM users WHERE id = ?',
-      [decoded.userId]
+      [userId]
     );
     
     if (userCheck.length === 0) {
@@ -1253,12 +1259,12 @@ router.get('/preferences', asyncHandler(async (req, res) => {
     // 从数据库获取用户偏好设置，如果不存在则返回默认值
     const [preferences] = await pool.execute(
       'SELECT default_view FROM user_preferences WHERE user_id = ?',
-      [decoded.userId]
+      [userId]
     );
 
     const userPrefs = preferences.length > 0 ? preferences[0] : { default_view: 'grid' };
     
-    console.log(`✅ 用户 ${decoded.userId} 偏好设置查询成功: defaultView=${userPrefs.default_view || 'grid'}`);
+    console.log(`✅ 用户 ${userId} 偏好设置查询成功: defaultView=${userPrefs.default_view || 'grid'}`);
     
     res.json({
       success: true,
@@ -1302,7 +1308,7 @@ router.put('/preferences', [
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // 验证用户ID的有效性
-    if (!decoded.userId || typeof decoded.userId !== 'number') {
+    if (!userId || typeof userId !== 'number') {
       return res.status(401).json({ message: '无效的用户ID' });
     }
     
@@ -1311,7 +1317,7 @@ router.put('/preferences', [
     // 首先验证用户是否存在
     const [userCheck] = await pool.execute(
       'SELECT id FROM users WHERE id = ?',
-      [decoded.userId]
+      [userId]
     );
     
     if (userCheck.length === 0) {
@@ -1321,14 +1327,14 @@ router.put('/preferences', [
     // 检查用户偏好设置是否存在
     const [existing] = await pool.execute(
       'SELECT id FROM user_preferences WHERE user_id = ?',
-      [decoded.userId]
+      [userId]
     );
 
     if (existing.length > 0) {
       // 获取当前设置值用于历史记录
       const [currentSettings] = await pool.execute(
         'SELECT default_view FROM user_preferences WHERE user_id = ?',
-        [decoded.userId]
+        [userId]
       );
       
       const oldValue = currentSettings[0]?.default_view;
@@ -1337,19 +1343,19 @@ router.put('/preferences', [
       // 更新现有设置 - 确保只更新当前用户的设置
       const [result] = await pool.execute(
         'UPDATE user_preferences SET default_view = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
-        [newValue, decoded.userId]
+        [newValue, userId]
       );
       
       // 验证更新是否成功
       if (result.affectedRows === 0) {
-        console.error(`⚠️ 用户 ${decoded.userId} 偏好设置更新失败`);
+        console.error(`⚠️ 用户 ${userId} 偏好设置更新失败`);
         return res.status(500).json({ message: '偏好设置更新失败' });
       }
       
       // 记录设置变更历史
       if (oldValue !== newValue) {
         await SettingsHistoryService.recordSettingChange(
-          decoded.userId,
+          userId,
           'preferences',
           'default_view',
           oldValue,
@@ -1359,17 +1365,17 @@ router.put('/preferences', [
         );
       }
       
-      console.log(`✅ 用户 ${decoded.userId} 偏好设置更新成功: defaultView=${newValue}`);
+      console.log(`✅ 用户 ${userId} 偏好设置更新成功: defaultView=${newValue}`);
     } else {
       // 创建新设置 - 确保只创建当前用户的设置
       await pool.execute(
         'INSERT INTO user_preferences (user_id, default_view) VALUES (?, ?)',
-        [decoded.userId, defaultView || 'grid']
+        [userId, defaultView || 'grid']
       );
       
       // 记录设置变更历史
       await SettingsHistoryService.recordSettingChange(
-        decoded.userId,
+        userId,
         'preferences',
         'default_view',
         null,
@@ -1378,7 +1384,7 @@ router.put('/preferences', [
         req
       );
       
-      console.log(`✅ 用户 ${decoded.userId} 偏好设置创建成功: defaultView=${defaultView || 'grid'}`);
+      console.log(`✅ 用户 ${userId} 偏好设置创建成功: defaultView=${defaultView || 'grid'}`);
     }
     
     res.json({
@@ -1408,14 +1414,14 @@ router.get('/notification-settings', asyncHandler(async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // 验证用户ID的有效性
-    if (!decoded.userId || typeof decoded.userId !== 'number') {
+    if (!userId || typeof userId !== 'number') {
       return res.status(401).json({ message: '无效的用户ID' });
     }
     
     // 首先验证用户是否存在
     const [userCheck] = await pool.execute(
       'SELECT id FROM users WHERE id = ?',
-      [decoded.userId]
+      [userId]
     );
     
     if (userCheck.length === 0) {
@@ -1425,7 +1431,7 @@ router.get('/notification-settings', asyncHandler(async (req, res) => {
     // 从数据库获取用户通知设置，如果不存在则返回默认值
     const [settings] = await pool.execute(
       'SELECT email_notifications, storage_warnings, security_alerts FROM user_notification_settings WHERE user_id = ?',
-      [decoded.userId]
+      [userId]
     );
 
     const userSettings = settings.length > 0 ? settings[0] : {
@@ -1434,7 +1440,7 @@ router.get('/notification-settings', asyncHandler(async (req, res) => {
       security_alerts: true
     };
     
-    console.log(`✅ 用户 ${decoded.userId} 通知设置查询成功: email=${userSettings.email_notifications}, storage=${userSettings.storage_warnings}, security=${userSettings.security_alerts}`);
+    console.log(`✅ 用户 ${userId} 通知设置查询成功: email=${userSettings.email_notifications}, storage=${userSettings.storage_warnings}, security=${userSettings.security_alerts}`);
     
     res.json({
       success: true,
@@ -1488,7 +1494,7 @@ router.put('/notification-settings', [
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // 验证用户ID的有效性
-    if (!decoded.userId || typeof decoded.userId !== 'number') {
+    if (!userId || typeof userId !== 'number') {
       return res.status(401).json({ message: '无效的用户ID' });
     }
     
@@ -1497,7 +1503,7 @@ router.put('/notification-settings', [
     // 首先验证用户是否存在
     const [userCheck] = await pool.execute(
       'SELECT id FROM users WHERE id = ?',
-      [decoded.userId]
+      [userId]
     );
     
     if (userCheck.length === 0) {
@@ -1507,14 +1513,14 @@ router.put('/notification-settings', [
     // 检查用户通知设置是否存在
     const [existing] = await pool.execute(
       'SELECT id FROM user_notification_settings WHERE user_id = ?',
-      [decoded.userId]
+      [userId]
     );
 
     if (existing.length > 0) {
       // 获取当前设置值用于历史记录
       const [currentSettings] = await pool.execute(
         'SELECT email_notifications, storage_warnings, security_alerts FROM user_notification_settings WHERE user_id = ?',
-        [decoded.userId]
+        [userId]
       );
       
       const oldSettings = currentSettings[0];
@@ -1531,13 +1537,13 @@ router.put('/notification-settings', [
           newSettings.emailNotifications,
           newSettings.storageWarnings,
           newSettings.securityAlerts,
-          decoded.userId
+          userId
         ]
       );
       
       // 验证更新是否成功
       if (result.affectedRows === 0) {
-        console.error(`⚠️ 用户 ${decoded.userId} 通知设置更新失败`);
+        console.error(`⚠️ 用户 ${userId} 通知设置更新失败`);
         return res.status(500).json({ message: '通知设置更新失败' });
       }
       
@@ -1568,7 +1574,7 @@ router.put('/notification-settings', [
       // 记录每个变更
       for (const change of changes) {
         await SettingsHistoryService.recordSettingChange(
-          decoded.userId,
+          userId,
           'notifications',
           change.key,
           change.oldValue,
@@ -1578,13 +1584,13 @@ router.put('/notification-settings', [
         );
       }
       
-      console.log(`✅ 用户 ${decoded.userId} 通知设置更新成功: email=${newSettings.emailNotifications}, storage=${newSettings.storageWarnings}, security=${newSettings.securityAlerts}`);
+      console.log(`✅ 用户 ${userId} 通知设置更新成功: email=${newSettings.emailNotifications}, storage=${newSettings.storageWarnings}, security=${newSettings.securityAlerts}`);
     } else {
       // 创建新设置 - 确保只创建当前用户的设置
       await pool.execute(
         'INSERT INTO user_notification_settings (user_id, email_notifications, storage_warnings, security_alerts) VALUES (?, ?, ?, ?)',
         [
-          decoded.userId,
+          userId,
           emailNotifications ?? true,
           storageWarnings ?? true,
           securityAlerts ?? true
@@ -1593,7 +1599,7 @@ router.put('/notification-settings', [
       
       // 记录设置变更历史
       await SettingsHistoryService.recordSettingChange(
-        decoded.userId,
+        userId,
         'notifications',
         'all_settings',
         null,
@@ -1606,7 +1612,7 @@ router.put('/notification-settings', [
         req
       );
       
-      console.log(`✅ 用户 ${decoded.userId} 通知设置创建成功: email=${emailNotifications ?? true}, storage=${storageWarnings ?? true}, security=${securityAlerts ?? true}`);
+      console.log(`✅ 用户 ${userId} 通知设置创建成功: email=${emailNotifications ?? true}, storage=${storageWarnings ?? true}, security=${securityAlerts ?? true}`);
     }
     
     res.json({
@@ -1636,7 +1642,7 @@ router.get('/settings-history', asyncHandler(async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
     // 验证用户ID的有效性
-    if (!decoded.userId || typeof decoded.userId !== 'number') {
+    if (!userId || typeof userId !== 'number') {
       return res.status(401).json({ message: '无效的用户ID' });
     }
     
@@ -1645,14 +1651,14 @@ router.get('/settings-history', asyncHandler(async (req, res) => {
     
     // 获取设置历史
     const history = await SettingsHistoryService.getUserSettingsHistory(
-      decoded.userId,
+      userId,
       settingType,
       parseInt(limit),
       parseInt(offset)
     );
     
     // 获取设置统计
-    const stats = await SettingsHistoryService.getUserSettingsStats(decoded.userId);
+    const stats = await SettingsHistoryService.getUserSettingsStats(userId);
     
     res.json({
       success: true,
@@ -1691,25 +1697,25 @@ router.get('/stats', asyncHandler(async (req, res) => {
     // 获取用户文件统计
     const [fileStats] = await pool.execute(
       'SELECT COUNT(*) as totalFiles FROM files WHERE user_id = ?',
-      [decoded.userId]
+      [userId]
     );
     
     // 获取用户文件夹统计
     const [folderStats] = await pool.execute(
       'SELECT COUNT(*) as totalFolders FROM folders WHERE user_id = ?',
-      [decoded.userId]
+      [userId]
     );
     
     // 获取用户登录次数和最后登录时间
     const [userInfo] = await pool.execute(
       'SELECT login_count, last_login FROM users WHERE id = ?',
-      [decoded.userId]
+      [userId]
     );
     
     // 获取最近登录记录
     const [recentLogins] = await pool.execute(
       'SELECT login_time, ip_address, login_method FROM user_login_logs WHERE user_id = ? AND success = true ORDER BY login_time DESC LIMIT 5',
-      [decoded.userId]
+      [userId]
     );
     
     res.json({
@@ -1848,7 +1854,7 @@ router.post('/qq/callback', [
     
     // 4. 查找或创建用户
     let [users] = await pool.execute(
-      'SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url FROM users WHERE qq_openid = ?',
+      'SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, created_at FROM users WHERE qq_openid = ?',
       [openId]
     );
 
@@ -1884,7 +1890,7 @@ router.post('/qq/callback', [
       
       // 获取新创建的用户信息
       [users] = await pool.execute(
-        'SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url FROM users WHERE id = ?',
+        'SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, created_at FROM users WHERE id = ?',
         [result.insertId]
       );
       user = users[0];
@@ -1951,7 +1957,8 @@ router.post('/qq/callback', [
         used_storage: user.used_storage || 0,
         avatar_url: user.avatar_url || '',
         nickname: qqUserInfo.nickname || '',
-        bio: ''
+        bio: '',
+        created_at: user.created_at
       },
       settings: {
         preferences: userPreferences,

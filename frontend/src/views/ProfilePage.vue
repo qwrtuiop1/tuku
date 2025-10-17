@@ -573,14 +573,12 @@ const handleAvatarSuccess = (response: any) => {
     const avatarUrl = response.data.url + '?t=' + Date.now()
     profileForm.avatar_url = avatarUrl
     
-    
     ElMessage.success(response.message || '头像上传成功')
     
     // 更新认证状态和用户信息
     authStore.updateUser({ avatar_url: avatarUrl })
     
-    // 重新获取用户信息以确保数据同步
-    fetchProfile()
+    // 不需要重新获取用户信息，直接使用上传后的URL
   } else {
     ElMessage.error(response.message || '头像上传失败')
   }

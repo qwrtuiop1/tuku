@@ -133,7 +133,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // 静态文件服务 - 必须在认证中间件之前
-app.use('/uploads', express.static(process.env.UPLOAD_PATH || './storage', {
+app.use('/uploads', express.static(process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage', {
   setHeaders: (res, path) => {
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
@@ -158,8 +158,14 @@ app.use('/api/admin', authenticateToken, adminRoutes);
 app.use('/api/avatars', authenticateToken, avatarRoutes);
 
 // 头像静态文件服务 - 必须在 /api/files 路由之前
-app.use('/api/files/avatar', express.static(path.join(process.env.UPLOAD_PATH || './storage', 'users'), {
+app.use('/api/files/avatar', express.static(path.join(process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage', 'users'), {
   setHeaders: (res, path) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.setHeader('Cache-Control', 'public, max-age=3600');
   }
 }));

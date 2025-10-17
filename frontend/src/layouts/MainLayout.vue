@@ -213,7 +213,7 @@
       <!-- 页面内容 -->
       <main class="page-content">
         <router-view v-slot="{ Component }">
-          <transition name="page-slide" mode="out-in">
+          <transition name="page-slide" mode="out-in" :duration="animationEnabled ? 300 : 0">
             <div v-if="Component" class="page-wrapper">
               <component :is="Component" />
             </div>
@@ -270,6 +270,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import api from '@/utils/api'
 import {
   Picture,
   Fold,
@@ -300,6 +301,7 @@ const touchStartX = ref(0)
 const touchStartY = ref(0)
 const isDragging = ref(false)
 const isDevelopment = ref(process.env.NODE_ENV === 'development')
+const animationEnabled = ref(true) // 页面动画控制
 
 // 检测屏幕尺寸
 const checkScreenSize = () => {
@@ -450,6 +452,28 @@ const handleResize = () => {
   checkScreenSize()
 }
 
+// 获取系统设置
+const fetchSystemSettings = async () => {
+  try {
+    const response = await api.get('/admin/settings')
+    const settings = response.data.settings || {}
+    
+    // 更新动画设置
+    animationEnabled.value = settings.enable_animation?.value !== 'false'
+  } catch (error) {
+    // 如果获取失败，使用默认值
+    console.warn('获取系统设置失败，使用默认动画设置')
+  }
+}
+
+// 监听系统设置变化
+const handleSystemSettingsChange = (event: CustomEvent) => {
+  const settings = event.detail
+  if (settings.enable_animation !== undefined) {
+    animationEnabled.value = settings.enable_animation
+  }
+}
+
 // 生命周期
 onMounted(() => {
   checkScreenSize()
@@ -461,10 +485,17 @@ onMounted(() => {
     document.addEventListener('touchmove', handleTouchMove, { passive: true })
     document.addEventListener('touchend', handleTouchEnd, { passive: true })
   }
+  
+  // 获取系统设置
+  fetchSystemSettings()
+  
+  // 添加全局事件监听
+  window.addEventListener('system-settings-changed', handleSystemSettingsChange as EventListener)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener('system-settings-changed', handleSystemSettingsChange as EventListener)
   
   // 移除触摸事件监听
   if (isMobile.value) {
@@ -980,7 +1011,7 @@ onUnmounted(() => {
 
 .page-content {
   flex: 1;
-  padding: 16px 0; // 上下内边距
+  padding: 16px 0; // 只保留上下内边距，移除左右内边距，让页面组件自己控制
   overflow-y: auto;
   background: transparent; // 移除背景色，由main-content提供
 }
@@ -1056,13 +1087,15 @@ onUnmounted(() => {
 @media (min-width: 1200px) {
   .main-content {
     margin-left: 220px;
+    margin-right: 220px; // 右边距与左边距完全相同
     padding-left: 0px;
-    padding-right: 20px;
+    padding-right: 0px; // 移除右边距，保持左右一致
     
     &.sidebar-collapsed {
       margin-left: 84px;
+      margin-right: 84px; // 右边距与左边距完全相同
       padding-left: 0px;
-      padding-right: 20px;
+      padding-right: 0px; // 移除右边距，保持左右一致
     }
   }
   
@@ -1088,13 +1121,15 @@ onUnmounted(() => {
 @media (min-width: 1920px) {
   .main-content {
     margin-left: 250px;
+    margin-right: 250px; // 右边距与左边距完全相同
     padding-left: 0px;
-    padding-right: 30px;
+    padding-right: 0px; // 移除右边距，保持左右一致
     
     &.sidebar-collapsed {
       margin-left: 110px;
+      margin-right: 110px; // 右边距与左边距完全相同
       padding-left: 0px;
-      padding-right: 30px;
+      padding-right: 0px; // 移除右边距，保持左右一致
     }
   }
   
@@ -1107,7 +1142,7 @@ onUnmounted(() => {
   }
   
   .page-content {
-    padding: 20px 0; // 增加上下内边距
+    padding: 20px 0; // 只保留上下内边距，移除左右内边距
   }
   
   .top-header {
@@ -1122,13 +1157,15 @@ onUnmounted(() => {
 @media (min-width: 1440px) and (max-width: 1919px) {
   .main-content {
     margin-left: 235px;
+    margin-right: 235px; // 右边距与左边距完全相同
     padding-left: 0px;
-    padding-right: 25px;
+    padding-right: 0px; // 移除右边距，保持左右一致
     
     &.sidebar-collapsed {
       margin-left: 95px;
+      margin-right: 95px; // 右边距与左边距完全相同
       padding-left: 0px;
-      padding-right: 25px;
+      padding-right: 0px; // 移除右边距，保持左右一致
     }
   }
   
@@ -1141,7 +1178,7 @@ onUnmounted(() => {
   }
   
   .page-content {
-    padding: 18px 0; // 适中的上下内边距
+    padding: 18px 0; // 只保留上下内边距，移除左右内边距
   }
   
   .top-header {
@@ -1156,13 +1193,15 @@ onUnmounted(() => {
 @media (min-width: 1200px) and (max-width: 1439px) {
   .main-content {
     margin-left: 220px;
+    margin-right: 220px; // 右边距与左边距完全相同
     padding-left: 0px;
-    padding-right: 20px;
+    padding-right: 0px; // 移除右边距，保持左右一致
     
     &.sidebar-collapsed {
       margin-left: 84px;
+      margin-right: 84px; // 右边距与左边距完全相同
       padding-left: 0px;
-      padding-right: 20px;
+      padding-right: 0px; // 移除右边距，保持左右一致
     }
   }
   
@@ -1175,7 +1214,7 @@ onUnmounted(() => {
   }
   
   .page-content {
-    padding: 16px 0; // 标准上下内边距
+    padding: 16px 0; // 只保留上下内边距，移除左右内边距
   }
   
   .top-header {
@@ -1190,13 +1229,15 @@ onUnmounted(() => {
 @media (min-width: 1024px) and (max-width: 1199px) {
   .main-content {
     margin-left: 195px;
+    margin-right: 195px; // 右边距与左边距完全相同
     padding-left: 0px;
-    padding-right: 15px;
+    padding-right: 0px; // 移除右边距，保持左右一致
     
     &.sidebar-collapsed {
       margin-left: 79px;
+      margin-right: 79px; // 右边距与左边距完全相同
       padding-left: 0px;
-      padding-right: 15px;
+      padding-right: 0px; // 移除右边距，保持左右一致
     }
   }
   
@@ -1209,7 +1250,7 @@ onUnmounted(() => {
   }
   
   .page-content {
-    padding: 14px 0; // 较小的上下内边距
+    padding: 14px 0; // 只保留上下内边距，移除左右内边距
   }
   
   .top-header {

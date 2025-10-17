@@ -723,7 +723,7 @@ onMounted(() => {
   display: grid;
   gap: 24px;
   grid-template-columns: 1fr;
-  padding: 24px;
+  padding: 0; // 移除内边距，由MainLayout统一控制
   background: #f5f7fa;
   min-height: 100vh;
 }
@@ -1517,7 +1517,7 @@ onMounted(() => {
 // 响应式设计 - 桌面端优化
 @media (min-width: 1440px) {
   .dashboard {
-    padding: 32px;
+    padding: 0; // 移除内边距，由MainLayout统一控制
     gap: 32px;
   }
   
@@ -1578,7 +1578,7 @@ onMounted(() => {
 
 @media (min-width: 1200px) and (max-width: 1439px) {
   .dashboard {
-    padding: 28px;
+    padding: 0; // 移除内边距，由MainLayout统一控制
     gap: 28px;
   }
   
@@ -1618,7 +1618,7 @@ onMounted(() => {
 
 @media (min-width: 1024px) and (max-width: 1199px) {
   .dashboard {
-    padding: 24px;
+    padding: 0; // 移除内边距，由MainLayout统一控制
     gap: 24px;
   }
   
@@ -1662,7 +1662,7 @@ onMounted(() => {
 // 平板端响应式设计
 @media (min-width: 768px) and (max-width: 1023px) {
   .dashboard {
-    padding: 20px;
+    padding: 0; // 移除内边距，由MainLayout统一控制
     gap: 20px;
   }
   
@@ -1764,7 +1764,7 @@ onMounted(() => {
 // 移动端响应式设计
 @media (max-width: 767px) {
   .dashboard {
-    padding: 16px;
+    padding: 0; // 移除内边距，由MainLayout统一控制
     gap: 20px;
   }
   

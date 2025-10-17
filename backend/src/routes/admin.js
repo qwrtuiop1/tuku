@@ -8,7 +8,8 @@ const { validatePasswordComplexity, getPasswordRequirements } = require('../util
 
 const router = express.Router();
 
-// 所有管理员路由都需要管理员权限
+// 所有管理员路由都需要认证和管理员权限
+router.use(authenticateToken);
 router.use(requireAdmin);
 
 // 管理员创建用户
@@ -132,7 +133,8 @@ router.post('/users', [
       last_login: new Date().toISOString(),
       login_count: 0,
       storage_limit: 1073741824,
-      used_storage: 0
+      used_storage: 0,
+      created_at: new Date().toISOString()
     }
   });
 }));
@@ -730,13 +732,13 @@ router.get('/storage-stats', authenticateToken, asyncHandler(async (req, res) =>
     `);
 
     const stats = {
-      total_storage: storageStats[0].total_storage || 0,
-      used_storage: storageStats[0].used_storage || 0,
-      available_storage: storageStats[0].available_storage || 0,
-      total_files: fileStats[0].total_files || 0,
-      total_file_size: fileStats[0].total_file_size || 0,
-      total_users: userStats[0].total_users || 0,
-      active_users: userStats[0].active_users || 0
+      total_storage: Number(storageStats[0].total_storage) || 0,
+      used_storage: Number(storageStats[0].used_storage) || 0,
+      available_storage: Number(storageStats[0].available_storage) || 0,
+      total_files: Number(fileStats[0].total_files) || 0,
+      total_file_size: Number(fileStats[0].total_file_size) || 0,
+      total_users: Number(userStats[0].total_users) || 0,
+      active_users: Number(userStats[0].active_users) || 0
     };
 
     res.json(stats);
@@ -1027,6 +1029,20 @@ router.put('/settings', [
     }
   }
   
+  if (validationErrors.length > 0) {
+    return res.status(400).json({ 
+      message: '设置验证失败', 
+      errors: validationErrors 
+    });
+  }
+  
+  // 获取当前设置用于比较
+  const settingKeys = Object.keys(settings);
+  const placeholders = settingKeys.map(() => '?').join(',');
+  const [oldSettings] = await pool.execute(
+    `SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (${placeholders})`,
+    settingKeys
+  );
   
   const oldSettingsMap = {};
   oldSettings.forEach(setting => {
@@ -1071,7 +1087,11 @@ router.put('/settings', [
     }
   }
   
-  res.json(response);
+  res.json({ 
+    message: '设置更新成功',
+    updatedCount: Object.keys(settings).length,
+    changes: changes.length > 0 ? changes : ['无变更']
+  });
 }));
 
 

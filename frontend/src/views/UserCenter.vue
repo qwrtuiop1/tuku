@@ -1446,7 +1446,7 @@ onUnmounted(() => {
 @use "@/styles/variables.scss" as *;
 
 .user-center-page {
-  padding: 24px;
+  padding: 0; // 移除内边距，由MainLayout统一控制
   background: #f5f7fa;
   min-height: 100vh;
 }
@@ -1965,7 +1965,7 @@ onUnmounted(() => {
 // 响应式设计
 @media (max-width: 768px) {
   .user-center-page {
-    padding: 12px;
+    padding: 0; // 移除内边距，由MainLayout统一控制
   }
   
   .page-header {
