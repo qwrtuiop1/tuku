@@ -11,6 +11,9 @@ export interface User {
   storage_limit: number
   used_storage: number
   avatar_url?: string
+  nickname?: string
+  bio?: string
+  created_at?: string
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -178,7 +181,7 @@ export const useAuthStore = defineStore('auth', () => {
       
       // 如果token在24小时内过期，尝试刷新
       if (hoursUntilExpiry < 24 && hoursUntilExpiry > 0) {
-        console.log('Token即将过期，尝试刷新...')
+        // Token即将过期，尝试刷新
         
         const response = await api.post('/auth/refresh', { token: token.value })
         if (response.data.success) {
@@ -194,14 +197,14 @@ export const useAuthStore = defineStore('auth', () => {
             sessionStorage.setItem('token', newToken)
           }
           
-          console.log('Token刷新成功')
+          // Token刷新成功
           return true
         }
       }
       
       return false
-    } catch (error) {
-      console.error('Token刷新失败:', error)
+      } catch (error) {
+        // Token刷新失败
       return false
     }
   }

@@ -88,14 +88,18 @@
         </div>
         
         <div class="social-login">
-          <el-button class="social-btn qq-btn" @click="handleQQLogin">
-            <el-icon><User /></el-icon>
-            QQ登录
-          </el-button>
-          <el-button class="social-btn wechat-btn" @click="handleWeChatLogin">
-            <el-icon><User /></el-icon>
-            微信登录
-          </el-button>
+          <div class="social-btn-wrapper">
+            <el-button class="social-btn qq-btn" @click="handleQQLogin">
+              <el-icon><User /></el-icon>
+              QQ登录
+            </el-button>
+          </div>
+          <div class="social-btn-wrapper">
+            <el-button class="social-btn wechat-btn" @click="handleWeChatLogin">
+              <el-icon><User /></el-icon>
+              微信登录
+            </el-button>
+          </div>
         </div>
         
         <div class="login-footer">
@@ -223,21 +227,19 @@ const goToForgotPassword = () => {
 // QQ登录处理
 const handleQQLogin = async () => {
   try {
-    console.log('开始获取QQ授权URL...')
+    // 开始获取QQ授权URL
     // 获取QQ授权URL
     const response = await api.get('/auth/qq/auth')
-    console.log('QQ授权URL响应:', response.data)
     
     if (response.data.success) {
-      console.log('跳转到QQ授权页面:', response.data.authUrl)
       // 跳转到QQ授权页面
       window.location.href = response.data.authUrl
     } else {
-      console.error('QQ授权URL获取失败:', response.data.message)
+      // QQ授权URL获取失败
       ElMessage.error(`QQ登录服务暂不可用: ${response.data.message}`)
     }
   } catch (error) {
-    console.error('QQ登录请求失败:', error)
+    // QQ登录请求失败
     
     // 提供更详细的错误信息
     if (error.code === 'ERR_NETWORK') {
@@ -487,36 +489,38 @@ onMounted(() => {
   gap: 12px;
   margin-bottom: 24px;
   
-  .social-btn {
+  .social-btn-wrapper {
     flex: 1;
-    height: 44px;
-    min-height: 44px;
-    max-height: 44px;
-    width: 100%;
-    min-width: 0;
-    border-radius: 12px;
-    border: 1px solid #e1e8ed;
-    background: white;
-    color: #7f8c8d;
-    transition: all 0.3s ease;
-    box-sizing: border-box;
     
-    &:hover {
-      border-color: #667eea;
-      color: #667eea;
-      transform: translateY(-1px);
-    }
-    
-    &.qq-btn:hover {
-      background: #12b7f5;
-      color: white;
-      border-color: #12b7f5;
-    }
-    
-    &.wechat-btn:hover {
-      background: #07c160;
-      color: white;
-      border-color: #07c160;
+    .social-btn {
+      width: 100%;
+      height: 44px;
+      min-height: 44px;
+      max-height: 44px;
+      border-radius: 12px;
+      border: 1px solid #e1e8ed;
+      background: white;
+      color: #7f8c8d;
+      transition: all 0.3s ease;
+      box-sizing: border-box;
+      
+      &:hover {
+        border-color: #667eea;
+        color: #667eea;
+        transform: translateY(-1px);
+      }
+      
+      &.qq-btn:hover {
+        background: #12b7f5;
+        color: white;
+        border-color: #12b7f5;
+      }
+      
+      &.wechat-btn:hover {
+        background: #07c160;
+        color: white;
+        border-color: #07c160;
+      }
     }
   }
 }
@@ -882,18 +886,22 @@ onMounted(() => {
     flex-direction: column;
     gap: 10px;
     
-    .social-btn {
-      height: 40px;
-      min-height: 40px;
-      max-height: 40px;
+    .social-btn-wrapper {
       width: 100%;
-      min-width: 0;
-      font-size: 14px;
-      border-radius: 10px;
-      box-sizing: border-box;
       
-      &:hover {
-        transform: translateY(-1px);
+      .social-btn {
+        height: 40px;
+        min-height: 40px;
+        max-height: 40px;
+        width: 100%;
+        min-width: 0;
+        font-size: 14px;
+        border-radius: 10px;
+        box-sizing: border-box;
+        
+        &:hover {
+          transform: translateY(-1px);
+        }
       }
     }
   }
@@ -1079,18 +1087,22 @@ onMounted(() => {
   .social-login {
     gap: 8px;
     
-    .social-btn {
-      height: 38px;
-      min-height: 38px;
-      max-height: 38px;
+    .social-btn-wrapper {
       width: 100%;
-      min-width: 0;
-      font-size: 13px;
-      box-sizing: border-box;
-      border-radius: 8px;
       
-      &:hover {
-        transform: translateY(-1px);
+      .social-btn {
+        height: 38px;
+        min-height: 38px;
+        max-height: 38px;
+        width: 100%;
+        min-width: 0;
+        font-size: 13px;
+        box-sizing: border-box;
+        border-radius: 8px;
+        
+        &:hover {
+          transform: translateY(-1px);
+        }
       }
     }
   }
@@ -1277,18 +1289,22 @@ onMounted(() => {
   .social-login {
     gap: 6px;
     
-    .social-btn {
-      height: 36px;
-      min-height: 36px;
-      max-height: 36px;
+    .social-btn-wrapper {
       width: 100%;
-      min-width: 0;
-      font-size: 12px;
-      border-radius: 6px;
-      box-sizing: border-box;
       
-      &:hover {
-        transform: translateY(-1px);
+      .social-btn {
+        height: 36px;
+        min-height: 36px;
+        max-height: 36px;
+        width: 100%;
+        min-width: 0;
+        font-size: 12px;
+        border-radius: 6px;
+        box-sizing: border-box;
+        
+        &:hover {
+          transform: translateY(-1px);
+        }
       }
     }
   }
@@ -1374,14 +1390,16 @@ onMounted(() => {
     }
     
     .social-login {
-      .social-btn {
-        background: rgba(45, 45, 45, 0.9);
-        border-color: #404040;
-        color: #a0a0a0;
-        
-        &:hover {
-          border-color: #667eea;
-          color: #667eea;
+      .social-btn-wrapper {
+        .social-btn {
+          background: rgba(45, 45, 45, 0.9);
+          border-color: #404040;
+          color: #a0a0a0;
+          
+          &:hover {
+            border-color: #667eea;
+            color: #667eea;
+          }
         }
       }
     }

@@ -455,14 +455,16 @@ const handleResize = () => {
 // 获取系统设置
 const fetchSystemSettings = async () => {
   try {
-    const response = await api.get('/admin/settings')
-    const settings = response.data.settings || {}
+    // 使用公共接口获取系统信息，而不是管理员接口
+    const response = await api.get('/system/info')
+    const systemInfo = response.data
     
-    // 更新动画设置
-    animationEnabled.value = settings.enable_animation?.value !== 'false'
+    // 使用默认动画设置，因为公共接口不包含动画设置
+    animationEnabled.value = true
   } catch (error) {
     // 如果获取失败，使用默认值
-    console.warn('获取系统设置失败，使用默认动画设置')
+    // 获取系统设置失败，使用默认动画设置
+    animationEnabled.value = true
   }
 }
 
@@ -1484,6 +1486,7 @@ onUnmounted(() => {
   
   .sidebar-footer {
     padding: 20px;
+    padding-bottom: 80px; // 为底部导航栏预留空间
   }
   
   .user-details {
@@ -1639,6 +1642,7 @@ onUnmounted(() => {
   
   .sidebar-footer {
     padding: 16px;
+    padding-bottom: 76px; // 为底部导航栏预留空间
   }
   
   .mobile-storage {
@@ -1745,6 +1749,7 @@ onUnmounted(() => {
   
   .sidebar-footer {
     padding: 12px;
+    padding-bottom: 72px; // 为底部导航栏预留空间
   }
   
   .mobile-storage {

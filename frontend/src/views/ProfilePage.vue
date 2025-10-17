@@ -464,43 +464,67 @@ const saveProfile = async () => {
   try {
     await profileFormRef.value.validate()
     
-    // 如果邮箱发生变化，需要验证码
-    if (profileForm.email !== originalEmail.value) {
-      if (!emailCode.value) {
-        ElMessage.warning('请先发送并输入邮箱验证码')
-        return
-      }
-      if (codeExpireTime.value <= 0) {
-        ElMessage.warning('验证码已过期，请重新发送')
-        return
-      }
-    }
-    
     saving.value = true
     
-    const updateData: any = {
-      username: profileForm.username,
-      nickname: profileForm.nickname,
-      bio: profileForm.bio
+    // 检查是否只更新昵称和个人简介（邮箱和用户名都没有变化）
+    const onlyNicknameAndBio = (
+      profileForm.email === originalEmail.value
+    )
+    
+    if (onlyNicknameAndBio) {
+      // 使用简化的API只更新昵称和个人简介
+      const updateData = {
+        nickname: profileForm.nickname,
+        bio: profileForm.bio
+      }
+      
+      const response = await api.put('/auth/profile/simple', updateData)
+      ElMessage.success('个人资料保存成功')
+      
+      // 更新本地数据
+      if (response.data.user) {
+        Object.assign(profileForm, {
+          nickname: response.data.user.nickname || '',
+          bio: response.data.user.bio || ''
+        })
+      }
+    } else {
+      // 如果邮箱发生变化，需要验证码
+      if (profileForm.email !== originalEmail.value) {
+        if (!emailCode.value) {
+          ElMessage.warning('请先发送并输入邮箱验证码')
+          return
+        }
+        if (codeExpireTime.value <= 0) {
+          ElMessage.warning('验证码已过期，请重新发送')
+          return
+        }
+      }
+      
+      const updateData: any = {
+        username: profileForm.username,
+        nickname: profileForm.nickname,
+        bio: profileForm.bio
+      }
+      
+      // 只有当邮箱发生变化且验证码验证通过时，才更新邮箱
+      if (profileForm.email !== originalEmail.value) {
+        updateData.email = profileForm.email
+        updateData.emailCode = emailCode.value
+      }
+      
+      await api.put('/auth/profile', updateData)
+      ElMessage.success('个人信息保存成功')
+      
+      // 清理验证码相关状态
+      clearTimers()
+      showEmailCodeInput.value = false
+      emailCode.value = ''
+      emailCodeCooldown.value = 0
+      codeExpireTime.value = 0
     }
     
-    // 只有当邮箱发生变化且验证码验证通过时，才更新邮箱
-    if (profileForm.email !== originalEmail.value) {
-      updateData.email = profileForm.email
-      updateData.emailCode = emailCode.value
-    }
-    
-    await api.put('/auth/profile', updateData)
-    
-    ElMessage.success('个人信息保存成功')
     editMode.value = false
-    
-    // 清理验证码相关状态
-    clearTimers()
-    showEmailCodeInput.value = false
-    emailCode.value = ''
-    emailCodeCooldown.value = 0
-    codeExpireTime.value = 0
     
     // 更新认证状态
     await authStore.checkAuth()

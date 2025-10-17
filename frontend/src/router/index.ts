@@ -159,7 +159,8 @@ router.beforeEach(async (to, from, next) => {
       // 获取当前token
       const token = localStorage.getItem('token') || sessionStorage.getItem('token')
       
-      const response = await fetch('https://tukubackend.vtart.cn/api/admin/settings', {
+      // 使用公共接口检查维护模式，而不是管理员接口
+      const response = await fetch('https://tukubackend.vtart.cn/api/system/maintenance-status', {
         headers: token ? {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -170,7 +171,7 @@ router.beforeEach(async (to, from, next) => {
       
       if (response.ok) {
         const data = await response.json()
-        const isMaintenanceMode = data.settings?.maintenance_mode?.value === 'true'
+        const isMaintenanceMode = data.maintenance_mode === true
         
         if (isMaintenanceMode) {
           // 检查用户是否为管理员
@@ -183,7 +184,7 @@ router.beforeEach(async (to, from, next) => {
       }
     } catch (error) {
       // 如果检查失败，继续正常流程
-      console.log('维护模式检查失败:', error)
+      // 维护模式检查失败，继续正常路由
     }
   }
   
@@ -203,9 +204,16 @@ router.beforeEach(async (to, from, next) => {
       try {
         const success = await authStore.checkAuth()
         if (!success) {
-          ElMessage.warning('登录已过期，请重新登录')
-          next('/login')
-          return
+          // 如果用户有token但checkAuth失败，可能是网络问题，给用户一个机会
+          if (authStore.token) {
+            ElMessage.warning('网络连接异常，请稍后重试')
+            next('/')
+            return
+          } else {
+            ElMessage.warning('登录已过期，请重新登录')
+            next('/login')
+            return
+          }
         }
       } catch (error) {
         ElMessage.warning('登录验证失败，请重新登录')

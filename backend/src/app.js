@@ -10,6 +10,7 @@ const fileRoutes = require('./routes/files');
 const folderRoutes = require('./routes/folders');
 const adminRoutes = require('./routes/admin');
 const avatarRoutes = require('./routes/avatars');
+const systemRoutes = require('./routes/system');
 const { errorHandler } = require('./middleware/errorHandler');
 const { authenticateToken } = require('./middleware/auth');
 const { checkMaintenanceMode } = require('./middleware/maintenance');
@@ -153,6 +154,7 @@ app.use('/api/files', checkMaintenanceMode);
 
 // 路由
 app.use('/api/auth', authRoutes);
+app.use('/api/system', systemRoutes); // 系统公共接口，无需认证
 app.use('/api/folders', authenticateToken, folderRoutes);
 app.use('/api/admin', authenticateToken, adminRoutes);
 app.use('/api/avatars', authenticateToken, avatarRoutes);

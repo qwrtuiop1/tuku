@@ -17,9 +17,6 @@ const ensureUploadDir = async (userId, folderId = null) => {
   const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
   const userDir = path.join(baseUploadPath, 'users', `user_${userId}`);
   
-  console.log(`📁 基础上传路径: ${baseUploadPath}`);
-  console.log(`📁 用户目录: ${userDir}`);
-  
   // 如果有文件夹ID，创建文件夹路径
   let folderDirPath = '';
   if (folderId) {
@@ -30,11 +27,6 @@ const ensureUploadDir = async (userId, folderId = null) => {
   const videosDir = path.join(userDir, folderDirPath, 'videos');
   const thumbnailsDir = path.join(userDir, folderDirPath, 'thumbnails');
   const avatarsDir = path.join(userDir, 'avatars'); // 头像始终在用户根目录
-
-  console.log(`📁 图片目录: ${imagesDir}`);
-  console.log(`📁 视频目录: ${videosDir}`);
-  console.log(`📁 缩略图目录: ${thumbnailsDir}`);
-  console.log(`📁 头像目录: ${avatarsDir}`);
 
   await fs.ensureDir(imagesDir);
   await fs.ensureDir(videosDir);
@@ -111,15 +103,40 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-const upload = multer({
-  storage,
-  fileFilter,
-  limits: {
-    fileSize: 100 * 1024 * 1024 // 100MB
-  },
-  // 确保正确处理文件名编码
-  preservePath: true
-});
+// 动态获取文件大小限制
+const getFileSizeLimit = async () => {
+  try {
+    const [result] = await pool.execute(
+      'SELECT setting_value FROM system_settings WHERE setting_key = ?',
+      ['max_file_size']
+    );
+    
+    if (result.length > 0) {
+      const maxFileSize = parseInt(result[0].setting_value);
+      return maxFileSize || 100 * 1024 * 1024; // 默认100MB
+    }
+    
+    return 100 * 1024 * 1024; // 默认100MB
+  } catch (error) {
+    console.error('获取文件大小限制失败:', error);
+    return 100 * 1024 * 1024; // 默认100MB
+  }
+};
+
+// 创建动态multer配置
+const createUploadMiddleware = async () => {
+  const fileSizeLimit = await getFileSizeLimit();
+  
+  return multer({
+    storage,
+    fileFilter,
+    limits: {
+      fileSize: fileSizeLimit
+    },
+    // 确保正确处理文件名编码
+    preservePath: true
+  });
+};
 
 // 获取文件列表
 router.get('/', authenticateToken, asyncHandler(async (req, res) => {
@@ -211,10 +228,10 @@ router.get('/', authenticateToken, asyncHandler(async (req, res) => {
             displayName = urlDecoded;
           }
         } catch (e) { /* ignore */ }
+        }
+      } catch (error) {
+        // 编码处理失败，使用原始名称
       }
-    } catch (error) {
-      console.log('文件名解码失败:', error);
-    }
     
     // 处理文件路径
     let normalizedFilePath = file.file_path.replace(/\\/g, '/');
@@ -253,7 +270,35 @@ router.get('/', authenticateToken, asyncHandler(async (req, res) => {
 }));
 
 // 上传文件
-router.post('/upload', authenticateToken, upload.single('file'), asyncHandler(async (req, res) => {
+router.post('/upload', authenticateToken, asyncHandler(async (req, res) => {
+  // 动态创建multer中间件
+  const upload = await createUploadMiddleware();
+  
+  // 使用动态配置处理文件上传
+  upload.single('file')(req, res, async (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          const fileSizeLimit = await getFileSizeLimit();
+          const limitMB = Math.round(fileSizeLimit / (1024 * 1024));
+          return res.status(400).json({ message: `文件大小不能超过 ${limitMB}MB` });
+        }
+      }
+      return res.status(400).json({ message: err.message });
+    }
+    
+    // 继续处理文件上传逻辑
+    try {
+      await handleFileUpload(req, res);
+    } catch (error) {
+      console.error('文件上传处理失败:', error);
+      res.status(500).json({ message: '文件上传失败' });
+    }
+  });
+}));
+
+// 处理文件上传的核心逻辑
+const handleFileUpload = asyncHandler(async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: '没有上传文件' });
   }
@@ -283,11 +328,10 @@ router.post('/upload', authenticateToken, upload.single('file'), asyncHandler(as
     try {
       const metadata = await sharp(file.path).metadata();
       width = metadata.width || null;
-      height = metadata.height || null;
-    } catch (error) {
-      console.error('获取图片元数据失败:', error);
-      width = null;
-      height = null;
+        height = metadata.height || null;
+      } catch (error) {
+        width = null;
+        height = null;
     }
   }
 
@@ -302,10 +346,10 @@ router.post('/upload', authenticateToken, upload.single('file'), asyncHandler(as
       await sharp(file.path)
         .resize(300, 300, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 80 })
-        .toFile(thumbnailPath);
-    } catch (error) {
-      console.error('生成缩略图失败:', error);
-    }
+          .toFile(thumbnailPath);
+      } catch (error) {
+        // 缩略图生成失败，继续处理
+      }
   }
 
   // 处理文件名编码问题
@@ -356,11 +400,6 @@ router.post('/upload', authenticateToken, upload.single('file'), asyncHandler(as
   // 确保路径格式正确
   const normalizedRelativePath = relativePath.replace(/\\/g, '/');
   
-  console.log(`📁 基础上传路径: ${baseUploadPath}`);
-  console.log(`📁 文件绝对路径: ${file.path}`);
-  console.log(`📁 文件相对路径: ${relativePath}`);
-  console.log(`📁 当前工作目录: ${process.cwd()}`);
-
   // 保存文件信息到数据库
   const [result] = await pool.execute(
     `INSERT INTO files (user_id, filename, original_name, file_type, file_size, file_path, thumbnail_path, folder_id, mime_type, width, height, duration) 
@@ -394,7 +433,7 @@ router.post('/upload', authenticateToken, upload.single('file'), asyncHandler(as
       thumbnail_path: thumbnailPath
     }
   });
-}));
+});
 
 // 重命名文件
 router.put('/:id', authenticateToken, asyncHandler(async (req, res) => {
@@ -520,10 +559,6 @@ router.post('/:id/copy', authenticateToken, asyncHandler(async (req, res) => {
   const relativeDestPath = path.relative(process.cwd(), destPath);
   const relativeThumbnailPath = newThumbnailPath ? path.relative(process.cwd(), newThumbnailPath) : null;
   
-  console.log(`📁 复制文件绝对路径: ${destPath}`);
-  console.log(`📁 复制文件相对路径: ${relativeDestPath}`);
-  console.log(`📁 缩略图相对路径: ${relativeThumbnailPath}`);
-
   // 插入新的文件记录
   const [result] = await pool.execute(
     `INSERT INTO files (user_id, filename, original_name, file_type, file_size, file_path, thumbnail_path, folder_id, mime_type, width, height, duration) 
@@ -584,17 +619,12 @@ router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
       }
       
       filePath = path.resolve(baseUploadPath, normalizedPath);
-    }
-    
-    console.log(`🗑️ 准备删除文件: ${filePath}`);
-    
-    // 删除主文件
-    if (await fs.pathExists(filePath)) {
-      await fs.remove(filePath);
-      console.log(`✅ 主文件删除成功: ${filePath}`);
-    } else {
-      console.log(`⚠️ 主文件不存在: ${filePath}`);
-    }
+      }
+      
+      // 删除主文件
+      if (await fs.pathExists(filePath)) {
+        await fs.remove(filePath);
+      }
     
     // 删除缩略图
     if (file.thumbnail_path) {
@@ -610,19 +640,14 @@ router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
         }
         
         thumbnailPath = path.resolve(baseUploadPath, normalizedThumbnailPath);
-      }
-      
-      console.log(`🗑️ 准备删除缩略图: ${thumbnailPath}`);
-      
-      if (await fs.pathExists(thumbnailPath)) {
-        await fs.remove(thumbnailPath);
-        console.log(`✅ 缩略图删除成功: ${thumbnailPath}`);
-      } else {
-        console.log(`⚠️ 缩略图不存在: ${thumbnailPath}`);
-      }
+        }
+        
+        if (await fs.pathExists(thumbnailPath)) {
+          await fs.remove(thumbnailPath);
+        }
     }
   } catch (error) {
-    console.error('删除物理文件失败:', error);
+    // 删除物理文件失败，继续处理
   }
 
   // 从数据库删除记录
@@ -679,17 +704,12 @@ router.delete('/batch', authenticateToken, asyncHandler(async (req, res) => {
         }
         
         filePath = path.resolve(baseUploadPath, normalizedPath);
-      }
-      
-      console.log(`🗑️ 批量删除文件: ${filePath}`);
-      
-      // 删除主文件
-      if (await fs.pathExists(filePath)) {
-        await fs.remove(filePath);
-        console.log(`✅ 批量删除主文件成功: ${filePath}`);
-      } else {
-        console.log(`⚠️ 批量删除主文件不存在: ${filePath}`);
-      }
+        }
+        
+        // 删除主文件
+        if (await fs.pathExists(filePath)) {
+          await fs.remove(filePath);
+        }
       
       // 删除缩略图
       if (file.thumbnail_path) {
@@ -705,19 +725,14 @@ router.delete('/batch', authenticateToken, asyncHandler(async (req, res) => {
           }
           
           thumbnailPath = path.resolve(baseUploadPath, normalizedThumbnailPath);
-        }
-        
-        console.log(`🗑️ 批量删除缩略图: ${thumbnailPath}`);
-        
-        if (await fs.pathExists(thumbnailPath)) {
-          await fs.remove(thumbnailPath);
-          console.log(`✅ 批量删除缩略图成功: ${thumbnailPath}`);
-        } else {
-          console.log(`⚠️ 批量删除缩略图不存在: ${thumbnailPath}`);
-        }
+          }
+          
+          if (await fs.pathExists(thumbnailPath)) {
+            await fs.remove(thumbnailPath);
+          }
       }
     } catch (error) {
-      console.error('批量删除物理文件失败:', error);
+      // 批量删除物理文件失败，继续处理
     }
   });
 
@@ -774,20 +789,16 @@ router.get('/preview/:id', authenticateToken, asyncHandler(async (req, res) => {
   const fileId = req.params.id;
   const userId = req.user.id;
 
-  console.log(`🔍 文件预览请求: fileId=${fileId}, userId=${userId}`);
-
   const [files] = await pool.execute(
     'SELECT * FROM files WHERE id = ? AND user_id = ?',
     [fileId, userId]
   );
 
   if (files.length === 0) {
-    console.log(`❌ 文件不存在: fileId=${fileId}, userId=${userId}`);
     return res.status(404).json({ message: '文件不存在' });
   }
 
   const file = files[0];
-  console.log(`📁 文件信息: ${JSON.stringify(file, null, 2)}`);
 
   // 处理文件路径 - 基于存储根目录解析
   const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
@@ -807,41 +818,31 @@ router.get('/preview/:id', authenticateToken, asyncHandler(async (req, res) => {
     
     // 使用绝对路径解析，确保路径正确
     filePath = path.resolve(baseUploadPath, normalizedPath);
-  }
-  
-  console.log(`📁 基础上传路径: ${baseUploadPath}`);
-  console.log(`📁 解析后文件路径: ${filePath}`);
-  console.log(`📁 原始文件路径: ${file.file_path}`);
-
-  if (!await fs.pathExists(filePath)) {
-    console.log(`❌ 文件路径不存在: ${filePath}`);
+    }
+    
+    if (!await fs.pathExists(filePath)) {
     
     // 尝试其他可能的路径
     const alternativePaths = [
-      path.join('/www/wwwroot/tuku/backend/dist', file.file_path),
       path.join('/www/wwwroot/tuku/backend', file.file_path),
+      path.join('/www/wwwroot/tuku/backend/dist', file.file_path),
       path.join(baseUploadPath, file.file_path),
       path.resolve(file.file_path),
       file.file_path // 直接使用原始路径
     ];
     
-    for (const altPath of alternativePaths) {
-      console.log(`🔍 尝试路径: ${altPath}`);
-      if (await fs.pathExists(altPath)) {
-        filePath = altPath;
-        console.log(`✅ 找到文件: ${filePath}`);
-        break;
+      for (const altPath of alternativePaths) {
+        if (await fs.pathExists(altPath)) {
+          filePath = altPath;
+          break;
+        }
+      }
+      
+      if (!await fs.pathExists(filePath)) {
+        return res.status(404).json({ message: '文件不存在' });
       }
     }
-    
-    if (!await fs.pathExists(filePath)) {
-      console.log(`❌ 所有路径都不存在`);
-      return res.status(404).json({ message: '文件不存在' });
-    }
-  }
 
-  console.log(`✅ 发送文件: ${filePath}`);
-  
   // 设置正确的Content-Type
   const mimeType = mime.lookup(filePath) || 'application/octet-stream';
   res.setHeader('Content-Type', mimeType);
@@ -862,7 +863,6 @@ router.get('/preview/:id', authenticateToken, asyncHandler(async (req, res) => {
 
 // 头像上传
 router.post('/upload/avatar', authenticateToken, asyncHandler(async (req, res) => {
-  console.log('收到头像上传请求，用户ID:', req.user.id);
   
   const upload = multer({
     storage: multer.diskStorage({
@@ -892,10 +892,8 @@ router.post('/upload/avatar', authenticateToken, asyncHandler(async (req, res) =
   }).single('avatar');
 
   upload(req, res, async (err) => {
-    console.log('Multer上传处理开始');
     
     if (err) {
-      console.error('Multer上传错误:', err);
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({ message: '头像文件大小不能超过 10MB' });
@@ -905,11 +903,8 @@ router.post('/upload/avatar', authenticateToken, asyncHandler(async (req, res) =
     }
 
     if (!req.file) {
-      console.log('没有收到文件');
       return res.status(400).json({ message: '请选择头像文件' });
     }
-    
-    console.log('文件上传成功:', req.file.filename, '大小:', req.file.size);
 
            try {
              const userId = req.user.id;
@@ -921,10 +916,9 @@ router.post('/upload/avatar', authenticateToken, asyncHandler(async (req, res) =
              const maxSize = 2 * 1024 * 1024; // 2MB
              let finalImagePath = originalPath;
              
-             if (fileStats.size > maxSize) {
-               console.log(`头像文件 ${fileStats.size} bytes 超过2MB，开始压缩...`);
-               
-               // 压缩图片到2MB以下 - 优化版本
+              if (fileStats.size > maxSize) {
+                
+                // 压缩图片到2MB以下 - 优化版本
                const compressedFilename = `compressed_${req.file.filename}`;
                const compressedPath = path.join(avatarsDir, compressedFilename);
                
@@ -960,17 +954,14 @@ router.post('/upload/avatar', authenticateToken, asyncHandler(async (req, res) =
                    )
                    .jpeg({ quality: 60 })
                    .toFile(compressedPath);
-               }
-               
-               console.log(`压缩完成，最终大小: ${(await fs.stat(compressedPath)).size} bytes`);
-               
-               // 删除原始文件
-               try {
-                 await fs.remove(originalPath);
-                 console.log('删除原始文件成功');
-               } catch (error) {
-                 console.log('删除原始文件失败，忽略错误:', error.message);
-               }
+                }
+                
+                // 删除原始文件
+                try {
+                  await fs.remove(originalPath);
+                } catch (error) {
+                  // 删除失败，忽略错误
+                }
                
                finalImagePath = compressedPath;
              }
@@ -996,32 +987,27 @@ router.post('/upload/avatar', authenticateToken, asyncHandler(async (req, res) =
                
                // 生成访问URL - 直接使用后端域名
                const backendDomain = process.env.BACKEND_DOMAIN || 'https://tukubackend.vtart.cn';
-               const avatarFileName = path.basename(resizedPath);
-               avatarUrls[`size_${size}`] = `${backendDomain}/uploads/users/user_${userId}/avatars/${avatarFileName}`;
-               console.log(`生成头像URL size_${size}: ${avatarUrls[`size_${size}`]}`);
+                const avatarFileName = path.basename(resizedPath);
+                avatarUrls[`size_${size}`] = `${backendDomain}/uploads/users/user_${userId}/avatars/${avatarFileName}`;
              }
 
              // 删除压缩后的临时文件（如果存在且不是最终文件）
              if (finalImagePath !== originalPath) {
-               try {
-                 await fs.remove(finalImagePath);
-                 console.log('删除临时压缩文件成功');
-               } catch (error) {
-                 console.log('删除临时压缩文件失败，忽略错误:', error.message);
-               }
+              try {
+                await fs.remove(finalImagePath);
+              } catch (error) {
+                // 删除失败，忽略错误
+              }
              }
 
       // 更新用户头像URL
       const avatarUrl = avatarUrls.size_120; // 默认使用120px尺寸
-      console.log('准备更新用户头像URL:', avatarUrl);
       
       await pool.execute(
         'UPDATE users SET avatar_url = ? WHERE id = ?',
         [avatarUrl, userId]
       );
       
-      console.log('用户头像URL更新完成');
-
       res.json({
         success: true,
         message: fileStats.size > maxSize ? '头像上传成功（已自动压缩）' : '头像上传成功',
@@ -1034,14 +1020,13 @@ router.post('/upload/avatar', authenticateToken, asyncHandler(async (req, res) =
         }
       });
     } catch (error) {
-      console.error('头像上传失败:', error);
       
       // 清理上传的文件（忽略权限错误）
       if (req.file) {
         try {
           await fs.remove(req.file.path);
         } catch (cleanupError) {
-          console.log('清理上传文件失败，忽略错误:', cleanupError.message);
+          // 清理失败，忽略错误
         }
       }
       
@@ -1088,10 +1073,9 @@ router.get('/stats', authenticateToken, asyncHandler(async (req, res) => {
         changes: trendResult.data.changes
       }
     });
-  } catch (error) {
-    console.error('获取文件统计失败:', error);
-    res.status(500).json({
-      success: false,
+    } catch (error) {
+      res.status(500).json({
+        success: false,
       message: '获取文件统计失败'
     });
   }
@@ -1109,10 +1093,9 @@ router.get('/trends', authenticateToken, asyncHandler(async (req, res) => {
       success: true,
       data: result.data
     });
-  } catch (error) {
-    console.error('获取趋势数据失败:', error);
-    res.status(500).json({
-      success: false,
+    } catch (error) {
+      res.status(500).json({
+        success: false,
       message: '获取趋势数据失败'
     });
   }
@@ -1195,10 +1178,9 @@ router.get('/storage-details', authenticateToken, asyncHandler(async (req, res) 
         totalCount: imageCount + videoCount + otherCount
       }
     });
-  } catch (error) {
-    console.error('获取存储详情失败:', error);
-    res.status(500).json({
-      success: false,
+    } catch (error) {
+      res.status(500).json({
+        success: false,
       message: '获取存储详情失败'
     });
   }

@@ -23,14 +23,14 @@ const authenticateToken = async (req, res, next) => {
     let users;
     try {
       [users] = await pool.execute(
-        'SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url FROM users WHERE id = ?',
+        'SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, nickname, bio, created_at FROM users WHERE id = ?',
         [decoded.userId]
       );
     } catch (error) {
       // 如果查询失败，可能是表结构问题，尝试基本查询
       console.log('🔧 尝试基本用户查询...');
       [users] = await pool.execute(
-        'SELECT id, username, email, role, status, avatar_url FROM users WHERE id = ?',
+        'SELECT id, username, email, role, status, avatar_url, nickname, bio, created_at FROM users WHERE id = ?',
         [decoded.userId]
       );
     }

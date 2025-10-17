@@ -535,6 +535,8 @@ router.put('/profile/simple', authenticateToken, [
     const { nickname, bio } = req.body;
     const userId = req.user.id;
     
+    console.log('收到个人资料更新请求:', { nickname, bio, userId });
+    
     // 构建更新字段
     const updateFields = [];
     const updateValues = [];
@@ -550,6 +552,7 @@ router.put('/profile/simple', authenticateToken, [
     }
     
     if (updateFields.length === 0) {
+      console.log('没有需要更新的字段');
       return res.status(400).json({ message: '没有需要更新的字段' });
     }
     
@@ -557,13 +560,18 @@ router.put('/profile/simple', authenticateToken, [
     updateFields.push('updated_at = CURRENT_TIMESTAMP');
     updateValues.push(userId);
     
+    console.log('执行SQL更新:', `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`, updateValues);
+    
     // 执行更新
     const [result] = await pool.execute(
       `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
       updateValues
     );
     
+    console.log('更新结果:', result);
+    
     if (result.affectedRows === 0) {
+      console.log('没有行被更新');
       return res.status(500).json({ message: '个人资料更新失败' });
     }
     
@@ -591,7 +599,7 @@ router.put('/password', [
   body('emailCode')
     .isLength({ min: 6, max: 6 })
     .withMessage('验证码长度必须为6位')
-], asyncHandler(async (req, res) => {
+], authenticateToken, asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -600,24 +608,15 @@ router.put('/password', [
     });
   }
 
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: '访问令牌缺失' });
-  }
-
-  try {
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    const { newPassword, emailCode } = req.body;
-    
-    // 获取用户信息
-    const [users] = await pool.execute(
-      'SELECT id, email, password_hash FROM users WHERE id = ?',
-      [userId]
-    );
+  const userId = req.user.id;
+  
+  const { newPassword, emailCode } = req.body;
+  
+  // 获取用户信息
+  const [users] = await pool.execute(
+    'SELECT id, email, password_hash FROM users WHERE id = ?',
+    [userId]
+  );
 
     if (users.length === 0) {
       return res.status(404).json({ message: '用户不存在' });
@@ -652,14 +651,7 @@ router.put('/password', [
 
     // 验证码已在verifyCode函数中自动标记为已使用
 
-    res.json({ message: '密码修改成功' });
-  } catch (error) {
-    console.error('修改密码失败:', error);
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: '无效的访问令牌' });
-    }
-    res.status(500).json({ message: '修改密码失败' });
-  }
+  res.json({ message: '密码修改成功' });
 }));
 
 // 用户登出（客户端处理，这里只是返回成功消息）
@@ -1229,56 +1221,40 @@ router.get('/code-audit/:email/:type', asyncHandler(async (req, res) => {
 }));
 
 // 获取用户偏好设置
-router.get('/preferences', asyncHandler(async (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: '访问令牌缺失' });
+router.get('/preferences', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  
+  // 验证用户ID的有效性
+  if (!userId || typeof userId !== 'number') {
+    return res.status(401).json({ message: '无效的用户ID' });
   }
-
-  try {
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // 验证用户ID的有效性
-    if (!userId || typeof userId !== 'number') {
-      return res.status(401).json({ message: '无效的用户ID' });
-    }
-    
-    // 首先验证用户是否存在
-    const [userCheck] = await pool.execute(
-      'SELECT id FROM users WHERE id = ?',
-      [userId]
-    );
-    
-    if (userCheck.length === 0) {
-      return res.status(404).json({ message: '用户不存在' });
-    }
-    
-    // 从数据库获取用户偏好设置，如果不存在则返回默认值
-    const [preferences] = await pool.execute(
-      'SELECT default_view FROM user_preferences WHERE user_id = ?',
-      [userId]
-    );
-
-    const userPrefs = preferences.length > 0 ? preferences[0] : { default_view: 'grid' };
-    
-    console.log(`✅ 用户 ${userId} 偏好设置查询成功: defaultView=${userPrefs.default_view || 'grid'}`);
-    
-    res.json({
-      success: true,
-      data: {
-        defaultView: userPrefs.default_view || 'grid'
-      }
-    });
-  } catch (error) {
-    console.error('获取用户偏好设置失败:', error);
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: '无效的访问令牌' });
-    }
-    return res.status(500).json({ message: '服务器内部错误' });
+  
+  // 首先验证用户是否存在
+  const [userCheck] = await pool.execute(
+    'SELECT id FROM users WHERE id = ?',
+    [userId]
+  );
+  
+  if (userCheck.length === 0) {
+    return res.status(404).json({ message: '用户不存在' });
   }
+  
+  // 从数据库获取用户偏好设置，如果不存在则返回默认值
+  const [preferences] = await pool.execute(
+    'SELECT default_view FROM user_preferences WHERE user_id = ?',
+    [userId]
+  );
+
+  const userPrefs = preferences.length > 0 ? preferences[0] : { default_view: 'grid' };
+  
+  console.log(`✅ 用户 ${userId} 偏好设置查询成功: defaultView=${userPrefs.default_view || 'grid'}`);
+  
+  res.json({
+    success: true,
+    data: {
+      defaultView: userPrefs.default_view || 'grid'
+    }
+  });
 }));
 
 // 更新用户偏好设置
@@ -1287,7 +1263,7 @@ router.put('/preferences', [
     .optional()
     .isIn(['grid', 'list'])
     .withMessage('默认视图必须是grid或list')
-], asyncHandler(async (req, res) => {
+], authenticateToken, asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -1296,39 +1272,30 @@ router.put('/preferences', [
     });
   }
 
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: '访问令牌缺失' });
+  const userId = req.user.id;
+  
+  // 验证用户ID的有效性
+  if (!userId || typeof userId !== 'number') {
+    return res.status(401).json({ message: '无效的用户ID' });
   }
-
-  try {
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // 验证用户ID的有效性
-    if (!userId || typeof userId !== 'number') {
-      return res.status(401).json({ message: '无效的用户ID' });
-    }
-    
-    const { defaultView } = req.body;
-    
-    // 首先验证用户是否存在
-    const [userCheck] = await pool.execute(
-      'SELECT id FROM users WHERE id = ?',
-      [userId]
-    );
-    
-    if (userCheck.length === 0) {
-      return res.status(404).json({ message: '用户不存在' });
-    }
-    
-    // 检查用户偏好设置是否存在
-    const [existing] = await pool.execute(
-      'SELECT id FROM user_preferences WHERE user_id = ?',
-      [userId]
-    );
+  
+  const { defaultView } = req.body;
+  
+  // 首先验证用户是否存在
+  const [userCheck] = await pool.execute(
+    'SELECT id FROM users WHERE id = ?',
+    [userId]
+  );
+  
+  if (userCheck.length === 0) {
+    return res.status(404).json({ message: '用户不存在' });
+  }
+  
+  // 检查用户偏好设置是否存在
+  const [existing] = await pool.execute(
+    'SELECT id FROM user_preferences WHERE user_id = ?',
+    [userId]
+  );
 
     if (existing.length > 0) {
       // 获取当前设置值用于历史记录
@@ -1387,76 +1354,53 @@ router.put('/preferences', [
       console.log(`✅ 用户 ${userId} 偏好设置创建成功: defaultView=${defaultView || 'grid'}`);
     }
     
-    res.json({
-      success: true,
-      message: '偏好设置保存成功'
-    });
-  } catch (error) {
-    console.error('保存用户偏好设置失败:', error);
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: '无效的访问令牌' });
-    }
-    return res.status(500).json({ message: '服务器内部错误' });
-  }
+  res.json({
+    success: true,
+    message: '偏好设置保存成功'
+  });
 }));
 
 // 获取用户通知设置
-router.get('/notification-settings', asyncHandler(async (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: '访问令牌缺失' });
+router.get('/notification-settings', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  
+  // 验证用户ID的有效性
+  if (!userId || typeof userId !== 'number') {
+    return res.status(401).json({ message: '无效的用户ID' });
   }
-
-  try {
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // 验证用户ID的有效性
-    if (!userId || typeof userId !== 'number') {
-      return res.status(401).json({ message: '无效的用户ID' });
-    }
-    
-    // 首先验证用户是否存在
-    const [userCheck] = await pool.execute(
-      'SELECT id FROM users WHERE id = ?',
-      [userId]
-    );
-    
-    if (userCheck.length === 0) {
-      return res.status(404).json({ message: '用户不存在' });
-    }
-    
-    // 从数据库获取用户通知设置，如果不存在则返回默认值
-    const [settings] = await pool.execute(
-      'SELECT email_notifications, storage_warnings, security_alerts FROM user_notification_settings WHERE user_id = ?',
-      [userId]
-    );
-
-    const userSettings = settings.length > 0 ? settings[0] : {
-      email_notifications: true,
-      storage_warnings: true,
-      security_alerts: true
-    };
-    
-    console.log(`✅ 用户 ${userId} 通知设置查询成功: email=${userSettings.email_notifications}, storage=${userSettings.storage_warnings}, security=${userSettings.security_alerts}`);
-    
-    res.json({
-      success: true,
-      data: {
-        emailNotifications: userSettings.email_notifications,
-        storageWarnings: userSettings.storage_warnings,
-        securityAlerts: userSettings.security_alerts
-      }
-    });
-  } catch (error) {
-    console.error('获取用户通知设置失败:', error);
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: '无效的访问令牌' });
-    }
-    return res.status(500).json({ message: '服务器内部错误' });
+  
+  // 首先验证用户是否存在
+  const [userCheck] = await pool.execute(
+    'SELECT id FROM users WHERE id = ?',
+    [userId]
+  );
+  
+  if (userCheck.length === 0) {
+    return res.status(404).json({ message: '用户不存在' });
   }
+  
+  // 从数据库获取用户通知设置，如果不存在则返回默认值
+  const [settings] = await pool.execute(
+    'SELECT email_notifications, storage_warnings, security_alerts FROM user_notification_settings WHERE user_id = ?',
+    [userId]
+  );
+
+  const userSettings = settings.length > 0 ? settings[0] : {
+    email_notifications: true,
+    storage_warnings: true,
+    security_alerts: true
+  };
+  
+  console.log(`✅ 用户 ${userId} 通知设置查询成功: email=${userSettings.email_notifications}, storage=${userSettings.storage_warnings}, security=${userSettings.security_alerts}`);
+  
+  res.json({
+    success: true,
+    data: {
+      emailNotifications: userSettings.email_notifications,
+      storageWarnings: userSettings.storage_warnings,
+      securityAlerts: userSettings.security_alerts
+    }
+  });
 }));
 
 // 更新用户通知设置
@@ -1473,7 +1417,7 @@ router.put('/notification-settings', [
     .optional()
     .isBoolean()
     .withMessage('安全提醒必须是布尔值')
-], asyncHandler(async (req, res) => {
+], authenticateToken, asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -1482,39 +1426,30 @@ router.put('/notification-settings', [
     });
   }
 
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: '访问令牌缺失' });
+  const userId = req.user.id;
+  
+  // 验证用户ID的有效性
+  if (!userId || typeof userId !== 'number') {
+    return res.status(401).json({ message: '无效的用户ID' });
   }
-
-  try {
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // 验证用户ID的有效性
-    if (!userId || typeof userId !== 'number') {
-      return res.status(401).json({ message: '无效的用户ID' });
-    }
-    
-    const { emailNotifications, storageWarnings, securityAlerts } = req.body;
-    
-    // 首先验证用户是否存在
-    const [userCheck] = await pool.execute(
-      'SELECT id FROM users WHERE id = ?',
-      [userId]
-    );
-    
-    if (userCheck.length === 0) {
-      return res.status(404).json({ message: '用户不存在' });
-    }
-    
-    // 检查用户通知设置是否存在
-    const [existing] = await pool.execute(
-      'SELECT id FROM user_notification_settings WHERE user_id = ?',
-      [userId]
-    );
+  
+  const { emailNotifications, storageWarnings, securityAlerts } = req.body;
+  
+  // 首先验证用户是否存在
+  const [userCheck] = await pool.execute(
+    'SELECT id FROM users WHERE id = ?',
+    [userId]
+  );
+  
+  if (userCheck.length === 0) {
+    return res.status(404).json({ message: '用户不存在' });
+  }
+  
+  // 检查用户通知设置是否存在
+  const [existing] = await pool.execute(
+    'SELECT id FROM user_notification_settings WHERE user_id = ?',
+    [userId]
+  );
 
     if (existing.length > 0) {
       // 获取当前设置值用于历史记录
@@ -1615,126 +1550,92 @@ router.put('/notification-settings', [
       console.log(`✅ 用户 ${userId} 通知设置创建成功: email=${emailNotifications ?? true}, storage=${storageWarnings ?? true}, security=${securityAlerts ?? true}`);
     }
     
-    res.json({
-      success: true,
-      message: '通知设置保存成功'
-    });
-  } catch (error) {
-    console.error('保存用户通知设置失败:', error);
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: '无效的访问令牌' });
-    }
-    return res.status(500).json({ message: '服务器内部错误' });
-  }
+  res.json({
+    success: true,
+    message: '通知设置保存成功'
+  });
 }));
 
 // 获取用户设置历史
-router.get('/settings-history', asyncHandler(async (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: '访问令牌缺失' });
+router.get('/settings-history', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  
+  // 验证用户ID的有效性
+  if (!userId || typeof userId !== 'number') {
+    return res.status(401).json({ message: '无效的用户ID' });
   }
-
-  try {
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // 验证用户ID的有效性
-    if (!userId || typeof userId !== 'number') {
-      return res.status(401).json({ message: '无效的用户ID' });
-    }
-    
-    // 获取查询参数
-    const { settingType, limit = 50, offset = 0 } = req.query;
-    
-    // 获取设置历史
-    const history = await SettingsHistoryService.getUserSettingsHistory(
-      userId,
-      settingType,
-      parseInt(limit),
-      parseInt(offset)
-    );
-    
-    // 获取设置统计
-    const stats = await SettingsHistoryService.getUserSettingsStats(userId);
-    
-    res.json({
-      success: true,
-      data: {
-        history,
-        stats,
-        pagination: {
-          limit: parseInt(limit),
-          offset: parseInt(offset),
-          total: stats.totalChanges
-        }
+  
+  // 获取查询参数
+  const { settingType, limit = 50, offset = 0 } = req.query;
+  
+  // 获取设置历史
+  const history = await SettingsHistoryService.getUserSettingsHistory(
+    userId,
+    settingType,
+    parseInt(limit),
+    parseInt(offset)
+  );
+  
+  // 获取设置统计
+  const stats = await SettingsHistoryService.getUserSettingsStats(userId);
+  
+  res.json({
+    success: true,
+    data: {
+      history,
+      stats,
+      pagination: {
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        total: stats.totalChanges
       }
-    });
-  } catch (error) {
-    console.error('获取用户设置历史失败:', error);
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: '无效的访问令牌' });
     }
-    return res.status(500).json({ message: '服务器内部错误' });
-  }
+  });
 }));
 
 // 获取用户统计信息
-router.get('/stats', asyncHandler(async (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: '访问令牌缺失' });
+router.get('/stats', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  
+  // 验证用户ID的有效性
+  if (!userId || typeof userId !== 'number') {
+    return res.status(401).json({ message: '无效的用户ID' });
   }
-
-  try {
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // 获取用户文件统计
-    const [fileStats] = await pool.execute(
-      'SELECT COUNT(*) as totalFiles FROM files WHERE user_id = ?',
-      [userId]
-    );
-    
-    // 获取用户文件夹统计
-    const [folderStats] = await pool.execute(
-      'SELECT COUNT(*) as totalFolders FROM folders WHERE user_id = ?',
-      [userId]
-    );
-    
-    // 获取用户登录次数和最后登录时间
-    const [userInfo] = await pool.execute(
-      'SELECT login_count, last_login FROM users WHERE id = ?',
-      [userId]
-    );
-    
-    // 获取最近登录记录
-    const [recentLogins] = await pool.execute(
-      'SELECT login_time, ip_address, login_method FROM user_login_logs WHERE user_id = ? AND success = true ORDER BY login_time DESC LIMIT 5',
-      [userId]
-    );
-    
-    res.json({
-      success: true,
-      data: {
-        totalFiles: fileStats[0].totalFiles || 0,
-        totalFolders: folderStats[0].totalFolders || 0,
-        loginCount: userInfo[0]?.login_count || 0,
-        lastLogin: userInfo[0]?.last_login || null,
-        recentLogins: recentLogins || []
-      }
-    });
-  } catch (error) {
-    console.error('获取用户统计失败:', error);
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: '无效的访问令牌' });
+  
+  // 获取用户文件统计
+  const [fileStats] = await pool.execute(
+    'SELECT COUNT(*) as totalFiles FROM files WHERE user_id = ?',
+    [userId]
+  );
+  
+  // 获取用户文件夹统计
+  const [folderStats] = await pool.execute(
+    'SELECT COUNT(*) as totalFolders FROM folders WHERE user_id = ?',
+    [userId]
+  );
+  
+  // 获取用户登录次数和最后登录时间
+  const [userInfo] = await pool.execute(
+    'SELECT login_count, last_login FROM users WHERE id = ?',
+    [userId]
+  );
+  
+  // 获取最近登录记录
+  const [recentLogins] = await pool.execute(
+    'SELECT login_time, ip_address, login_method FROM user_login_logs WHERE user_id = ? AND success = true ORDER BY login_time DESC LIMIT 5',
+    [userId]
+  );
+  
+  res.json({
+    success: true,
+    data: {
+      totalFiles: fileStats[0].totalFiles || 0,
+      totalFolders: folderStats[0].totalFolders || 0,
+      loginCount: userInfo[0]?.login_count || 0,
+      lastLogin: userInfo[0]?.last_login || null,
+      recentLogins: recentLogins || []
     }
-    return res.status(500).json({ message: '服务器内部错误' });
-  }
+  });
 }));
 
 // 发送验证码（兼容前端调用）

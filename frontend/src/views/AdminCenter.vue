@@ -18,7 +18,37 @@
 
     <!-- 主要内容 -->
     <div class="admin-center-content">
-      <el-row>
+      <!-- 移动端顶部导航栏 -->
+      <div class="mobile-nav-bar" v-if="isMobile">
+        <div class="mobile-nav-header">
+          <h2 class="mobile-nav-title">管理中心</h2>
+          <el-button 
+            type="primary" 
+            size="small" 
+            @click="refreshAllData" 
+            :loading="refreshing"
+            class="mobile-refresh-btn"
+          >
+            <el-icon><Refresh /></el-icon>
+          </el-button>
+        </div>
+        
+        <!-- 移动端标签页导航 -->
+        <div class="mobile-tabs">
+          <div 
+            v-for="tab in mobileTabs" 
+            :key="tab.key"
+            :class="['mobile-tab', { active: activeSection === tab.key }]"
+            @click="handleSectionSelect(tab.key)"
+          >
+            <el-icon><component :is="tab.icon" /></el-icon>
+            <span>{{ tab.label }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 桌面端布局 -->
+      <el-row v-if="!isMobile" class="desktop-layout">
         <!-- 左侧导航 -->
         <el-col :xs="24" :sm="8" :md="6" :lg="5" :xl="4">
           <el-card class="admin-nav-card">
@@ -153,7 +183,66 @@
               
               <!-- 用户搜索和筛选 -->
               <div class="user-filters">
-                <el-form :model="userFilter" inline>
+                <!-- 移动端筛选表单 -->
+                <div class="mobile-filters" v-if="isMobile">
+                  <el-form :model="userFilter" label-position="top">
+                    <el-row :gutter="12">
+                      <el-col :span="24">
+                        <el-form-item label="搜索用户">
+                          <el-input
+                            v-model="userFilter.search"
+                            placeholder="用户名或邮箱"
+                            clearable
+                            @keyup.enter="searchUsers"
+                          >
+                            <template #prefix>
+                              <el-icon><Search /></el-icon>
+                            </template>
+                          </el-input>
+                        </el-form-item>
+                      </el-col>
+                    </el-row>
+                    
+                    <el-row :gutter="12">
+                      <el-col :span="12">
+                        <el-form-item label="角色">
+                          <el-select v-model="userFilter.role" placeholder="选择角色" clearable style="width: 100%">
+                            <el-option label="全部" value="" />
+                            <el-option label="管理员" value="admin" />
+                            <el-option label="用户" value="user" />
+                          </el-select>
+                        </el-form-item>
+                      </el-col>
+                      <el-col :span="12">
+                        <el-form-item label="状态">
+                          <el-select v-model="userFilter.status" placeholder="选择状态" clearable style="width: 100%">
+                            <el-option label="全部" value="" />
+                            <el-option label="正常" value="active" />
+                            <el-option label="已禁用" value="disabled" />
+                          </el-select>
+                        </el-form-item>
+                      </el-col>
+                    </el-row>
+                    
+                    <el-row :gutter="12">
+                      <el-col :span="12">
+                        <el-button type="primary" @click="searchUsers" :loading="refreshing" style="width: 100%">
+                          <el-icon><Search /></el-icon>
+                          搜索
+                        </el-button>
+                      </el-col>
+                      <el-col :span="12">
+                        <el-button @click="resetUserFilter" style="width: 100%">
+                          <el-icon><Refresh /></el-icon>
+                          重置
+                        </el-button>
+                      </el-col>
+                    </el-row>
+                  </el-form>
+                </div>
+                
+                <!-- 桌面端筛选表单 -->
+                <el-form :model="userFilter" inline v-else>
                   <el-form-item label="搜索用户">
                     <el-input
                       v-model="userFilter.search"
@@ -199,6 +288,26 @@
               
               <!-- 用户操作栏 -->
               <div class="user-actions">
+                <!-- 移动端操作按钮 -->
+                <div class="mobile-actions" v-if="isMobile">
+                  <el-row :gutter="12">
+                    <el-col :span="12">
+                      <el-button type="primary" @click="showCreateUserDialog = true" style="width: 100%">
+                        <el-icon><Plus /></el-icon>
+                        创建用户
+                      </el-button>
+                    </el-col>
+                    <el-col :span="12">
+                      <el-button @click="batchDeleteUsers" :disabled="selectedUsers.length === 0" style="width: 100%">
+                        <el-icon><Delete /></el-icon>
+                        批量删除
+                      </el-button>
+                    </el-col>
+                  </el-row>
+                </div>
+                
+                <!-- 桌面端操作按钮 -->
+                <div class="desktop-actions" v-else>
                 <div class="action-left">
                 <el-button type="primary" @click="showCreateUserDialog = true">
                   <el-icon><Plus /></el-icon>
@@ -208,11 +317,116 @@
                   <el-icon><Delete /></el-icon>
                   批量删除
                   </el-button>
+                  </div>
                 </div>
               </div>
               
-              <!-- 用户列表 -->
+              <!-- 移动端用户卡片列表 -->
+              <div class="mobile-user-list" v-if="isMobile">
+                <div 
+                  v-for="user in users" 
+                  :key="user.id" 
+                  class="user-card"
+                  v-loading="refreshing"
+                >
+                  <div class="user-card-header">
+                    <div class="user-info">
+                      <el-avatar :size="40" :src="user.avatar_url">
+                        {{ user.username?.charAt(0).toUpperCase() }}
+                      </el-avatar>
+                      <div class="user-details">
+                        <div class="username">{{ user.username || '未知用户' }}</div>
+                        <div class="email">{{ user.email || '未设置' }}</div>
+                      </div>
+                    </div>
+                    <div class="user-status">
+                      <el-tag :type="user.role === 'admin' ? 'danger' : 'primary'" size="small">
+                        {{ user.role === 'admin' ? '管理员' : '用户' }}
+                      </el-tag>
+                      <el-tag 
+                        :type="getStatusTagType(user.status)" 
+                        size="small"
+                        style="margin-top: 4px;"
+                      >
+                        {{ getStatusText(user.status) }}
+                      </el-tag>
+                    </div>
+                  </div>
+                  
+                  <div class="user-card-content">
+                    <div class="storage-section">
+                      <div class="storage-label">存储使用</div>
+                      <div class="storage-info">
+                        <el-progress
+                          :percentage="Math.round(((user.used_storage || 0) / (user.storage_limit || 1)) * 100)"
+                          :stroke-width="8"
+                          :show-text="false"
+                          :color="getStorageProgressColor(user.used_storage, user.storage_limit)"
+                        />
+                        <div class="storage-text">
+                          {{ formatFileSize(user.used_storage || 0) }} / {{ formatFileSize(user.storage_limit || 0) }}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="time-section">
+                      <div class="time-label">注册时间</div>
+                      <div class="time-text">{{ formatTimestamp(user.created_at) }}</div>
+                    </div>
+                  </div>
+                  
+                  <div class="user-card-actions">
+                    <el-checkbox 
+                      v-model="selectedUsers" 
+                      :value="user"
+                      @change="handleUserSelectionChange"
+                    >
+                      选择
+                    </el-checkbox>
+                    <el-dropdown 
+                      @command="(command) => handleUserAction(command, user)" 
+                      trigger="click"
+                      :hide-on-click="true"
+                    >
+                      <el-button type="primary" size="small">
+                        操作 <el-icon><ArrowDown /></el-icon>
+                      </el-button>
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item command="toggleRole">
+                            <el-icon><User /></el-icon>
+                            {{ user.role === 'admin' ? '设为用户' : '设为管理员' }}
+                          </el-dropdown-item>
+                          <el-dropdown-item command="toggleStatus">
+                            <el-icon><Switch /></el-icon>
+                            {{ user.status === 'active' ? '禁用用户' : '启用用户' }}
+                          </el-dropdown-item>
+                          <el-dropdown-item command="editStorage">
+                            <el-icon><FolderOpened /></el-icon>
+                            设置存储
+                          </el-dropdown-item>
+                          <el-dropdown-item command="viewStats" divided>
+                            <el-icon><DataAnalysis /></el-icon>
+                            查看统计
+                          </el-dropdown-item>
+                          <el-dropdown-item command="delete" divided>
+                            <el-icon><Delete /></el-icon>
+                            删除用户
+                          </el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
+                  </div>
+                </div>
+                
+                <div v-if="users.length === 0" class="empty-state">
+                  <el-empty description="暂无用户数据" />
+                </div>
+              </div>
+              
+              <!-- 桌面端用户表格 -->
               <el-table
+                v-else
                 :data="users"
                 style="width: 100%; table-layout: fixed;"
                 @selection-change="handleUserSelectionChange"
@@ -765,6 +979,645 @@
           </el-card>
         </el-col>
       </el-row>
+
+      <!-- 移动端内容区域 -->
+      <div v-if="isMobile" class="mobile-content">
+        <el-card class="mobile-panel-card">
+          <!-- 系统概览 -->
+          <div v-if="activeSection === 'overview'" class="admin-section">
+            <div class="section-header">
+              <h3>系统概览</h3>
+              <p>系统整体运行状态和统计数据</p>
+            </div>
+            
+            <!-- 统计卡片 -->
+            <el-row class="stats-cards">
+              <el-col :span="24">
+                <div class="stat-card users-card">
+                  <div class="stat-icon users">
+                    <el-icon><UserFilled /></el-icon>
+                  </div>
+                  <div class="stat-info">
+                    <div class="stat-value">{{ systemStats.totalUsers }}</div>
+                    <div class="stat-label">总用户数</div>
+                    <div class="stat-trend">
+                      <el-icon class="trend-icon up"><ArrowUp /></el-icon>
+                      <span class="trend-text">活跃用户</span>
+                    </div>
+                  </div>
+                </div>
+              </el-col>
+              
+              <el-col :span="24">
+                <div class="stat-card files-card">
+                  <div class="stat-icon files">
+                    <el-icon><Folder /></el-icon>
+                  </div>
+                  <div class="stat-info">
+                    <div class="stat-value">{{ systemStats.totalFiles }}</div>
+                    <div class="stat-label">总文件数</div>
+                    <div class="stat-trend">
+                      <el-icon class="trend-icon up"><ArrowUp /></el-icon>
+                      <span class="trend-text">存储文件</span>
+                    </div>
+                  </div>
+                </div>
+              </el-col>
+              
+              <el-col :span="24">
+                <div class="stat-card storage-card">
+                  <div class="stat-icon storage">
+                    <el-icon><FolderOpened /></el-icon>
+                  </div>
+                  <div class="stat-info">
+                    <div class="stat-value">{{ formatFileSize(systemStats.totalStorage) }}</div>
+                    <div class="stat-label">总存储</div>
+                    <div class="stat-trend">
+                      <el-icon class="trend-icon up"><ArrowUp /></el-icon>
+                      <span class="trend-text">存储使用</span>
+                    </div>
+                  </div>
+                </div>
+              </el-col>
+            </el-row>
+          </div>
+
+          <!-- 用户管理 -->
+          <div v-if="activeSection === 'users'" class="admin-section">
+            <div class="section-header">
+              <h3>用户管理</h3>
+              <p>管理系统用户和权限</p>
+            </div>
+            
+            <!-- 移动端用户筛选 -->
+            <div class="mobile-user-filters">
+                <!-- 筛选表单标题 -->
+                <div class="user-filter-header">
+                  <div class="filter-title">
+                    <el-icon class="filter-icon"><User /></el-icon>
+                    <span>用户筛选</span>
+                  </div>
+                  <div class="filter-subtitle">快速查找和管理系统用户</div>
+                </div>
+                
+                <el-form :model="userFilter" label-position="top" class="user-filter-form">
+                  <!-- 用户搜索区域 -->
+                  <div class="search-section">
+                    <el-form-item label="用户搜索" class="search-item">
+                      <el-input
+                        v-model="userFilter.search"
+                        placeholder="输入用户名或邮箱"
+                        clearable
+                        @keyup.enter="searchUsers"
+                        class="search-input"
+                      >
+                        <template #prefix>
+                          <el-icon class="search-prefix-icon"><Search /></el-icon>
+                        </template>
+                      </el-input>
+                    </el-form-item>
+                  </div>
+                  
+                  <!-- 角色和状态筛选 -->
+                  <div class="filter-section">
+                    <el-form-item label="用户角色" class="filter-item">
+                      <el-select 
+                        v-model="userFilter.role" 
+                        placeholder="选择用户角色" 
+                        clearable
+                        class="filter-select"
+                      >
+                        <el-option label="全部角色" value="" />
+                        <el-option label="管理员" value="admin" />
+                        <el-option label="普通用户" value="user" />
+                      </el-select>
+                    </el-form-item>
+                    
+                    <el-form-item label="用户状态" class="filter-item">
+                      <el-select 
+                        v-model="userFilter.status" 
+                        placeholder="选择用户状态" 
+                        clearable
+                        class="filter-select"
+                      >
+                        <el-option label="全部状态" value="" />
+                        <el-option label="正常用户" value="active" />
+                        <el-option label="禁用用户" value="inactive" />
+                      </el-select>
+                    </el-form-item>
+                  </div>
+                  
+                  <!-- 操作按钮 -->
+                  <div class="user-action-section">
+                    <div class="user-action-buttons">
+                      <el-button 
+                        type="primary" 
+                        @click="searchUsers" 
+                        :loading="refreshing" 
+                        class="user-action-btn primary-btn"
+                      >
+                        <el-icon><Search /></el-icon>
+                        <span>搜索用户</span>
+                      </el-button>
+                      
+                      <el-button 
+                        @click="resetUserFilter" 
+                        class="user-action-btn secondary-btn"
+                      >
+                        <el-icon><Refresh /></el-icon>
+                        <span>重置筛选</span>
+                      </el-button>
+                    </div>
+                  </div>
+                </el-form>
+              </div>
+            
+            <!-- 用户操作栏 -->
+            <div class="user-actions">
+              <!-- 移动端操作按钮 -->
+              <div class="mobile-actions" v-if="isMobile">
+                <el-row :gutter="12">
+                  <el-col :span="12">
+                    <el-button type="primary" @click="showCreateUserDialog = true" style="width: 100%">
+                      <el-icon><Plus /></el-icon>
+                      创建用户
+                    </el-button>
+                  </el-col>
+                  <el-col :span="12">
+                    <el-button @click="batchDeleteUsers" :disabled="selectedUsers.length === 0" style="width: 100%">
+                      <el-icon><Delete /></el-icon>
+                      批量删除
+                    </el-button>
+                  </el-col>
+                </el-row>
+              </div>
+            </div>
+            
+            <!-- 移动端用户卡片列表 -->
+            <div class="mobile-user-list" v-if="isMobile">
+              <div 
+                v-for="user in users" 
+                :key="user.id" 
+                class="user-card"
+                v-loading="refreshing"
+              >
+                <div class="user-card-header">
+                  <div class="user-info">
+                    <el-avatar :size="40" :src="user.avatar_url">
+                      {{ user.username?.charAt(0).toUpperCase() }}
+                    </el-avatar>
+                    <div class="user-details">
+                      <div class="username">{{ user.username || '未知用户' }}</div>
+                      <div class="email">{{ user.email || '未设置' }}</div>
+                    </div>
+                  </div>
+                  <div class="user-status">
+                    <el-tag :type="user.role === 'admin' ? 'danger' : 'primary'" size="small">
+                      {{ user.role === 'admin' ? '管理员' : '用户' }}
+                    </el-tag>
+                    <el-tag 
+                      :type="getStatusTagType(user.status)" 
+                      size="small"
+                      style="margin-top: 4px;"
+                    >
+                      {{ getStatusText(user.status) }}
+                    </el-tag>
+                  </div>
+                </div>
+                
+                <div class="user-card-content">
+                  <div class="storage-section">
+                    <div class="storage-label">存储使用</div>
+                    <div class="storage-info">
+                      <el-progress
+                        :percentage="Math.round(((user.used_storage || 0) / (user.storage_limit || 1)) * 100)"
+                        :stroke-width="8"
+                        :show-text="false"
+                        :color="getStorageProgressColor(user.used_storage, user.storage_limit)"
+                      />
+                      <div class="storage-text">
+                        {{ formatFileSize(user.used_storage || 0) }} / {{ formatFileSize(user.storage_limit || 0) }}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div class="time-section">
+                    <div class="time-label">注册时间</div>
+                    <div class="time-text">{{ formatTimestamp(user.created_at) }}</div>
+                  </div>
+                </div>
+                
+                <div class="user-card-actions">
+                  <el-checkbox 
+                    v-model="selectedUsers" 
+                    :value="user"
+                    @change="handleUserSelectionChange"
+                  >
+                    选择
+                  </el-checkbox>
+                  <el-dropdown 
+                    @command="(command) => handleUserAction(command, user)" 
+                    trigger="click"
+                    :hide-on-click="true"
+                  >
+                    <el-button type="primary" size="small">
+                      操作 <el-icon><ArrowDown /></el-icon>
+                    </el-button>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="toggleRole">
+                          <el-icon><User /></el-icon>
+                          {{ user.role === 'admin' ? '设为用户' : '设为管理员' }}
+                        </el-dropdown-item>
+                        <el-dropdown-item command="toggleStatus">
+                          <el-icon><Switch /></el-icon>
+                          {{ user.status === 'active' ? '禁用用户' : '启用用户' }}
+                        </el-dropdown-item>
+                        <el-dropdown-item command="editStorage">
+                          <el-icon><FolderOpened /></el-icon>
+                          设置存储
+                        </el-dropdown-item>
+                        <el-dropdown-item command="viewStats" divided>
+                          <el-icon><DataAnalysis /></el-icon>
+                          查看统计
+                        </el-dropdown-item>
+                        <el-dropdown-item command="delete" divided>
+                          <el-icon><Delete /></el-icon>
+                          删除用户
+                        </el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </div>
+              </div>
+              
+              <div v-if="users.length === 0" class="empty-state">
+                <el-empty description="暂无用户数据" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 系统日志 -->
+          <div v-if="activeSection === 'logs'" class="admin-section">
+            <div class="section-header">
+              <h3>系统日志</h3>
+              <p>查看和管理系统运行日志</p>
+            </div>
+            
+            <!-- 移动端日志筛选 -->
+            <div class="mobile-log-filters">
+              <!-- 筛选表单标题 -->
+              <div class="log-filter-header">
+                <div class="filter-title">
+                  <el-icon class="filter-icon"><Document /></el-icon>
+                  <span>日志筛选</span>
+                </div>
+                <div class="filter-subtitle">快速查找和分析系统日志</div>
+              </div>
+              
+              <el-form :model="logFilter" label-position="top" class="log-filter-form">
+                <!-- 日志级别选择 -->
+                <div class="level-section">
+                  <el-form-item label="日志级别" class="level-item">
+                    <el-select 
+                      v-model="logFilter.level" 
+                      placeholder="选择日志级别" 
+                      clearable
+                      class="level-select"
+                    >
+                      <el-option label="全部级别" value="" />
+                      <el-option label="错误日志" value="error" />
+                      <el-option label="警告日志" value="warning" />
+                      <el-option label="信息日志" value="info" />
+                    </el-select>
+                  </el-form-item>
+                </div>
+                
+                <!-- 关键词搜索 -->
+                <div class="search-section">
+                  <el-form-item label="关键词搜索" class="search-item">
+                    <el-input
+                      v-model="logFilter.keyword"
+                      placeholder="输入关键词搜索日志"
+                      clearable
+                      @keyup.enter="searchLogs"
+                      class="search-input"
+                    >
+                      <template #prefix>
+                        <el-icon class="search-prefix-icon"><Search /></el-icon>
+                      </template>
+                    </el-input>
+                  </el-form-item>
+                </div>
+                
+                <!-- 操作按钮 -->
+                <div class="log-action-section">
+                  <div class="log-action-buttons">
+                    <el-button 
+                      type="primary" 
+                      @click="searchLogs" 
+                      :loading="refreshing" 
+                      class="log-action-btn primary-btn"
+                    >
+                      <el-icon><Search /></el-icon>
+                      <span>搜索日志</span>
+                    </el-button>
+                    
+                    <el-button 
+                      @click="exportLogs" 
+                      class="log-action-btn secondary-btn"
+                    >
+                      <el-icon><Download /></el-icon>
+                      <span>导出日志</span>
+                    </el-button>
+                    
+                    <el-button 
+                      @click="clearLogs" 
+                      :loading="refreshing" 
+                      class="log-action-btn danger-btn"
+                    >
+                      <el-icon><Delete /></el-icon>
+                      <span>清空日志</span>
+                    </el-button>
+                  </div>
+                </div>
+              </el-form>
+            </div>
+            
+            <!-- 移动端日志列表 -->
+            <div class="mobile-log-list">
+              <div 
+                v-for="log in filteredLogs" 
+                :key="log.id" 
+                class="log-card"
+                v-loading="refreshing"
+              >
+                <div class="log-card-header">
+                  <div class="log-time">{{ formatTimestamp(log.timestamp) }}</div>
+                  <el-tag :type="getLevelType(log.level)" size="small">
+                    {{ getLevelText(log.level) }}
+                  </el-tag>
+                </div>
+                
+                <div class="log-card-content">
+                  <div class="log-source">
+                    <el-icon><Document /></el-icon>
+                    <span>{{ log.source || '系统' }}</span>
+                  </div>
+                  
+                  <div class="log-message">
+                    {{ log.message || '无消息内容' }}
+                  </div>
+                </div>
+              </div>
+              
+              <div v-if="filteredLogs.length === 0" class="empty-state">
+                <el-empty description="暂无日志数据" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 存储管理 -->
+          <div v-if="activeSection === 'storage'" class="admin-section">
+            <div class="section-header">
+              <h3>存储管理</h3>
+              <p>管理系统存储空间和使用情况</p>
+            </div>
+            
+            <!-- 移动端存储统计 -->
+            <div class="mobile-storage-stats">
+              <div class="storage-stat-card">
+                <div class="stat-icon total">
+                  <el-icon><DataBoard /></el-icon>
+                </div>
+                <div class="stat-info">
+                  <div class="stat-value">{{ formatFileSize(storageStats.totalStorage) }}</div>
+                  <div class="stat-label">总存储空间</div>
+                </div>
+              </div>
+              
+              <div class="storage-stat-card">
+                <div class="stat-icon used">
+                  <el-icon><Folder /></el-icon>
+                </div>
+                <div class="stat-info">
+                  <div class="stat-value">{{ formatFileSize(storageStats.usedStorage) }}</div>
+                  <div class="stat-label">已使用空间</div>
+                </div>
+              </div>
+              
+              <div class="storage-stat-card">
+                <div class="stat-icon available">
+                  <el-icon><CircleCheck /></el-icon>
+                </div>
+                <div class="stat-info">
+                  <div class="stat-value">{{ formatFileSize(storageStats.availableStorage) }}</div>
+                  <div class="stat-label">可用空间</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 移动端存储使用率 -->
+            <div class="mobile-storage-usage">
+              <div class="usage-header">
+                <h4>存储使用率</h4>
+                <el-button @click="refreshStorageStats" :loading="refreshing" size="small">
+                  <el-icon><Refresh /></el-icon>
+                  刷新
+                </el-button>
+              </div>
+              
+              <div class="usage-content">
+                <el-progress
+                  :percentage="storageUsagePercentage"
+                  :stroke-width="16"
+                  :color="getStorageUsageColor(storageUsagePercentage)"
+                  :show-text="true"
+                  text-inside
+                />
+                <div class="usage-details">
+                  <span class="usage-text">
+                    已使用 {{ formatFileSize(storageStats.usedStorage) }} / {{ formatFileSize(storageStats.totalStorage) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- 移动端存储操作 -->
+            <div class="mobile-storage-actions">
+              <el-row :gutter="12">
+                <el-col :span="12">
+                  <el-button type="primary" @click="showCleanupDialog = true" style="width: 100%">
+                    <el-icon><Delete /></el-icon>
+                    清理存储
+                  </el-button>
+                </el-col>
+                <el-col :span="12">
+                  <el-button @click="showStorageAnalysis" style="width: 100%">
+                    <el-icon><DataAnalysis /></el-icon>
+                    存储分析
+                  </el-button>
+                </el-col>
+              </el-row>
+              
+              <el-row :gutter="12" style="margin-top: 12px;">
+                <el-col :span="24">
+                  <el-button @click="exportStorageReport" style="width: 100%">
+                    <el-icon><Download /></el-icon>
+                    导出报告
+                  </el-button>
+                </el-col>
+              </el-row>
+            </div>
+          </div>
+
+          <!-- 系统设置 -->
+          <div v-if="activeSection === 'settings'" class="admin-section">
+            <div class="section-header">
+              <h3>系统设置</h3>
+              <p>配置系统参数和功能</p>
+            </div>
+            
+            <!-- 移动端系统设置表单 -->
+            <div class="mobile-settings-form">
+              <el-form label-position="top" class="system-settings-form">
+                <!-- 基本设置 -->
+                <div class="settings-group">
+                  <div class="group-title">
+                    <el-icon><Setting /></el-icon>
+                    <span>基本设置</span>
+                  </div>
+                  
+                  <el-form-item label="系统名称">
+                    <el-input 
+                      v-model="systemSettings.systemName" 
+                      placeholder="请输入系统名称"
+                      clearable
+                      maxlength="50"
+                      show-word-limit
+                    >
+                      <template #prefix>
+                        <el-icon><Setting /></el-icon>
+                      </template>
+                    </el-input>
+                    <div class="form-description">显示在页面标题和登录页面的系统名称</div>
+                  </el-form-item>
+                </div>
+                
+                <!-- 用户管理设置 -->
+                <div class="settings-group">
+                  <div class="group-title">
+                    <el-icon><User /></el-icon>
+                    <span>用户管理</span>
+                  </div>
+                  
+                  <el-form-item label="允许注册">
+                    <el-switch 
+                      v-model="systemSettings.allowRegistration"
+                      active-text="允许"
+                      inactive-text="禁止"
+                      active-color="#13ce66"
+                      inactive-color="#ff4949"
+                    />
+                    <div class="form-description">是否允许新用户注册，关闭后只能由管理员创建用户</div>
+                  </el-form-item>
+                  
+                  <el-form-item label="维护模式">
+                    <el-switch 
+                      v-model="systemSettings.maintenanceMode"
+                      active-text="开启"
+                      inactive-text="关闭"
+                      active-color="#ff4949"
+                      inactive-color="#13ce66"
+                    />
+                    <div class="form-description">开启后只有管理员可以访问系统，普通用户将看到维护页面</div>
+                  </el-form-item>
+                </div>
+                
+                <!-- 文件上传设置 -->
+                <div class="settings-group">
+                  <div class="group-title">
+                    <el-icon><Upload /></el-icon>
+                    <span>文件上传</span>
+                  </div>
+                  
+                  <el-form-item label="最大文件大小">
+                    <el-input-number 
+                      v-model="systemSettings.maxFileSize" 
+                      :min="1" 
+                      :max="1000"
+                      controls-position="right"
+                      style="width: 100%"
+                    />
+                    <span class="form-unit">MB</span>
+                    <div class="form-description">单个文件上传的最大大小限制，建议不超过100MB</div>
+                  </el-form-item>
+                  
+                  <el-form-item label="单次上传数量">
+                    <el-input-number 
+                      v-model="systemSettings.maxUploadFiles" 
+                      :min="1" 
+                      :max="50"
+                      controls-position="right"
+                      style="width: 100%"
+                    />
+                    <span class="form-unit">个</span>
+                    <div class="form-description">单次最多可以上传的文件数量</div>
+                  </el-form-item>
+                </div>
+                
+                <!-- 外观设置 -->
+                <div class="settings-group">
+                  <div class="group-title">
+                    <el-icon><Brush /></el-icon>
+                    <span>外观设置</span>
+                  </div>
+                  
+                  <el-form-item label="主题模式">
+                    <el-radio-group v-model="systemSettings.themeMode" style="width: 100%">
+                      <el-radio-button label="auto" style="flex: 1;">自动</el-radio-button>
+                      <el-radio-button label="light" style="flex: 1;">浅色</el-radio-button>
+                      <el-radio-button label="dark" style="flex: 1;">深色</el-radio-button>
+                    </el-radio-group>
+                    <div class="form-description">自动模式会根据系统设置自动切换主题</div>
+                  </el-form-item>
+                  
+                  <el-form-item label="主色调">
+                    <div class="color-picker-container">
+                      <el-color-picker 
+                        v-model="systemSettings.primaryColor"
+                        :predefine="predefineColors"
+                        show-alpha
+                        size="large"
+                      />
+                      <span class="color-value">{{ systemSettings.primaryColor }}</span>
+                    </div>
+                    <div class="form-description">系统的主要颜色，影响按钮、链接等元素</div>
+                  </el-form-item>
+                </div>
+                
+                <!-- 操作按钮 -->
+                <div class="settings-actions">
+                  <el-row :gutter="12">
+                    <el-col :span="12">
+                      <el-button type="primary" @click="saveSystemSettings" :loading="savingSettings" style="width: 100%">
+                        <el-icon><Setting /></el-icon>
+                        保存设置
+                      </el-button>
+                    </el-col>
+                    <el-col :span="12">
+                      <el-button @click="fetchSystemSettings" :loading="loadingSettings" style="width: 100%">
+                        <el-icon><Refresh /></el-icon>
+                        重置
+                      </el-button>
+                    </el-col>
+                  </el-row>
+                </div>
+              </el-form>
+            </div>
+          </div>
+        </el-card>
+      </div>
     </div>
 
     <!-- 创建用户对话框 -->
@@ -841,6 +1694,18 @@ const selectedUsers = ref([])
 const userFormRef = ref<FormInstance>()
 const openMenus = ref<Set<number>>(new Set()) // 跟踪打开的菜单
 const showCleanupDialog = ref(false)
+
+// 移动端检测
+const isMobile = ref(false)
+
+// 移动端标签页配置
+const mobileTabs = ref([
+  { key: 'overview', label: '概览', icon: 'DataBoard' },
+  { key: 'users', label: '用户', icon: 'UserFilled' },
+  { key: 'logs', label: '日志', icon: 'Document' },
+  { key: 'storage', label: '存储', icon: 'Folder' },
+  { key: 'settings', label: '设置', icon: 'Setting' }
+])
 
 // 系统统计数据
 const systemStats = reactive({
@@ -1376,8 +2241,8 @@ const fetchStorageStats = async () => {
     storageStats.totalStorage = Number(data.total_storage) || 0
     storageStats.usedStorage = Number(data.used_storage) || 0
     storageStats.availableStorage = Number(data.available_storage) || 0
-  } catch (error) {
-    console.error('获取存储统计失败:', error)
+    } catch (error) {
+      // 获取存储统计失败
     // 如果API不存在，使用系统统计数据
     storageStats.totalStorage = Number(systemStats.totalStorage) || 0
     storageStats.usedStorage = Number(systemStats.totalStorage) || 0
@@ -2009,21 +2874,12 @@ const saveSystemSettings = async () => {
     const settings = {
       system_name: systemSettings.systemName.trim(),
       enable_registration: systemSettings.allowRegistration.toString(),
-      maintenance_mode: systemSettings.maintenanceMode.toString(),
       max_file_size: systemSettings.maxFileSize.toString(),
       max_upload_files: systemSettings.maxUploadFiles.toString(),
       allowed_image_types: systemSettings.allowedImageTypes.join(','),
       allowed_video_types: systemSettings.allowedVideoTypes.join(','),
       thumbnail_size: systemSettings.thumbnailSize.toString(),
-      auto_clean_logs: systemSettings.autoCleanLogs.toString(),
-      // 外观设置
-      theme_mode: systemSettings.themeMode,
-      primary_color: systemSettings.primaryColor,
-      sidebar_width: systemSettings.sidebarWidth.toString(),
-      enable_animation: systemSettings.enableAnimation.toString(),
-      logo_url: systemSettings.logoUrl.trim(),
-      favicon_url: systemSettings.faviconUrl.trim(),
-      custom_css: systemSettings.customCss.trim()
+      auto_clean_logs: systemSettings.autoCleanLogs.toString()
     }
     
     await api.put('/admin/settings', { settings })
@@ -2050,8 +2906,13 @@ const saveSystemSettings = async () => {
         }
       )
     }
-  } catch (error) {
+    } catch (error) {
+      // 保存系统设置失败
+    if (error.response?.data?.message) {
+      ElMessage.error(error.response.data.message)
+    } else {
     ElMessage.error('保存设置失败')
+    }
   } finally {
     savingSettings.value = false
   }
@@ -2150,9 +3011,29 @@ const stopAutoRefresh = () => {
   }
 }
 
+// 移动端检测函数
+const checkMobile = () => {
+  const width = window.innerWidth
+  // 使用更精确的断点：768px以下为移动端，768px-1024px为平板，1024px以上为桌面端
+  isMobile.value = width < 768
+}
+
+// 监听窗口大小变化
+const handleResize = () => {
+  checkMobile()
+  // 延迟调整表格宽度，确保DOM更新完成
+  setTimeout(() => {
+    adjustTableWidth()
+  }, 100)
+}
+
 // 生命周期
 onMounted(async () => {
   try {
+    // 检测移动端
+    checkMobile()
+    window.addEventListener('resize', handleResize)
+    
     await refreshAllData()
     startAutoRefresh()
     // 调整表格宽度
@@ -2166,6 +3047,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   stopAutoRefresh()
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 
@@ -2783,35 +3665,1458 @@ onUnmounted(() => {
   }
 }
 
-// 响应式设计
-@media (max-width: 768px) {
-  .admin-center-page {
-    padding: 16px; // 移动端也使用统一的内边距
+// ==================== 移动端用户卡片样式优化 ====================
+.mobile-user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  
+  .user-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e4e7ed;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    
+    // 添加微妙的渐变背景
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #409eff, #67c23a, #e6a23c, #f56c6c);
+      opacity: 0.6;
+    }
+    
+    &:hover {
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      transform: translateY(-4px);
+      border-color: #409eff;
+    }
+    
+    &:active {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    }
+    
+    .user-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 20px;
+      
+      .user-info {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex: 1;
+        min-width: 0;
+        
+        .el-avatar {
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          border: 2px solid #fff;
+        }
+        
+        .user-details {
+          flex: 1;
+          min-width: 0;
+          
+          .username {
+            font-size: 18px;
+            font-weight: 600;
+            color: #303133;
+            margin-bottom: 6px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            line-height: 1.2;
+          }
+          
+          .email {
+            font-size: 14px;
+            color: #909399;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            line-height: 1.3;
+          }
+        }
+      }
+      
+      .user-status {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        align-items: flex-end;
+        
+        .el-tag {
+          border-radius: 6px;
+          font-weight: 500;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+      }
+    }
+    
+    .user-card-content {
+      margin-bottom: 20px;
+      
+      .storage-section {
+        margin-bottom: 16px;
+        
+        .storage-label {
+          font-size: 13px;
+          color: #909399;
+          margin-bottom: 8px;
+          font-weight: 500;
+        }
+        
+        .storage-info {
+          .el-progress {
+            margin-bottom: 8px;
+            
+            :deep(.el-progress-bar__outer) {
+              border-radius: 6px;
+              background: #f0f2f5;
+            }
+            
+            :deep(.el-progress-bar__inner) {
+              border-radius: 6px;
+            }
+          }
+          
+          .storage-text {
+            font-size: 13px;
+            color: #606266;
+            text-align: center;
+            font-weight: 500;
+          }
+        }
+      }
+      
+      .time-section {
+        .time-label {
+          font-size: 13px;
+          color: #909399;
+          margin-bottom: 6px;
+          font-weight: 500;
+        }
+        
+        .time-text {
+          font-size: 13px;
+          color: #606266;
+          font-weight: 500;
+        }
+      }
+    }
+    
+    .user-card-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 16px;
+      border-top: 1px solid #f0f0f0;
+      
+      .el-checkbox {
+        margin: 0;
+        
+        :deep(.el-checkbox__label) {
+          font-size: 14px;
+          font-weight: 500;
+          color: #606266;
+        }
+      }
+      
+      .el-button {
+        min-width: 90px;
+        height: 36px;
+        border-radius: 8px;
+        font-weight: 500;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        
+        &:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        &:active {
+          transform: translateY(0);
+        }
+      }
+    }
   }
   
-  .admin-center-content {
-    // 移动端允许换行，让侧边栏显示在上方
-    :deep(.el-row) {
-      flex-wrap: wrap !important;
-      gap: 16px; // 移动端使用较小的间距
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    background: #fafafa;
+    border-radius: 16px;
+    border: 2px dashed #e4e7ed;
+    
+    :deep(.el-empty__description) {
+      color: #909399;
+      font-size: 14px;
+    }
+  }
+}
+
+// ==================== 移动端用户筛选样式优化 ====================
+.mobile-user-filters {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 24px;
+  padding: 0;
+  margin-bottom: 24px;
+  border: 1px solid rgba(64, 158, 255, 0.12);
+  box-shadow: 
+    0 4px 20px rgba(0, 0, 0, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  
+  // 添加装饰性背景元素
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: linear-gradient(90deg, #409eff 0%, #67c23a 50%, #e6a23c 100%);
+    border-radius: 24px 24px 0 0;
+  }
+  
+  // 添加微妙的背景纹理
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+      radial-gradient(circle at 20% 20%, rgba(64, 158, 255, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(103, 194, 58, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  
+  // 用户筛选表单标题样式
+  .user-filter-header {
+    padding: 24px 24px 16px 24px;
+    position: relative;
+    z-index: 1;
+    
+    .filter-title {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      
+      .filter-icon {
+        font-size: 20px;
+        color: #409eff;
+        margin-right: 12px;
+        background: linear-gradient(135deg, #409eff, #67c23a);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      span {
+        font-size: 20px;
+        font-weight: 700;
+        color: #303133;
+        letter-spacing: 0.5px;
+      }
+    }
+    
+    .filter-subtitle {
+      font-size: 14px;
+      color: #909399;
+      font-weight: 400;
+      margin-left: 32px;
+      line-height: 1.4;
+    }
+  }
+  
+  // 表单容器样式
+  .user-filter-form {
+    padding: 0 24px 24px 24px;
+    position: relative;
+    z-index: 1;
+  }
+  
+  // 搜索区域样式
+  .search-section {
+    margin-bottom: 20px;
+    
+    .search-item {
+      margin-bottom: 0;
+      
+      .el-form-item__label {
+        font-size: 16px;
+        font-weight: 600;
+        color: #303133;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        
+        &::before {
+          content: '';
+          width: 4px;
+          height: 16px;
+          background: linear-gradient(135deg, #409eff, #67c23a);
+          border-radius: 2px;
+          margin-right: 8px;
+        }
+      }
+      
+      .search-input {
+        :deep(.el-input__wrapper) {
+          border-radius: 16px;
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+          border: 2px solid #e4e7ed;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          height: 56px !important;
+          background: #ffffff;
+          
+          &:hover {
+            border-color: #c0c4cc;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            transform: translateY(-1px);
+          }
+          
+          &.is-focus {
+            border-color: #409eff;
+            box-shadow: 0 0 0 4px rgba(64, 158, 255, 0.15);
+            transform: translateY(-2px);
+          }
+          
+          .el-input__inner {
+            height: 54px !important;
+            font-size: 16px !important;
+            padding: 0 20px !important;
+            color: #303133;
+            
+            &::placeholder {
+              color: #c0c4cc;
+              font-size: 15px;
+            }
+          }
+          
+          .el-input__prefix {
+            padding-left: 20px;
+            
+            .search-prefix-icon {
+              font-size: 18px;
+              color: #909399;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // 筛选区域样式
+  .filter-section {
+    margin-bottom: 20px;
+    
+    .filter-item {
+      margin-bottom: 16px;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+      
+      .el-form-item__label {
+        font-size: 16px;
+        font-weight: 600;
+        color: #303133;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        
+        &::before {
+          content: '';
+          width: 4px;
+          height: 16px;
+          background: linear-gradient(135deg, #409eff, #67c23a);
+          border-radius: 2px;
+          margin-right: 8px;
+        }
+      }
+      
+      .filter-select {
+        :deep(.el-select__wrapper) {
+          border-radius: 16px;
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+          border: 2px solid #e4e7ed;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          height: 56px !important;
+          background: #ffffff;
+          
+          &:hover {
+            border-color: #c0c4cc;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            transform: translateY(-1px);
+          }
+          
+          &.is-focus {
+            border-color: #409eff;
+            box-shadow: 0 0 0 4px rgba(64, 158, 255, 0.15);
+            transform: translateY(-2px);
+          }
+          
+          .el-select__selection {
+            height: 54px !important;
+            
+            .el-select__selected-item {
+              font-size: 16px !important;
+              color: #303133;
+              padding: 0 20px !important;
+              line-height: 54px !important;
+              font-weight: 500;
+            }
+            
+            .el-select__placeholder {
+              font-size: 15px !important;
+              color: #c0c4cc;
+              padding: 0 20px !important;
+              line-height: 54px !important;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // 操作按钮区域样式
+  .user-action-section {
+    margin-top: 24px;
+    
+    .user-action-buttons {
+      display: flex;
+      gap: 12px;
+      
+      .user-action-btn {
+        flex: 1;
+        height: 56px;
+        border-radius: 16px;
+        font-size: 15px;
+        font-weight: 600;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        border: none;
+        position: relative;
+        overflow: hidden;
+        
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        &:active {
+          transform: translateY(0) !important;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important;
+        }
+        
+        .el-icon {
+          margin-right: 4px !important;
+          font-size: 13px !important;
+        }
+        
+        span {
+          font-size: 13px !important;
+          font-weight: 600 !important;
+        }
+        
+        &.primary-btn {
+          background: linear-gradient(135deg, #409eff 0%, #67c23a 100%) !important;
+          color: #ffffff !important;
+          
+          &:hover {
+            background: linear-gradient(135deg, #337ecc 0%, #529b2e 100%) !important;
+          }
+        }
+        
+        &.secondary-btn {
+          background: linear-gradient(135deg, #909399 0%, #c0c4cc 100%) !important;
+          color: #ffffff !important;
+          
+          &:hover {
+            background: linear-gradient(135deg, #73767a 0%, #a6a9ad 100%) !important;
+          }
+        }
+      }
+    }
+  }
+}
+
+// ==================== 移动端筛选表单样式优化 ====================
+.mobile-filters {
+  background: #f8f9fa;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  
+  .el-form {
+    .el-form-item {
+      margin-bottom: 20px;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+      
+      .el-form-item__label {
+        font-size: 15px;
+        font-weight: 600;
+        color: #303133;
+        margin-bottom: 10px;
+        line-height: 1.4;
+        display: block;
+        width: 100%;
+      }
+      
+      .el-form-item__content {
+        .el-input {
+          :deep(.el-input__wrapper) {
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border: 1px solid #dcdfe6;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            height: 48px;
+            
+            &:hover {
+              border-color: #c0c4cc;
+              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+            }
+            
+            &.is-focus {
+              border-color: #409eff;
+              box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.15);
+            }
+            
+            .el-input__inner {
+              height: 46px;
+              font-size: 15px;
+              padding: 0 16px;
+              color: #303133;
+              
+              &::placeholder {
+                color: #c0c4cc;
+                font-size: 14px;
+              }
+            }
+            
+            .el-input__prefix {
+              padding-left: 16px;
+              
+              .el-icon {
+                font-size: 16px;
+                color: #909399;
+              }
+            }
+          }
+        }
+        
+        .el-select {
+          :deep(.el-select__wrapper) {
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border: 1px solid #dcdfe6;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            height: 48px;
+            
+            &:hover {
+              border-color: #c0c4cc;
+              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+            }
+            
+            &.is-focus {
+              border-color: #409eff;
+              box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.15);
+            }
+            
+            .el-select__selection {
+              height: 46px;
+              
+              .el-select__selected-item {
+                font-size: 15px;
+                color: #303133;
+                padding: 0 16px;
+                line-height: 46px;
+              }
+              
+              .el-select__placeholder {
+                font-size: 14px;
+                color: #c0c4cc;
+                padding: 0 16px;
+                line-height: 46px;
+              }
+            }
+            
+            .el-select__suffix {
+              padding-right: 16px;
+              
+              .el-icon {
+                font-size: 16px;
+                color: #909399;
+              }
+            }
+          }
+        }
+      }
     }
     
     .el-row {
-      margin-left: 0 !important;
-      margin-right: 0 !important;
+      margin-left: -8px !important;
+      margin-right: -8px !important;
       
       .el-col {
-        padding-left: 0 !important;
-        padding-right: 0 !important;
+        padding-left: 8px !important;
+        padding-right: 8px !important;
       }
     }
+    
+    // 移动端筛选表单按钮样式优化
+    .el-button {
+      height: 52px !important;
+      font-size: 16px !important;
+      font-weight: 600 !important;
+      border-radius: 12px !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+      border: none !important;
+      padding: 0 20px !important;
+      
+      &:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
+      }
+      
+      &:active {
+        transform: translateY(0) !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+      }
+      
+      &.el-button--primary {
+        background: linear-gradient(135deg, #409eff, #66b3ff) !important;
+        
+        &:hover {
+          background: linear-gradient(135deg, #66b3ff, #409eff) !important;
+        }
+      }
+      
+      &.el-button--default {
+        background: linear-gradient(135deg, #f5f7fa, #e4e7ed) !important;
+        color: #606266 !important;
+        
+        &:hover {
+          background: linear-gradient(135deg, #e4e7ed, #d3d4d6) !important;
+          color: #303133 !important;
+        }
+      }
+      
+      .el-icon {
+        margin-right: 8px !important;
+        font-size: 18px !important;
+      }
+      
+      span {
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        line-height: 1.2 !important;
+      }
+    }
+  }
+}
+
+// ==================== 移动端操作按钮样式优化 ====================
+.mobile-actions {
+  margin-bottom: 20px;
+  
+  .el-button {
+    height: 48px;
+    font-size: 15px;
+    font-weight: 600;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: none;
+    
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    }
+    
+    &:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    &.el-button--primary {
+      background: linear-gradient(135deg, #409eff, #66b3ff);
+      
+      &:hover {
+        background: linear-gradient(135deg, #66b3ff, #409eff);
+      }
+    }
+    
+    &.el-button--default {
+      background: linear-gradient(135deg, #f5f7fa, #e4e7ed);
+      color: #606266;
+      
+      &:hover {
+        background: linear-gradient(135deg, #e4e7ed, #d3d4d6);
+        color: #303133;
+      }
+      
+      &:disabled {
+        background: #f5f7fa;
+        color: #c0c4cc;
+        transform: none;
+        box-shadow: none;
+      }
+    }
+    
+    .el-icon {
+      margin-right: 6px;
+      font-size: 16px;
+    }
+  }
+}
+
+// ==================== 移动端日志功能样式 ====================
+.mobile-log-filters {
+  background: #f8f9fa;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  
+  .el-form {
+    .el-form-item {
+      margin-bottom: 20px;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+      
+      .el-form-item__label {
+        font-size: 15px;
+        font-weight: 600;
+        color: #303133;
+        margin-bottom: 10px;
+        line-height: 1.4;
+        display: block;
+        width: 100%;
+      }
+      
+      .el-form-item__content {
+        .el-input {
+          :deep(.el-input__wrapper) {
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border: 1px solid #dcdfe6;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            height: 48px;
+            
+            &:hover {
+              border-color: #c0c4cc;
+              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+            }
+            
+            &.is-focus {
+              border-color: #409eff;
+              box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.15);
+            }
+            
+            .el-input__inner {
+              height: 46px;
+              font-size: 15px;
+              padding: 0 16px;
+              color: #303133;
+              
+              &::placeholder {
+                color: #c0c4cc;
+                font-size: 14px;
+              }
+            }
+            
+            .el-input__prefix {
+              padding-left: 16px;
+              
+              .el-icon {
+                font-size: 16px;
+                color: #909399;
+              }
+            }
+          }
+        }
+        
+        .el-select {
+          :deep(.el-select__wrapper) {
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border: 1px solid #dcdfe6;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            height: 48px;
+            
+            &:hover {
+              border-color: #c0c4cc;
+              box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+            }
+            
+            &.is-focus {
+              border-color: #409eff;
+              box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.15);
+            }
+            
+            .el-select__selection {
+              height: 46px;
+              
+              .el-select__selected-item {
+                font-size: 15px;
+                color: #303133;
+                padding: 0 16px;
+                line-height: 46px;
+              }
+              
+              .el-select__placeholder {
+                font-size: 14px;
+                color: #c0c4cc;
+                padding: 0 16px;
+                line-height: 46px;
+              }
+            }
+            
+            .el-select__suffix {
+              padding-right: 16px;
+              
+              .el-icon {
+                font-size: 16px;
+                color: #909399;
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    .el-row {
+      margin-left: -8px !important;
+      margin-right: -8px !important;
+      
+      .el-col {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+      }
+    }
+    
+    // 移动端日志筛选表单按钮样式优化
+    .el-button {
+      height: 52px !important;
+      font-size: 16px !important;
+      font-weight: 600 !important;
+      border-radius: 12px !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+      border: none !important;
+      padding: 0 20px !important;
+      
+      &:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15) !important;
+      }
+      
+      &:active {
+        transform: translateY(0) !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+      }
+      
+      &.el-button--primary {
+        background: linear-gradient(135deg, #409eff, #66b3ff) !important;
+        
+        &:hover {
+          background: linear-gradient(135deg, #66b3ff, #409eff) !important;
+        }
+      }
+      
+      &.el-button--default {
+        background: linear-gradient(135deg, #f5f7fa, #e4e7ed) !important;
+        color: #606266 !important;
+        
+        &:hover {
+          background: linear-gradient(135deg, #e4e7ed, #d3d4d6) !important;
+          color: #303133 !important;
+        }
+      }
+      
+      .el-icon {
+        margin-right: 8px !important;
+        font-size: 18px !important;
+      }
+      
+      span {
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        line-height: 1.2 !important;
+      }
+    }
+  }
+}
+
+.mobile-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  
+  .log-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e4e7ed;
+    transition: all 0.3s ease;
+    
+    &:hover {
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+      transform: translateY(-2px);
+    }
+    
+    .log-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      
+      .log-time {
+        font-size: 13px;
+        color: #909399;
+        font-weight: 500;
+      }
+      
+      .el-tag {
+        border-radius: 6px;
+        font-weight: 500;
+      }
+    }
+    
+    .log-card-content {
+      .log-source {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 8px;
+        
+        .el-icon {
+          font-size: 14px;
+          color: #909399;
+        }
+        
+        span {
+          font-size: 13px;
+          color: #606266;
+          font-weight: 500;
+        }
+      }
+      
+      .log-message {
+        font-size: 14px;
+        color: #303133;
+        line-height: 1.5;
+        word-break: break-word;
+      }
+    }
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    background: #fafafa;
+    border-radius: 12px;
+    border: 2px dashed #e4e7ed;
+  }
+}
+
+// ==================== 移动端存储管理样式 ====================
+.mobile-storage-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  
+  .storage-stat-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e4e7ed;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.3s ease;
+    
+    &:hover {
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+      transform: translateY(-2px);
+    }
+    
+    .stat-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      
+      .el-icon {
+        font-size: 24px;
+        color: #fff;
+      }
+      
+      &.total {
+        background: linear-gradient(135deg, #409eff, #66b3ff);
+      }
+      
+      &.used {
+        background: linear-gradient(135deg, #67c23a, #85ce61);
+      }
+      
+      &.available {
+        background: linear-gradient(135deg, #e6a23c, #f0c78a);
+      }
+    }
+    
+    .stat-info {
+      flex: 1;
+      
+      .stat-value {
+        font-size: 18px;
+        font-weight: 600;
+        color: #303133;
+        margin-bottom: 4px;
+      }
+      
+      .stat-label {
+        font-size: 13px;
+        color: #909399;
+        font-weight: 500;
+      }
+    }
+  }
+}
+
+.mobile-storage-usage {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e4e7ed;
+  
+  .usage-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    
+    h4 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #303133;
+      margin: 0;
+    }
+  }
+  
+  .usage-content {
+    .el-progress {
+      margin-bottom: 12px;
+      
+      :deep(.el-progress-bar__outer) {
+        border-radius: 8px;
+        background: #f0f2f5;
+      }
+      
+      :deep(.el-progress-bar__inner) {
+        border-radius: 8px;
+      }
+    }
+    
+    .usage-details {
+      text-align: center;
+      
+      .usage-text {
+        font-size: 13px;
+        color: #606266;
+        font-weight: 500;
+      }
+    }
+  }
+}
+
+.mobile-storage-actions {
+  .el-button {
+    height: 44px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .el-icon {
+      margin-right: 6px;
+      font-size: 14px;
+    }
+  }
+}
+
+// ==================== 移动端系统设置样式 ====================
+.mobile-settings-form {
+  .settings-group {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e4e7ed;
+    
+    .group-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #f0f0f0;
+      
+      .el-icon {
+        font-size: 16px;
+        color: #409eff;
+      }
+      
+      span {
+        font-size: 16px;
+        font-weight: 600;
+        color: #303133;
+      }
+    }
+    
+    .el-form-item {
+      margin-bottom: 20px;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+      
+      .el-form-item__label {
+        font-size: 14px;
+        font-weight: 600;
+        color: #303133;
+        margin-bottom: 8px;
+      }
+      
+      .form-description {
+        font-size: 12px;
+        color: #909399;
+        margin-top: 6px;
+        line-height: 1.4;
+      }
+      
+      .form-unit {
+        font-size: 14px;
+        color: #606266;
+        margin-left: 8px;
+        font-weight: 500;
+      }
+      
+      .color-picker-container {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        
+        .color-value {
+          font-size: 13px;
+          color: #606266;
+          font-weight: 500;
+          font-family: monospace;
+        }
+      }
+    }
+  }
+  
+  .settings-actions {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e4e7ed;
+    
+    .el-button {
+      height: 48px;
+      font-size: 15px;
+      font-weight: 600;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      border: none;
+      
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+      }
+      
+      &:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+      
+      &.el-button--primary {
+        background: linear-gradient(135deg, #409eff, #66b3ff);
+        
+        &:hover {
+          background: linear-gradient(135deg, #66b3ff, #409eff);
+        }
+      }
+      
+      &.el-button--default {
+        background: linear-gradient(135deg, #f5f7fa, #e4e7ed);
+        color: #606266;
+        
+        &:hover {
+          background: linear-gradient(135deg, #e4e7ed, #d3d4d6);
+          color: #303133;
+        }
+      }
+      
+      .el-icon {
+        margin-right: 6px;
+        font-size: 16px;
+      }
+    }
+  }
+}
+
+// ==================== 响应式断点设计 ====================
+
+// 超小屏幕 (手机竖屏) - 320px-480px
+@media (max-width: 480px) {
+  .admin-center-page {
+    padding: 12px;
   }
   
   .page-header {
     .header-content {
       flex-direction: column;
-      align-items: flex-start;
-      gap: 16px;
+      gap: 12px;
+      
+      .header-left {
+        text-align: center;
+        
+        .page-title {
+          font-size: 20px;
+        }
+        
+        .page-subtitle {
+          font-size: 12px;
+        }
+      }
+      
+      .header-actions {
+        width: 100%;
+        
+        .el-button {
+          width: 100%;
+          height: 44px;
+        }
+      }
+    }
+  }
+}
+
+// 小屏幕 (手机横屏/小平板) - 481px-768px
+@media (min-width: 481px) and (max-width: 768px) {
+  .admin-center-page {
+    padding: 16px;
+  }
+  
+  .page-header {
+    .header-content {
+      .header-left {
+        .page-title {
+          font-size: 24px;
+        }
+        
+        .page-subtitle {
+          font-size: 14px;
+        }
+      }
+    }
+  }
+}
+
+// 中等屏幕 (平板) - 769px-1024px
+@media (min-width: 769px) and (max-width: 1024px) {
+  .admin-center-page {
+    padding: 20px;
+  }
+  
+  .admin-center-content {
+    .desktop-layout {
+      .el-col {
+        &:first-child {
+          flex: 0 0 200px; // 固定侧边栏宽度
+        }
+        
+        &:last-child {
+          flex: 1; // 内容区域自适应
+        }
+      }
+    }
+  }
+}
+
+// 大屏幕 (桌面) - 1025px以上
+@media (min-width: 1025px) {
+  .admin-center-page {
+    padding: 24px;
+  }
+}
+
+// ==================== 移动端专用样式 ====================
+
+// 移动端导航栏
+.mobile-nav-bar {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  
+  .mobile-nav-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    
+    .mobile-nav-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #303133;
+      margin: 0;
+    }
+    
+    .mobile-refresh-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+    }
+  }
+  
+  .mobile-tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    
+    .mobile-tab {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      background: #f5f7fa;
+      color: #606266;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      min-width: 60px;
+      flex-shrink: 0;
+      
+      .el-icon {
+        font-size: 18px;
+      }
+      
+      span {
+        font-size: 12px;
+        font-weight: 500;
+      }
+      
+      &:hover {
+        background: #e6f7ff;
+        color: #409eff;
+      }
+      
+      &.active {
+        background: #409eff;
+        color: #fff;
+        
+        .el-icon {
+          color: #fff;
+        }
+      }
+    }
+  }
+}
+
+// 移动端内容区域
+.mobile-content {
+  .mobile-panel-card {
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: none;
+    
+    :deep(.el-card__body) {
+      padding: 16px;
+    }
+  }
+}
+
+// ==================== 移动端统计卡片优化 ====================
+@media (max-width: 768px) {
+  .stats-cards {
+    .el-col {
+      margin-bottom: 12px;
+      
+      .stat-card {
+        padding: 16px;
+        border-radius: 12px;
+        
+        .stat-icon {
+          width: 48px;
+          height: 48px;
+          
+          .el-icon {
+            font-size: 24px;
+          }
+        }
+        
+        .stat-info {
+          .stat-value {
+            font-size: 20px;
+          }
+          
+          .stat-label {
+            font-size: 12px;
+          }
+          
+          .stat-trend {
+            .trend-text {
+              font-size: 11px;
+            }
+          }
+        }
+      }
     }
   }
   
@@ -3758,6 +6063,415 @@ onUnmounted(() => {
     .el-color-picker {
       margin-right: 8px;
     }
+  }
+}
+
+// ==================== 移动端日志筛选样式优化 ====================
+.mobile-log-filters {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 24px;
+  padding: 0;
+  margin-bottom: 24px;
+  border: 1px solid rgba(64, 158, 255, 0.12);
+  box-shadow: 
+    0 4px 20px rgba(0, 0, 0, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  
+  // 添加装饰性背景元素
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: linear-gradient(90deg, #e6a23c 0%, #f56c6c 50%, #67c23a 100%);
+    border-radius: 24px 24px 0 0;
+  }
+  
+  // 添加微妙的背景纹理
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+      radial-gradient(circle at 20% 20%, rgba(230, 162, 60, 0.03) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(103, 194, 58, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  
+  // 日志筛选表单标题样式
+  .log-filter-header {
+    padding: 24px 24px 16px 24px;
+    position: relative;
+    z-index: 1;
+    
+    .filter-title {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+      
+      .filter-icon {
+        font-size: 20px;
+        color: #e6a23c;
+        margin-right: 12px;
+        background: linear-gradient(135deg, #e6a23c, #f56c6c);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      span {
+        font-size: 20px;
+        font-weight: 700;
+        color: #303133;
+        letter-spacing: 0.5px;
+      }
+    }
+    
+    .filter-subtitle {
+      font-size: 14px;
+      color: #909399;
+      font-weight: 400;
+      margin-left: 32px;
+      line-height: 1.4;
+    }
+  }
+  
+  // 表单容器样式
+  .log-filter-form {
+    padding: 0 24px 24px 24px;
+    position: relative;
+    z-index: 1;
+  }
+  
+  // 日志级别区域样式
+  .level-section {
+    margin-bottom: 20px;
+    
+    .level-item {
+      margin-bottom: 0;
+      
+      .el-form-item__label {
+        font-size: 16px;
+        font-weight: 600;
+        color: #303133;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        
+        &::before {
+          content: '';
+          width: 4px;
+          height: 16px;
+          background: linear-gradient(135deg, #e6a23c, #f56c6c);
+          border-radius: 2px;
+          margin-right: 8px;
+        }
+      }
+      
+      .level-select {
+        :deep(.el-select__wrapper) {
+          border-radius: 16px;
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+          border: 2px solid #e4e7ed;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          height: 56px !important;
+          background: #ffffff;
+          
+          &:hover {
+            border-color: #c0c4cc;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            transform: translateY(-1px);
+          }
+          
+          &.is-focus {
+            border-color: #e6a23c;
+            box-shadow: 0 0 0 4px rgba(230, 162, 60, 0.15);
+            transform: translateY(-2px);
+          }
+          
+          .el-select__selection {
+            height: 54px !important;
+            
+            .el-select__selected-item {
+              font-size: 16px !important;
+              color: #303133;
+              padding: 0 20px !important;
+              line-height: 54px !important;
+              font-weight: 500;
+            }
+            
+            .el-select__placeholder {
+              font-size: 15px !important;
+              color: #c0c4cc;
+              padding: 0 20px !important;
+              line-height: 54px !important;
+            }
+          }
+          
+          .el-select__suffix {
+            padding-right: 20px !important;
+            
+            .el-icon {
+              font-size: 18px !important;
+              color: #909399;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // 搜索区域样式
+  .search-section {
+    margin-bottom: 24px;
+    
+    .search-item {
+      margin-bottom: 0;
+      
+      .el-form-item__label {
+        font-size: 16px;
+        font-weight: 600;
+        color: #303133;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        
+        &::before {
+          content: '';
+          width: 4px;
+          height: 16px;
+          background: linear-gradient(135deg, #67c23a, #85ce61);
+          border-radius: 2px;
+          margin-right: 8px;
+        }
+      }
+      
+      .search-input {
+        :deep(.el-input__wrapper) {
+          border-radius: 16px;
+          box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+          border: 2px solid #e4e7ed;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          height: 56px !important;
+          background: #ffffff;
+          
+          &:hover {
+            border-color: #c0c4cc;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+            transform: translateY(-1px);
+          }
+          
+          &.is-focus {
+            border-color: #67c23a;
+            box-shadow: 0 0 0 4px rgba(103, 194, 58, 0.15);
+            transform: translateY(-2px);
+          }
+          
+          .el-input__inner {
+            height: 54px !important;
+            font-size: 16px !important;
+            padding: 0 20px !important;
+            font-weight: 500;
+            
+            &::placeholder {
+              color: #c0c4cc;
+              font-size: 15px !important;
+              font-weight: 400;
+            }
+          }
+          
+          .el-input__prefix {
+            padding-left: 20px !important;
+            
+            .search-prefix-icon {
+              font-size: 18px !important;
+              color: #909399;
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // 操作按钮区域样式
+  .log-action-section {
+    .log-action-buttons {
+      display: flex;
+      gap: 12px;
+      
+      .log-action-btn {
+        flex: 1;
+        height: 52px !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        border-radius: 14px !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        border: none !important;
+        padding: 0 20px !important;
+        margin: 0 !important;
+        letter-spacing: 0.5px;
+        
+        &:hover {
+          transform: translateY(-2px) !important;
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
+        }
+        
+        &:active {
+          transform: translateY(0) !important;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1) !important;
+        }
+        
+        .el-icon {
+          margin-right: 4px !important;
+          font-size: 13px !important;
+        }
+        
+        span {
+          font-size: 13px !important;
+          font-weight: 600 !important;
+        }
+        
+        &.primary-btn {
+          background: linear-gradient(135deg, #e6a23c 0%, #f56c6c 100%) !important;
+          color: #ffffff !important;
+          
+          &:hover {
+            background: linear-gradient(135deg, #f56c6c 0%, #e6a23c 100%) !important;
+          }
+        }
+        
+        &.secondary-btn {
+          background: linear-gradient(135deg, #67c23a 0%, #85ce61 100%) !important;
+          color: #ffffff !important;
+          
+          &:hover {
+            background: linear-gradient(135deg, #85ce61 0%, #67c23a 100%) !important;
+          }
+        }
+        
+        &.danger-btn {
+          background: linear-gradient(135deg, #f56c6c 0%, #f78989 100%) !important;
+          color: #ffffff !important;
+          
+          &:hover {
+            background: linear-gradient(135deg, #f78989 0%, #f56c6c 100%) !important;
+          }
+        }
+      }
+    }
+  }
+}
+
+// ==================== 移动端日志筛选动画效果 ====================
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+// 移动端日志筛选表单进入动画
+.mobile-log-filters {
+  animation: slideInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  .log-filter-header {
+    animation: fadeInScale 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.1s both;
+  }
+  
+  .level-section {
+    animation: fadeInScale 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.2s both;
+  }
+  
+  .search-section {
+    animation: fadeInScale 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.3s both;
+  }
+  
+  .log-action-section {
+    animation: fadeInScale 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.4s both;
+  }
+  
+  // 悬停时的微妙动画
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 
+      0 8px 32px rgba(0, 0, 0, 0.12),
+      0 2px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  // 加载状态动画
+  &.loading {
+    .log-action-btn {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+  }
+}
+
+// 表单控件焦点动画
+.level-select,
+.search-input {
+  :deep(.el-select__wrapper),
+  :deep(.el-input__wrapper) {
+    &:focus-within {
+      animation: pulse 0.3s ease-out;
+    }
+  }
+}
+
+// 按钮点击反馈动画
+.log-action-btn {
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+  }
+  
+  &:active::before {
+    width: 300px;
+    height: 300px;
   }
 }
 </style>
