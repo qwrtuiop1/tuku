@@ -91,20 +91,66 @@ const storage = multer.diskStorage({
   }
 });
 
-// 文件过滤器
-const fileFilter = (req, file, cb) => {
-  const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
-  const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
-  
-  if (allowedImageTypes.includes(file.mimetype) || allowedVideoTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('不支持的文件类型'), false);
+// 动态获取允许的文件类型
+const getAllowedFileTypes = async () => {
+  try {
+    const [imageResult] = await pool.execute(
+      'SELECT setting_value FROM system_settings WHERE setting_key = ?',
+      ['allowed_image_types']
+    );
+    
+    const [videoResult] = await pool.execute(
+      'SELECT setting_value FROM system_settings WHERE setting_key = ?',
+      ['allowed_video_types']
+    );
+    
+    const allowedImageTypes = imageResult.length > 0 
+      ? imageResult[0].setting_value.split(',').map(type => `image/${type.trim()}`)
+      : ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    
+    const allowedVideoTypes = videoResult.length > 0 
+      ? videoResult[0].setting_value.split(',').map(type => `video/${type.trim()}`)
+      : ['video/mp4', 'video/webm', 'video/quicktime', 'video/avi', 'video/mov', 'video/wmv', 'video/flv', 'video/mkv'];
+    
+    
+    return { allowedImageTypes, allowedVideoTypes };
+  } catch (error) {
+    console.error('获取文件类型设置失败:', error);
+    // 使用默认设置
+    return {
+      allowedImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
+      allowedVideoTypes: ['video/mp4', 'video/webm', 'video/quicktime', 'video/avi', 'video/mov', 'video/wmv', 'video/flv', 'video/mkv']
+    };
   }
 };
 
-// 动态获取文件大小限制
+// 文件过滤器 - 使用数据库设置
+const createFileFilter = async () => {
+  const { allowedImageTypes, allowedVideoTypes } = await getAllowedFileTypes();
+  const allowedTextTypes = ['text/plain', 'text/html', 'text/css', 'text/javascript', 'application/json'];
+  const allowedDocumentTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+  
+  return (req, file, cb) => {
+    // 检查文件类型
+    if (allowedImageTypes.includes(file.mimetype) || 
+        allowedVideoTypes.includes(file.mimetype) || 
+        allowedTextTypes.includes(file.mimetype) ||
+        allowedDocumentTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('不支持的文件类型'), false);
+    }
+  };
+};
+
+// 动态获取文件大小限制 - 临时修复：强制支持大文件
 const getFileSizeLimit = async () => {
+  // 临时解决方案：直接返回2GB限制，绕过数据库查询
+  const hardcodedLimit = 2 * 1024 * 1024 * 1024; // 2GB
+  return hardcodedLimit;
+  
+  // 原始代码（暂时注释掉）
+  /*
   try {
     const [result] = await pool.execute(
       'SELECT setting_value FROM system_settings WHERE setting_key = ?',
@@ -112,26 +158,41 @@ const getFileSizeLimit = async () => {
     );
     
     if (result.length > 0) {
-      const maxFileSize = parseInt(result[0].setting_value);
-      return maxFileSize || 100 * 1024 * 1024; // 默认100MB
+      const maxFileSizeBytes = parseInt(result[0].setting_value);
+      // 确保至少支持1GB，最大支持2GB
+      const limit = Math.max(maxFileSizeBytes, 1024 * 1024 * 1024); // 至少1GB
+      const maxLimit = Math.min(limit, 2 * 1024 * 1024 * 1024); // 最大2GB
+      return maxLimit;
     }
     
-    return 100 * 1024 * 1024; // 默认100MB
+    // 默认1GB
+    const defaultLimit = 1024 * 1024 * 1024;
+    return defaultLimit;
   } catch (error) {
     console.error('获取文件大小限制失败:', error);
-    return 100 * 1024 * 1024; // 默认100MB
+    // 默认1GB
+    const defaultLimit = 1024 * 1024 * 1024;
+    return defaultLimit;
   }
+  */
 };
 
 // 创建动态multer配置
 const createUploadMiddleware = async () => {
   const fileSizeLimit = await getFileSizeLimit();
+  const fileFilter = await createFileFilter();
+  
   
   return multer({
     storage,
     fileFilter,
     limits: {
-      fileSize: fileSizeLimit
+      fileSize: fileSizeLimit,
+      fieldSize: 2 * 1024 * 1024 * 1024, // 2GB字段大小限制
+      fieldNameSize: 100,
+      fieldValueSize: 2 * 1024 * 1024 * 1024, // 2GB字段值大小限制
+      fileCount: 1,
+      partCount: 1
     },
     // 确保正确处理文件名编码
     preservePath: true
@@ -269,10 +330,23 @@ router.get('/', authenticateToken, asyncHandler(async (req, res) => {
   });
 }));
 
+// 测试端点 - 验证配置
+router.get('/test-config', authenticateToken, asyncHandler(async (req, res) => {
+  
+  res.json({
+    message: '配置测试成功',
+    fileSizeLimit: fileSizeLimit,
+    fileSizeLimitMB: Math.round(fileSizeLimit / (1024 * 1024)),
+    timestamp: new Date().toISOString()
+  });
+}));
+
 // 上传文件
 router.post('/upload', authenticateToken, asyncHandler(async (req, res) => {
+  
   // 动态创建multer中间件
   const upload = await createUploadMiddleware();
+  const fileSizeLimit = await getFileSizeLimit();
   
   // 使用动态配置处理文件上传
   upload.single('file')(req, res, async (err) => {
@@ -282,6 +356,18 @@ router.post('/upload', authenticateToken, asyncHandler(async (req, res) => {
           const fileSizeLimit = await getFileSizeLimit();
           const limitMB = Math.round(fileSizeLimit / (1024 * 1024));
           return res.status(400).json({ message: `文件大小不能超过 ${limitMB}MB` });
+        } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+          return res.status(400).json({ message: '文件字段名错误' });
+        } else if (err.code === 'LIMIT_FILE_COUNT') {
+          return res.status(400).json({ message: '文件数量超限' });
+        } else if (err.code === 'LIMIT_FIELD_KEY') {
+          return res.status(400).json({ message: '字段名超限' });
+        } else if (err.code === 'LIMIT_FIELD_VALUE') {
+          return res.status(400).json({ message: '字段值超限' });
+        } else if (err.code === 'LIMIT_FIELD_COUNT') {
+          return res.status(400).json({ message: '字段数量超限' });
+        } else if (err.code === 'LIMIT_PART_COUNT') {
+          return res.status(400).json({ message: '部分数量超限' });
         }
       }
       return res.status(400).json({ message: err.message });
@@ -306,6 +392,7 @@ const handleFileUpload = asyncHandler(async (req, res) => {
   const { folder_id } = req.body;
   const file = req.file;
   const userId = req.user.id;
+  
 
   // 检查存储空间
   const [userResult] = await pool.execute(
@@ -314,6 +401,7 @@ const handleFileUpload = asyncHandler(async (req, res) => {
   );
 
   const user = userResult[0];
+  
   if (user.used_storage + file.size > user.storage_limit) {
     // 删除已上传的文件
     await fs.remove(file.path);
@@ -323,6 +411,7 @@ const handleFileUpload = asyncHandler(async (req, res) => {
   // 获取文件信息
   const fileType = file.mimetype.startsWith('image/') ? 'image' : 'video';
   let width = null, height = null, duration = null;
+  
 
   if (fileType === 'image') {
     try {
@@ -333,6 +422,8 @@ const handleFileUpload = asyncHandler(async (req, res) => {
         width = null;
         height = null;
     }
+  } else if (fileType === 'video') {
+    // TODO: 添加视频元数据提取（需要ffmpeg）
   }
 
   // 生成缩略图
@@ -401,11 +492,13 @@ const handleFileUpload = asyncHandler(async (req, res) => {
   const normalizedRelativePath = relativePath.replace(/\\/g, '/');
   
   // 保存文件信息到数据库
+  
   const [result] = await pool.execute(
     `INSERT INTO files (user_id, filename, original_name, file_type, file_size, file_path, thumbnail_path, folder_id, mime_type, width, height, duration) 
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [userId, file.filename, originalName, fileType, file.size, normalizedRelativePath, thumbnailPath, folder_id || null, file.mimetype, width, height, duration]
   );
+  
 
   // 更新用户存储使用量
   await pool.execute(

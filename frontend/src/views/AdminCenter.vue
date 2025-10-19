@@ -2208,7 +2208,11 @@ const fetchSystemSettings = async () => {
     systemSettings.systemName = settings.system_name?.value || '图库系统'
     systemSettings.allowRegistration = settings.enable_registration?.value === 'true'
     systemSettings.maintenanceMode = settings.maintenance_mode?.value === 'true'
-    systemSettings.maxFileSize = parseInt(settings.max_file_size?.value) || 100
+    
+    // 修复：将字节值转换为MB值
+    const maxFileSizeBytes = parseInt(settings.max_file_size?.value) || 100 * 1024 * 1024
+    systemSettings.maxFileSize = Math.round(maxFileSizeBytes / (1024 * 1024))
+    
     systemSettings.maxUploadFiles = parseInt(settings.max_upload_files?.value) || 10
     systemSettings.allowedImageTypes = settings.allowed_image_types?.value?.split(',') || ['jpg', 'png', 'gif', 'webp']
     systemSettings.allowedVideoTypes = settings.allowed_video_types?.value?.split(',') || ['mp4', 'webm', 'mov']

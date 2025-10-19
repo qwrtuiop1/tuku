@@ -16,7 +16,7 @@
         <p class="upload-subtitle">或点击选择文件</p>
         <div class="upload-tips">
           <span class="tip-item">支持图片和视频文件</span>
-          <span class="tip-item">单个文件最大100MB</span>
+          <span class="tip-item">单个文件最大{{ maxFileSizeMB }}MB</span>
         </div>
       </div>
       
@@ -129,7 +129,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   Upload,
@@ -165,6 +165,16 @@ const isUploading = ref(false)
 const uploadProgress = ref(0)
 const uploadList = ref<UploadItem[]>([])
 
+// 系统设置
+const systemSettings = ref({
+  maxFileSize: 100, // 默认100MB
+  maxUploadFiles: 10 // 默认10个文件
+})
+
+// 计算属性
+const maxFileSizeMB = computed(() => systemSettings.value.maxFileSize)
+const maxFileSizeBytes = computed(() => systemSettings.value.maxFileSize * 1024 * 1024)
+
 // 上传统计
 const uploadStats = computed(() => {
   const total = uploadList.value.length
@@ -173,6 +183,29 @@ const uploadStats = computed(() => {
   
   return { total, success, error }
 })
+
+// 获取系统设置
+const fetchSystemSettings = async () => {
+  try {
+    console.log('正在获取系统设置...')
+    const response = await api.get('/system/info')
+    const systemInfo = response.data
+    console.log('系统设置响应:', systemInfo)
+    
+    systemSettings.value = {
+      maxFileSize: systemInfo.max_file_size || 100,
+      maxUploadFiles: systemInfo.max_upload_files || 10
+    }
+    console.log('更新后的系统设置:', systemSettings.value)
+  } catch (error) {
+    console.warn('获取系统设置失败，使用默认值:', error)
+    // 使用默认值
+    systemSettings.value = {
+      maxFileSize: 100,
+      maxUploadFiles: 10
+    }
+  }
+}
 
 // 生成唯一ID
 const generateId = () => {
@@ -194,7 +227,7 @@ const createFilePreview = (file: File): Promise<string> => {
 
 // 验证文件
 const validateFile = (file: File): boolean => {
-  const maxSize = 100 * 1024 * 1024 // 100MB
+  const maxSize = maxFileSizeBytes.value
   const allowedTypes = [
     'image/jpeg',
     'image/png',
@@ -207,7 +240,7 @@ const validateFile = (file: File): boolean => {
   ]
   
   if (file.size > maxSize) {
-    ElMessage.error(`文件 ${file.name} 超过100MB限制`)
+    ElMessage.error(`文件 ${file.name} 超过${maxFileSizeMB.value}MB限制`)
     return false
   }
   
@@ -360,6 +393,11 @@ const removeFromList = (id: string) => {
 const clearUploadList = () => {
   uploadList.value = []
 }
+
+// 生命周期
+onMounted(() => {
+  fetchSystemSettings()
+})
 </script>
 
 <style lang="scss" scoped>

@@ -479,7 +479,7 @@ const saveProfile = async () => {
       }
       
       const response = await api.put('/auth/profile/simple', updateData)
-      ElMessage.success('个人资料保存成功')
+      ElMessage.success('个人资料更新成功')
       
       // 更新本地数据
       if (response.data.user) {
@@ -514,7 +514,7 @@ const saveProfile = async () => {
       }
       
       await api.put('/auth/profile', updateData)
-      ElMessage.success('个人信息保存成功')
+      ElMessage.success('个人资料更新成功')
       
       // 清理验证码相关状态
       clearTimers()
@@ -715,6 +715,20 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+// 确保消息颜色正确显示
+:deep(.el-message--success) {
+  background-color: #f0f9ff !important;
+  border-color: #b3d8ff !important;
+  color: #67c23a !important;
+  
+  .el-message__content {
+    color: #67c23a !important;
+  }
+  
+  .el-message__icon {
+    color: #67c23a !important;
+  }
+}
 .profile-page {
   padding: 24px;
   background: #f5f7fa;

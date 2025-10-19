@@ -31,8 +31,8 @@ router.get('/maintenance-status', asyncHandler(async (req, res) => {
 router.get('/info', asyncHandler(async (req, res) => {
   try {
     const [result] = await pool.execute(
-      'SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?, ?, ?)',
-      ['system_name', 'system_description', 'system_version']
+      'SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?, ?, ?, ?, ?)',
+      ['system_name', 'system_description', 'system_version', 'max_file_size', 'max_upload_files']
     );
     
     const settings = {};
@@ -43,14 +43,18 @@ router.get('/info', asyncHandler(async (req, res) => {
     res.json({
       system_name: settings.system_name || '图库系统',
       system_description: settings.system_description || '一个功能强大的图库管理系统',
-      system_version: settings.system_version || '1.0.0'
+      system_version: settings.system_version || '1.0.0',
+      max_file_size: Math.round(parseInt(settings.max_file_size) / (1024 * 1024)) || 100, // 将字节转换为MB
+      max_upload_files: parseInt(settings.max_upload_files) || 10 // 默认10个文件
     });
   } catch (error) {
     console.error('获取系统信息失败:', error);
     res.status(500).json({ 
       system_name: '图库系统',
       system_description: '一个功能强大的图库管理系统',
-      system_version: '1.0.0'
+      system_version: '1.0.0',
+      max_file_size: 100, // 默认100MB
+      max_upload_files: 10 // 默认10个文件
     });
   }
 }));

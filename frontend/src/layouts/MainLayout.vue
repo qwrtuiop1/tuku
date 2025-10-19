@@ -184,8 +184,14 @@
           </el-dropdown>
           
           <!-- 移动端用户菜单 -->
-          <el-dropdown v-if="isMobile" @command="handleUserCommand" placement="bottom-end">
-            <el-button type="text" class="mobile-user-btn">
+          <el-dropdown 
+            v-if="isMobile" 
+            @command="handleUserCommand" 
+            placement="bottom-end"
+            :visible="mobileUserMenuVisible"
+            @visible-change="handleMobileUserMenuVisibleChange"
+          >
+            <el-button type="text" class="mobile-user-btn" @click="toggleMobileUserMenu">
               <el-avatar :size="24" :src="authStore.user?.avatar_url">
                 {{ authStore.user?.username?.charAt(0).toUpperCase() }}
               </el-avatar>
@@ -302,6 +308,7 @@ const touchStartY = ref(0)
 const isDragging = ref(false)
 const isDevelopment = ref(process.env.NODE_ENV === 'development')
 const animationEnabled = ref(true) // 页面动画控制
+const mobileUserMenuVisible = ref(false) // 移动端用户菜单显示状态
 
 // 检测屏幕尺寸
 const checkScreenSize = () => {
@@ -373,6 +380,9 @@ const handleMenuSelect = () => {
 
 // 处理用户菜单命令
 const handleUserCommand = async (command: string) => {
+  // 关闭移动端用户菜单
+  mobileUserMenuVisible.value = false
+  
   switch (command) {
     case 'profile':
       router.push('/profile')
@@ -398,6 +408,16 @@ const handleUserCommand = async (command: string) => {
       }
       break
   }
+}
+
+// 切换移动端用户菜单
+const toggleMobileUserMenu = () => {
+  mobileUserMenuVisible.value = !mobileUserMenuVisible.value
+}
+
+// 处理移动端用户菜单显示状态变化
+const handleMobileUserMenuVisibleChange = (visible: boolean) => {
+  mobileUserMenuVisible.value = visible
 }
 
 // 触摸手势处理

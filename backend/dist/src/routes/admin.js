@@ -915,6 +915,12 @@ router.get('/settings', asyncHandler(async (req, res) => {
       value: setting.setting_value,
       description: setting.description
     };
+    
+    // 特别记录 max_file_size 的值
+    if (setting.setting_key === 'max_file_size') {
+      const bytes = parseInt(setting.setting_value);
+      const mb = Math.round(bytes / (1024 * 1024));
+    }
   });
   
   res.json({ settings: settingsMap });
@@ -1052,10 +1058,20 @@ router.put('/settings', [
   // 更新设置
   const updatePromises = [];
   for (const [key, value] of Object.entries(settings)) {
+    let processedValue = value;
+    
+    // 特殊处理：将MB值转换为字节值
+    if (key === 'max_file_size' || key === 'max_storage_per_user') {
+      const mbValue = parseInt(value);
+      if (!isNaN(mbValue) && mbValue > 0) {
+        processedValue = (mbValue * 1024 * 1024).toString(); // 转换为字节
+      }
+    }
+    
     updatePromises.push(
       pool.execute(
         'UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?',
-        [value, key]
+        [processedValue, key]
       )
     );
   }

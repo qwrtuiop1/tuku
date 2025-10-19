@@ -11,11 +11,13 @@ const folderRoutes = require('./routes/folders');
 const adminRoutes = require('./routes/admin');
 const avatarRoutes = require('./routes/avatars');
 const systemRoutes = require('./routes/system');
+const nginxConfigRoutes = require('./routes/nginxConfig');
 const { errorHandler } = require('./middleware/errorHandler');
 const { authenticateToken } = require('./middleware/auth');
 const { checkMaintenanceMode } = require('./middleware/maintenance');
 const { startCleanupTask } = require('./services/verificationService');
 const TrendService = require('./services/trendService');
+const nginxAutoUpdateService = require('./services/nginxAutoUpdateService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,17 +43,13 @@ const corsOptions = {
     
     // 允许没有origin的请求（如移动应用、Postman等）
     if (!origin) {
-      console.log('CORS: Allowing request without origin');
       return callback(null, true);
     }
     
     // 检查origin是否在允许列表中
     if (allowedOrigins.includes(origin)) {
-      console.log('CORS: Allowing origin:', origin);
       callback(null, true);
     } else {
-      console.log('CORS: Blocking origin:', origin);
-      console.log('CORS: Allowed origins:', allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -64,7 +62,11 @@ const corsOptions = {
     'Accept',
     'Origin',
     'Access-Control-Request-Method',
-    'Access-Control-Request-Headers'
+    'Access-Control-Request-Headers',
+    'Cache-Control',
+    'X-File-Name',
+    'X-File-Size',
+    'X-File-Type'
   ],
   exposedHeaders: [
     'Content-Type', 
@@ -82,22 +84,16 @@ app.use(cors(corsOptions));
 
 // CORS调试中间件
 app.use((req, res, next) => {
-  console.log('=== CORS Debug Info ===');
-  console.log('Request Origin:', req.headers.origin);
-  console.log('Request Method:', req.method);
-  console.log('Request URL:', req.url);
-  console.log('Request Headers:', req.headers);
-  console.log('========================');
   next();
 });
 
 // 手动处理OPTIONS请求
 app.options('*', (req, res) => {
-  console.log('Handling OPTIONS request for:', req.url);
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers, Cache-Control, X-File-Name, X-File-Size, X-File-Type');
   res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400'); // 24小时
   res.sendStatus(200);
 });
 
@@ -129,9 +125,9 @@ app.use('/api/folders', apiLimiter);
 app.use('/api/admin', apiLimiter);
 app.use('/api/files', apiLimiter);
 
-// 解析中间件
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// 解析中间件 - 支持大文件上传
+app.use(express.json({ limit: '2gb' }));
+app.use(express.urlencoded({ extended: true, limit: '2gb' }));
 
 // 静态文件服务 - 必须在认证中间件之前
 app.use('/uploads', express.static(process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage', {
@@ -158,6 +154,7 @@ app.use('/api/system', systemRoutes); // 系统公共接口，无需认证
 app.use('/api/folders', authenticateToken, folderRoutes);
 app.use('/api/admin', authenticateToken, adminRoutes);
 app.use('/api/avatars', authenticateToken, avatarRoutes);
+app.use('/api/nginx-config', nginxConfigRoutes); // Nginx配置管理
 
 // 头像静态文件服务 - 必须在 /api/files 路由之前
 app.use('/api/files/avatar', express.static(path.join(process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage', 'users'), {
@@ -181,6 +178,28 @@ app.get('/api/health', (req, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV 
+  });
+});
+
+// CORS测试端点
+app.get('/api/cors-test', (req, res) => {
+  
+  res.json({
+    message: 'CORS测试成功',
+    origin: req.headers.origin,
+    method: req.method,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 文件大小测试端点
+app.post('/api/upload-test', (req, res) => {
+  
+  res.json({
+    message: '文件上传测试成功',
+    contentType: req.headers['content-type'],
+    contentLength: req.headers['content-length'],
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -219,6 +238,9 @@ const scheduleTrendCollection = () => {
 
 // 启动趋势数据收集任务
 scheduleTrendCollection();
+
+// 启动Nginx配置自动更新服务
+nginxAutoUpdateService.start();
 
 app.listen(PORT, () => {
   console.log(`🚀 图库系统后端服务启动成功`);

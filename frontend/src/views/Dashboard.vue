@@ -761,28 +761,89 @@ onMounted(() => {
     animation: float 6s ease-in-out infinite;
   }
   
-  // 主要内容区域：左右布局
+  // 主要内容区域：左右布局 - 桌面端优化
   .welcome-main {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 40px;
-    margin-bottom: 32px;
+    gap: 48px;
+    margin-bottom: 40px;
     position: relative;
     z-index: 1;
+    min-height: 120px; // 确保最小高度
+    
+    // 桌面端大屏幕优化
+    @media (min-width: 1440px) {
+      gap: 64px;
+      margin-bottom: 48px;
+      min-height: 140px;
+    }
+    
+    // 中等桌面屏幕
+    @media (min-width: 1200px) and (max-width: 1439px) {
+      gap: 56px;
+      margin-bottom: 44px;
+      min-height: 130px;
+    }
+    
+    // 小桌面屏幕
+    @media (min-width: 1024px) and (max-width: 1199px) {
+      gap: 48px;
+      margin-bottom: 40px;
+      min-height: 120px;
+    }
   }
   
   .welcome-header {
     display: flex;
     align-items: center;
-    gap: 24px;
+    gap: 32px;
     flex: 1;
+    min-width: 0; // 允许内容收缩
+    
+    // 桌面端大屏幕优化
+    @media (min-width: 1440px) {
+      gap: 40px;
+    }
+    
+    // 中等桌面屏幕
+    @media (min-width: 1200px) and (max-width: 1439px) {
+      gap: 36px;
+    }
+    
+    // 小桌面屏幕
+    @media (min-width: 1024px) and (max-width: 1199px) {
+      gap: 32px;
+    }
     
     .user-avatar {
+      flex-shrink: 0; // 防止头像被压缩
+      
       :deep(.el-avatar) {
         border: 4px solid rgba(255, 255, 255, 0.3);
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
         transition: all 0.3s ease;
+        
+        // 桌面端大屏幕头像
+        @media (min-width: 1440px) {
+          width: 80px !important;
+          height: 80px !important;
+          border-width: 5px;
+        }
+        
+        // 中等桌面屏幕头像
+        @media (min-width: 1200px) and (max-width: 1439px) {
+          width: 72px !important;
+          height: 72px !important;
+          border-width: 4px;
+        }
+        
+        // 小桌面屏幕头像
+        @media (min-width: 1024px) and (max-width: 1199px) {
+          width: 64px !important;
+          height: 64px !important;
+          border-width: 3px;
+        }
         
         &:hover {
           transform: scale(1.05);
@@ -792,6 +853,9 @@ onMounted(() => {
     }
     
     .welcome-text {
+      flex: 1;
+      min-width: 0; // 允许文字收缩
+      
       .welcome-title {
         font-size: 42px;
         font-weight: 900;
@@ -802,6 +866,25 @@ onMounted(() => {
         -webkit-text-fill-color: transparent;
         background-clip: text;
         line-height: 1.2;
+        word-break: break-word; // 长用户名换行
+        
+        // 桌面端大屏幕标题
+        @media (min-width: 1440px) {
+          font-size: 48px;
+          margin-bottom: 16px;
+        }
+        
+        // 中等桌面屏幕标题
+        @media (min-width: 1200px) and (max-width: 1439px) {
+          font-size: 44px;
+          margin-bottom: 14px;
+        }
+        
+        // 小桌面屏幕标题
+        @media (min-width: 1024px) and (max-width: 1199px) {
+          font-size: 38px;
+          margin-bottom: 12px;
+        }
       }
       
       .welcome-subtitle {
@@ -811,6 +894,22 @@ onMounted(() => {
         font-weight: 500;
         text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         line-height: 1.4;
+        word-break: break-word; // 长文本换行
+        
+        // 桌面端大屏幕副标题
+        @media (min-width: 1440px) {
+          font-size: 22px;
+        }
+        
+        // 中等桌面屏幕副标题
+        @media (min-width: 1200px) and (max-width: 1439px) {
+          font-size: 21px;
+        }
+        
+        // 小桌面屏幕副标题
+        @media (min-width: 1024px) and (max-width: 1199px) {
+          font-size: 19px;
+        }
       }
     }
   }
@@ -819,18 +918,38 @@ onMounted(() => {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     grid-template-rows: repeat(2, 1fr);
-    gap: 16px;
+    gap: 20px;
     position: relative;
     z-index: 1;
     align-items: stretch; // 确保所有按钮高度一致
     justify-items: stretch; // 确保所有按钮宽度一致
+    min-width: 320px; // 确保最小宽度
+    flex-shrink: 0; // 防止按钮区域被压缩
+    
+    // 桌面端大屏幕优化
+    @media (min-width: 1440px) {
+      gap: 24px;
+      min-width: 380px;
+    }
+    
+    // 中等桌面屏幕
+    @media (min-width: 1200px) and (max-width: 1439px) {
+      gap: 22px;
+      min-width: 350px;
+    }
+    
+    // 小桌面屏幕
+    @media (min-width: 1024px) and (max-width: 1199px) {
+      gap: 20px;
+      min-width: 320px;
+    }
     
     .action-btn {
-      // 统一尺寸设置
+      // 统一尺寸设置 - 桌面端优化
       width: 100% !important;
-      height: 80px !important;
-      min-height: 80px !important;
-      max-height: 80px !important;
+      height: 88px !important;
+      min-height: 88px !important;
+      max-height: 88px !important;
       border-radius: 20px;
       font-weight: 700;
       padding: 0 !important; // 重置padding，使用flex布局控制间距
@@ -842,18 +961,48 @@ onMounted(() => {
       display: flex !important;
       align-items: center;
       justify-content: center;
-      gap: 12px;
+      gap: 14px;
       font-size: 18px;
       line-height: 1.2;
       box-sizing: border-box;
       vertical-align: top; // 确保垂直对齐
       
-      // 强制覆盖Element Plus的所有默认样式
+      // 桌面端大屏幕按钮
+      @media (min-width: 1440px) {
+        height: 96px !important;
+        min-height: 96px !important;
+        max-height: 96px !important;
+        font-size: 19px;
+        gap: 16px;
+        border-radius: 22px;
+      }
+      
+      // 中等桌面屏幕按钮
+      @media (min-width: 1200px) and (max-width: 1439px) {
+        height: 92px !important;
+        min-height: 92px !important;
+        max-height: 92px !important;
+        font-size: 18px;
+        gap: 15px;
+        border-radius: 21px;
+      }
+      
+      // 小桌面屏幕按钮
+      @media (min-width: 1024px) and (max-width: 1199px) {
+        height: 88px !important;
+        min-height: 88px !important;
+        max-height: 88px !important;
+        font-size: 17px;
+        gap: 14px;
+        border-radius: 20px;
+      }
+      
+      // 强制覆盖Element Plus的所有默认样式 - 桌面端优化
       &.el-button {
         width: 100% !important;
-        height: 80px !important;
-        min-height: 80px !important;
-        max-height: 80px !important;
+        height: 88px !important;
+        min-height: 88px !important;
+        max-height: 88px !important;
         padding: 0 !important;
         margin: 0 !important;
         font-size: 18px !important;
@@ -862,13 +1011,37 @@ onMounted(() => {
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
+        
+        @media (min-width: 1440px) {
+          height: 96px !important;
+          min-height: 96px !important;
+          max-height: 96px !important;
+          font-size: 19px !important;
+          border-radius: 22px !important;
+        }
+        
+        @media (min-width: 1200px) and (max-width: 1439px) {
+          height: 92px !important;
+          min-height: 92px !important;
+          max-height: 92px !important;
+          font-size: 18px !important;
+          border-radius: 21px !important;
+        }
+        
+        @media (min-width: 1024px) and (max-width: 1199px) {
+          height: 88px !important;
+          min-height: 88px !important;
+          max-height: 88px !important;
+          font-size: 17px !important;
+          border-radius: 20px !important;
+        }
       }
       
       &.el-button--large {
         width: 100% !important;
-        height: 80px !important;
-        min-height: 80px !important;
-        max-height: 80px !important;
+        height: 88px !important;
+        min-height: 88px !important;
+        max-height: 88px !important;
         padding: 0 !important;
         margin: 0 !important;
         font-size: 18px !important;
@@ -877,13 +1050,37 @@ onMounted(() => {
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
+        
+        @media (min-width: 1440px) {
+          height: 96px !important;
+          min-height: 96px !important;
+          max-height: 96px !important;
+          font-size: 19px !important;
+          border-radius: 22px !important;
+        }
+        
+        @media (min-width: 1200px) and (max-width: 1439px) {
+          height: 92px !important;
+          min-height: 92px !important;
+          max-height: 92px !important;
+          font-size: 18px !important;
+          border-radius: 21px !important;
+        }
+        
+        @media (min-width: 1024px) and (max-width: 1199px) {
+          height: 88px !important;
+          min-height: 88px !important;
+          max-height: 88px !important;
+          font-size: 17px !important;
+          border-radius: 20px !important;
+        }
       }
       
       &.el-button--primary {
         width: 100% !important;
-        height: 80px !important;
-        min-height: 80px !important;
-        max-height: 80px !important;
+        height: 88px !important;
+        min-height: 88px !important;
+        max-height: 88px !important;
         padding: 0 !important;
         margin: 0 !important;
         font-size: 18px !important;
@@ -892,6 +1089,30 @@ onMounted(() => {
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
+        
+        @media (min-width: 1440px) {
+          height: 96px !important;
+          min-height: 96px !important;
+          max-height: 96px !important;
+          font-size: 19px !important;
+          border-radius: 22px !important;
+        }
+        
+        @media (min-width: 1200px) and (max-width: 1439px) {
+          height: 92px !important;
+          min-height: 92px !important;
+          max-height: 92px !important;
+          font-size: 18px !important;
+          border-radius: 21px !important;
+        }
+        
+        @media (min-width: 1024px) and (max-width: 1199px) {
+          height: 88px !important;
+          min-height: 88px !important;
+          max-height: 88px !important;
+          font-size: 17px !important;
+          border-radius: 20px !important;
+        }
       }
       
       &::before {
@@ -944,20 +1165,38 @@ onMounted(() => {
         }
       }
       
-      // 统一图标样式
+      // 统一图标样式 - 桌面端优化
       .el-icon {
-        font-size: 22px !important;
+        font-size: 24px !important;
         flex-shrink: 0;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        width: 22px !important;
-        height: 22px !important;
+        width: 24px !important;
+        height: 24px !important;
         margin: 0 !important;
         padding: 0 !important;
+        
+        @media (min-width: 1440px) {
+          font-size: 26px !important;
+          width: 26px !important;
+          height: 26px !important;
+        }
+        
+        @media (min-width: 1200px) and (max-width: 1439px) {
+          font-size: 25px !important;
+          width: 25px !important;
+          height: 25px !important;
+        }
+        
+        @media (min-width: 1024px) and (max-width: 1199px) {
+          font-size: 23px !important;
+          width: 23px !important;
+          height: 23px !important;
+        }
       }
       
-      // 统一文字样式
+      // 统一文字样式 - 桌面端优化
       span {
         font-size: 18px !important;
         font-weight: 700 !important;
@@ -968,6 +1207,18 @@ onMounted(() => {
         line-height: 1.2 !important;
         margin: 0 !important;
         padding: 0 !important;
+        
+        @media (min-width: 1440px) {
+          font-size: 19px !important;
+        }
+        
+        @media (min-width: 1200px) and (max-width: 1439px) {
+          font-size: 18px !important;
+        }
+        
+        @media (min-width: 1024px) and (max-width: 1199px) {
+          font-size: 17px !important;
+        }
       }
       
       // 确保按钮内容垂直居中
@@ -981,50 +1232,124 @@ onMounted(() => {
     }
   }
   
-  // 统计数据区域：下方一排显示
+  // 统计数据区域：下方一排显示 - 桌面端优化
   .welcome-stats {
     display: flex;
     justify-content: center;
-    gap: 40px;
+    gap: 48px;
     position: relative;
     z-index: 1;
+    margin-top: 8px;
+    
+    // 桌面端大屏幕优化
+    @media (min-width: 1440px) {
+      gap: 56px;
+      margin-top: 12px;
+    }
+    
+    // 中等桌面屏幕
+    @media (min-width: 1200px) and (max-width: 1439px) {
+      gap: 52px;
+      margin-top: 10px;
+    }
+    
+    // 小桌面屏幕
+    @media (min-width: 1024px) and (max-width: 1199px) {
+      gap: 48px;
+      margin-top: 8px;
+    }
     
     .stat-item {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 8px;
-      padding: 20px 24px;
+      gap: 10px;
+      padding: 24px 28px;
       background: rgba(255, 255, 255, 0.1);
-      border-radius: 16px;
+      border-radius: 18px;
       backdrop-filter: blur(10px);
       border: 1px solid rgba(255, 255, 255, 0.2);
       transition: all 0.3s ease;
-      min-width: 140px;
+      min-width: 160px;
+      
+      // 桌面端大屏幕统计项
+      @media (min-width: 1440px) {
+        padding: 28px 32px;
+        border-radius: 20px;
+        min-width: 180px;
+        gap: 12px;
+      }
+      
+      // 中等桌面屏幕统计项
+      @media (min-width: 1200px) and (max-width: 1439px) {
+        padding: 26px 30px;
+        border-radius: 19px;
+        min-width: 170px;
+        gap: 11px;
+      }
+      
+      // 小桌面屏幕统计项
+      @media (min-width: 1024px) and (max-width: 1199px) {
+        padding: 24px 28px;
+        border-radius: 18px;
+        min-width: 160px;
+        gap: 10px;
+      }
       
       &:hover {
         background: rgba(255, 255, 255, 0.15);
-        transform: translateY(-2px);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+        transform: translateY(-3px);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+        border-color: rgba(255, 255, 255, 0.3);
       }
       
       .stat-value {
-        font-size: 28px;
+        font-size: 32px;
         font-weight: 800;
         text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         background: linear-gradient(45deg, #ffffff, #f0f8ff);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
+        
+        // 桌面端大屏幕数值
+        @media (min-width: 1440px) {
+          font-size: 36px;
+        }
+        
+        // 中等桌面屏幕数值
+        @media (min-width: 1200px) and (max-width: 1439px) {
+          font-size: 34px;
+        }
+        
+        // 小桌面屏幕数值
+        @media (min-width: 1024px) and (max-width: 1199px) {
+          font-size: 30px;
+        }
       }
       
       .stat-label {
-        font-size: 14px;
+        font-size: 15px;
         opacity: 0.9;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;
         text-align: center;
+        
+        // 桌面端大屏幕标签
+        @media (min-width: 1440px) {
+          font-size: 16px;
+        }
+        
+        // 中等桌面屏幕标签
+        @media (min-width: 1200px) and (max-width: 1439px) {
+          font-size: 15px;
+        }
+        
+        // 小桌面屏幕标签
+        @media (min-width: 1024px) and (max-width: 1199px) {
+          font-size: 14px;
+        }
       }
     }
   }

@@ -18,6 +18,542 @@
 
     <!-- 主要内容 -->
     <div class="settings-content">
+      <!-- 桌面端布局 -->
+      <div class="desktop-settings-layout">
+        <!-- 桌面端侧边栏 -->
+        <div class="desktop-settings-sidebar">
+          <div class="sidebar-menu">
+            <div 
+              v-for="tab in settingsTabs" 
+              :key="tab.name"
+              :class="['menu-item', { 'is-active': activeTab === tab.name }]"
+              @click="handleTabSelect(tab.name)"
+            >
+              <el-icon class="menu-icon">
+                <component :is="tab.icon" />
+              </el-icon>
+              <span class="menu-text">{{ tab.label }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 桌面端内容区域 -->
+        <div class="desktop-settings-content">
+          <div class="settings-panel">
+            <!-- 常规设置 -->
+            <div v-if="activeTab === 'general'" class="settings-section">
+              <div class="section-header">
+                <h3>常规设置</h3>
+                <p>配置系统基本信息和描述</p>
+              </div>
+              <el-form :model="generalSettings" ref="generalFormRef" label-position="top" class="settings-form">
+                <el-form-item label="系统名称" prop="systemName">
+                  <el-input v-model="generalSettings.systemName" placeholder="请输入系统名称" />
+                </el-form-item>
+                <el-form-item label="系统描述" prop="systemDescription">
+                  <el-input 
+                    v-model="generalSettings.systemDescription" 
+                    type="textarea" 
+                    :rows="3"
+                    placeholder="请输入系统描述"
+                  />
+                </el-form-item>
+                <div class="form-actions">
+                  <el-button type="primary" @click="saveGeneralSettings" :loading="saving">
+                    <el-icon><Check /></el-icon>
+                    保存设置
+                  </el-button>
+                </div>
+              </el-form>
+            </div>
+
+            <!-- 存储设置 -->
+            <div v-if="activeTab === 'storage'" class="settings-section">
+              <div class="section-header">
+                <h3>存储设置</h3>
+                <p>配置文件存储相关参数</p>
+              </div>
+              <el-form :model="storageSettings" :rules="storageRules" ref="storageFormRef" label-position="top" class="settings-form">
+                <el-form-item label="最大文件大小" prop="maxFileSize">
+                  <div class="input-with-unit">
+                    <el-input-number 
+                      v-model="storageSettings.maxFileSize" 
+                      :min="1" 
+                      :max="1000"
+                      controls-position="right"
+                      class="number-input"
+                    />
+                    <span class="unit">MB</span>
+                  </div>
+                  <div class="field-description">单个文件上传的最大大小限制</div>
+                </el-form-item>
+                
+                <el-form-item label="单次上传文件数" prop="maxUploadFiles">
+                  <div class="input-with-unit">
+                    <el-input-number 
+                      v-model="storageSettings.maxUploadFiles" 
+                      :min="1" 
+                      :max="50"
+                      controls-position="right"
+                      class="number-input"
+                    />
+                    <span class="unit">个</span>
+                  </div>
+                  <div class="field-description">单次最多可以上传的文件数量</div>
+                </el-form-item>
+                
+                <el-form-item label="允许的图片类型">
+                  <el-checkbox-group v-model="storageSettings.allowedImageTypes" class="checkbox-group">
+                    <el-checkbox label="jpg">JPG</el-checkbox>
+                    <el-checkbox label="jpeg">JPEG</el-checkbox>
+                    <el-checkbox label="png">PNG</el-checkbox>
+                    <el-checkbox label="gif">GIF</el-checkbox>
+                    <el-checkbox label="webp">WebP</el-checkbox>
+                    <el-checkbox label="svg">SVG</el-checkbox>
+                  </el-checkbox-group>
+                  <div class="field-description">选择允许上传的图片格式</div>
+                </el-form-item>
+                
+                <el-form-item label="允许的视频类型">
+                  <el-checkbox-group v-model="storageSettings.allowedVideoTypes" class="checkbox-group">
+                    <el-checkbox label="mp4">MP4</el-checkbox>
+                    <el-checkbox label="webm">WebM</el-checkbox>
+                    <el-checkbox label="mov">MOV</el-checkbox>
+                    <el-checkbox label="avi">AVI</el-checkbox>
+                    <el-checkbox label="mkv">MKV</el-checkbox>
+                  </el-checkbox-group>
+                  <div class="field-description">选择允许上传的视频格式</div>
+                </el-form-item>
+                
+                <el-form-item label="缩略图尺寸" prop="thumbnailSize">
+                  <div class="input-with-unit">
+                    <el-input-number 
+                      v-model="storageSettings.thumbnailSize" 
+                      :min="100" 
+                      :max="1000"
+                      controls-position="right"
+                      class="number-input"
+                    />
+                    <span class="unit">px</span>
+                  </div>
+                  <div class="field-description">生成缩略图的尺寸</div>
+                </el-form-item>
+                
+                <div class="form-actions">
+                  <el-button type="primary" @click="saveStorageSettings" :loading="saving">
+                    <el-icon><Check /></el-icon>
+                    保存设置
+                  </el-button>
+                </div>
+              </el-form>
+            </div>
+
+            <!-- 安全设置 -->
+            <div v-if="activeTab === 'security'" class="settings-section">
+              <div class="section-header">
+                <h3>安全设置</h3>
+                <p>配置系统安全相关参数</p>
+              </div>
+              <el-form :model="securitySettings" :rules="securityRules" ref="securityFormRef" label-position="top" class="settings-form">
+                <el-form-item label="密码最小长度" prop="minPasswordLength">
+                  <div class="input-with-unit">
+                    <el-input-number 
+                      v-model="securitySettings.minPasswordLength" 
+                      :min="6" 
+                      :max="20"
+                      controls-position="right"
+                      class="number-input"
+                    />
+                    <span class="unit">位</span>
+                  </div>
+                  <div class="field-description">用户密码的最小长度要求</div>
+                </el-form-item>
+                
+                <el-form-item label="登录失败锁定">
+                  <el-switch 
+                    v-model="securitySettings.enableLoginLock"
+                    active-text="开启"
+                    inactive-text="关闭"
+                  />
+                  <div class="field-description">登录失败次数过多时锁定账户</div>
+                </el-form-item>
+                
+                <el-form-item v-if="securitySettings.enableLoginLock" label="最大失败次数" prop="maxLoginAttempts">
+                  <div class="input-with-unit">
+                    <el-input-number 
+                      v-model="securitySettings.maxLoginAttempts" 
+                      :min="3" 
+                      :max="10"
+                      controls-position="right"
+                      class="number-input"
+                    />
+                    <span class="unit">次</span>
+                  </div>
+                  <div class="field-description">达到此次数后锁定账户</div>
+                </el-form-item>
+                
+                <el-form-item v-if="securitySettings.enableLoginLock" label="锁定时间" prop="lockoutDuration">
+                  <div class="input-with-unit">
+                    <el-input-number 
+                      v-model="securitySettings.lockoutDuration" 
+                      :min="5" 
+                      :max="60"
+                      controls-position="right"
+                      class="number-input"
+                    />
+                    <span class="unit">分钟</span>
+                  </div>
+                  <div class="field-description">账户锁定的持续时间</div>
+                </el-form-item>
+                
+                <el-form-item label="会话超时时间" prop="sessionTimeout">
+                  <div class="input-with-unit">
+                    <el-input-number 
+                      v-model="securitySettings.sessionTimeout" 
+                      :min="30" 
+                      :max="1440"
+                      controls-position="right"
+                      class="number-input"
+                    />
+                    <span class="unit">分钟</span>
+                  </div>
+                  <div class="field-description">用户会话的超时时间</div>
+                </el-form-item>
+                
+                <div class="form-actions">
+                  <el-button type="primary" @click="saveSecuritySettings" :loading="saving">
+                    <el-icon><Check /></el-icon>
+                    保存设置
+                  </el-button>
+                </div>
+              </el-form>
+            </div>
+
+            <!-- 通知设置 -->
+            <div v-if="activeTab === 'notification'" class="settings-section">
+              <div class="section-header">
+                <h3>通知设置</h3>
+                <p>配置系统通知相关参数</p>
+              </div>
+              <el-form :model="notificationSettings" ref="notificationFormRef" label-position="top" class="settings-form">
+                <el-form-item label="邮件通知">
+                  <el-switch 
+                    v-model="notificationSettings.enableEmailNotification"
+                    active-text="开启"
+                    inactive-text="关闭"
+                  />
+                  <div class="field-description">是否启用邮件通知功能</div>
+                </el-form-item>
+                
+                <el-form-item v-if="notificationSettings.enableEmailNotification" label="SMTP服务器" prop="smtpHost">
+                  <el-input v-model="notificationSettings.smtpHost" placeholder="请输入SMTP服务器地址" />
+                </el-form-item>
+                
+                <el-form-item v-if="notificationSettings.enableEmailNotification" label="SMTP端口" prop="smtpPort">
+                  <el-input-number 
+                    v-model="notificationSettings.smtpPort" 
+                    :min="1" 
+                    :max="65535"
+                    controls-position="right"
+                    class="number-input"
+                  />
+                </el-form-item>
+                
+                <el-form-item v-if="notificationSettings.enableEmailNotification" label="发件人邮箱" prop="senderEmail">
+                  <el-input v-model="notificationSettings.senderEmail" placeholder="请输入发件人邮箱" />
+                </el-form-item>
+                
+                <el-form-item label="系统通知">
+                  <el-switch 
+                    v-model="notificationSettings.enableSystemNotification"
+                    active-text="开启"
+                    inactive-text="关闭"
+                  />
+                  <div class="field-description">是否在系统内显示通知</div>
+                </el-form-item>
+                
+                <div class="form-actions">
+                  <el-button type="primary" @click="saveNotificationSettings" :loading="saving">
+                    <el-icon><Check /></el-icon>
+                    保存设置
+                  </el-button>
+                </div>
+              </el-form>
+            </div>
+
+            <!-- 第三方集成 -->
+            <div v-if="activeTab === 'integration'" class="settings-section">
+              <div class="section-header">
+                <h3>第三方集成</h3>
+                <p>配置第三方登录和集成服务</p>
+              </div>
+              <el-form :model="integrationSettings" ref="integrationFormRef" label-position="top" class="settings-form">
+                <!-- QQ登录集成 -->
+                <div class="integration-group">
+                  <div class="integration-header">
+                    <el-icon class="integration-icon"><Connection /></el-icon>
+                    <span>QQ登录集成</span>
+                  </div>
+                
+                  <div class="form-group">
+                    <el-form-item label="启用QQ登录">
+                      <el-switch 
+                        v-model="integrationSettings.qqLoginEnabled"
+                        active-text="开启"
+                        inactive-text="关闭"
+                        @change="handleQQLoginToggle"
+                      />
+                      <div class="field-description">允许用户使用QQ账号登录系统</div>
+                    </el-form-item>
+                  </div>
+                
+                  <div class="form-group" v-if="integrationSettings.qqLoginEnabled">
+                    <el-form-item 
+                      label="QQ应用ID" 
+                      prop="qqAppId"
+                      :rules="[{ required: true, message: 'QQ应用ID不能为空', trigger: 'blur' }]"
+                    >
+                      <el-input 
+                        v-model="integrationSettings.qqAppId" 
+                        placeholder="请输入QQ应用ID"
+                        clearable
+                      />
+                      <div class="field-description">
+                        <el-link type="primary" href="https://connect.qq.com/" target="_blank">
+                          获取QQ应用ID
+                        </el-link>
+                      </div>
+                    </el-form-item>
+                  </div>
+                
+                  <div class="form-group" v-if="integrationSettings.qqLoginEnabled">
+                    <el-form-item 
+                      label="QQ应用密钥" 
+                      prop="qqAppKey"
+                      :rules="[{ required: true, message: 'QQ应用密钥不能为空', trigger: 'blur' }]"
+                    >
+                      <el-input 
+                        v-model="integrationSettings.qqAppKey" 
+                        placeholder="请输入QQ应用密钥"
+                        type="password"
+                        show-password
+                        clearable
+                      />
+                      <div class="field-description">QQ应用的密钥，用于验证身份</div>
+                    </el-form-item>
+                  </div>
+                
+                  <div class="form-group" v-if="integrationSettings.qqLoginEnabled">
+                    <el-form-item label="回调地址">
+                      <el-input 
+                        :value="getCallbackUrl('qq')" 
+                        readonly
+                        class="readonly-input"
+                      >
+                        <template #append>
+                          <el-button @click="copyCallbackUrl('qq')" size="small">
+                            <el-icon><CopyDocument /></el-icon>
+                          </el-button>
+                        </template>
+                      </el-input>
+                      <div class="field-description">将此地址配置到QQ开放平台</div>
+                    </el-form-item>
+                  </div>
+                
+                  <div class="form-group" v-if="integrationSettings.qqLoginEnabled">
+                    <div class="test-buttons">
+                      <el-button 
+                        type="primary" 
+                        @click="testQQConnection" 
+                        :loading="testingQQ"
+                        size="small"
+                      >
+                        <el-icon><Connection /></el-icon>
+                        测试QQ连接
+                      </el-button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 微信登录集成 -->
+                <div class="integration-group">
+                  <div class="integration-header">
+                    <el-icon class="integration-icon"><Connection /></el-icon>
+                    <span>微信登录集成</span>
+                  </div>
+                
+                  <div class="form-group">
+                    <el-form-item label="启用微信登录">
+                      <el-switch 
+                        v-model="integrationSettings.wechatLoginEnabled"
+                        active-text="开启"
+                        inactive-text="关闭"
+                        @change="handleWechatLoginToggle"
+                      />
+                      <div class="field-description">允许用户使用微信账号登录系统</div>
+                    </el-form-item>
+                  </div>
+                
+                  <div class="form-group" v-if="integrationSettings.wechatLoginEnabled">
+                    <el-form-item 
+                      label="微信应用ID" 
+                      prop="wechatAppId"
+                      :rules="[{ required: true, message: '微信应用ID不能为空', trigger: 'blur' }]"
+                    >
+                      <el-input 
+                        v-model="integrationSettings.wechatAppId" 
+                        placeholder="请输入微信应用ID"
+                        clearable
+                      />
+                      <div class="field-description">
+                        <el-link type="primary" href="https://developers.weixin.qq.com/" target="_blank">
+                          获取微信应用ID
+                        </el-link>
+                      </div>
+                    </el-form-item>
+                  </div>
+                
+                  <div class="form-group" v-if="integrationSettings.wechatLoginEnabled">
+                    <el-form-item 
+                      label="微信应用密钥" 
+                      prop="wechatAppSecret"
+                      :rules="[{ required: true, message: '微信应用密钥不能为空', trigger: 'blur' }]"
+                    >
+                      <el-input 
+                        v-model="integrationSettings.wechatAppSecret" 
+                        placeholder="请输入微信应用密钥"
+                        type="password"
+                        show-password
+                        clearable
+                      />
+                      <div class="field-description">微信应用的密钥，用于验证身份</div>
+                    </el-form-item>
+                  </div>
+                
+                  <div class="form-group" v-if="integrationSettings.wechatLoginEnabled">
+                    <el-form-item label="回调地址">
+                      <el-input 
+                        :value="getCallbackUrl('wechat')" 
+                        readonly
+                        class="readonly-input"
+                      >
+                        <template #append>
+                          <el-button @click="copyCallbackUrl('wechat')" size="small">
+                            <el-icon><CopyDocument /></el-icon>
+                          </el-button>
+                        </template>
+                      </el-input>
+                      <div class="field-description">将此地址配置到微信开放平台</div>
+                    </el-form-item>
+                  </div>
+                
+                  <div class="form-group" v-if="integrationSettings.wechatLoginEnabled">
+                    <div class="test-buttons">
+                      <el-button 
+                        type="primary" 
+                        @click="testWechatConnection" 
+                        :loading="testingWechat"
+                        size="small"
+                      >
+                        <el-icon><Connection /></el-icon>
+                        测试微信连接
+                      </el-button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-actions">
+                  <el-button type="primary" @click="saveIntegrationSettings" :loading="saving">
+                    <el-icon><Check /></el-icon>
+                    保存设置
+                  </el-button>
+                  <el-button @click="resetIntegrationSettings" :disabled="saving">
+                    <el-icon><Refresh /></el-icon>
+                    重置设置
+                  </el-button>
+                </div>
+              </el-form>
+            </div>
+
+            <!-- 维护设置 -->
+            <div v-if="activeTab === 'maintenance'" class="settings-section">
+              <div class="section-header">
+                <h3>维护设置</h3>
+                <p>配置系统维护相关参数</p>
+              </div>
+              <el-form :model="maintenanceSettings" :rules="maintenanceRules" ref="maintenanceFormRef" label-position="top" class="settings-form">
+                <el-form-item label="维护模式">
+                  <el-switch 
+                    v-model="maintenanceSettings.maintenanceMode"
+                    active-text="开启"
+                    inactive-text="关闭"
+                    @change="handleMaintenanceModeToggle"
+                  />
+                  <div class="field-description">开启后，非管理员用户将无法访问系统</div>
+                </el-form-item>
+                
+                <el-form-item v-if="maintenanceSettings.maintenanceMode" label="维护消息" prop="maintenanceMessage">
+                  <el-input 
+                    v-model="maintenanceSettings.maintenanceMessage" 
+                    type="textarea"
+                    :rows="4"
+                    placeholder="请输入维护提示消息"
+                    maxlength="500"
+                    show-word-limit
+                  />
+                  <div class="field-description">维护模式下显示给用户的提示信息</div>
+                </el-form-item>
+                
+                <el-form-item label="自动备份">
+                  <el-switch 
+                    v-model="maintenanceSettings.backupEnabled"
+                    active-text="开启"
+                    inactive-text="关闭"
+                  />
+                  <div class="field-description">定期自动备份系统数据</div>
+                </el-form-item>
+                
+                <el-form-item v-if="maintenanceSettings.backupEnabled" label="备份频率" prop="backupFrequency">
+                  <el-select v-model="maintenanceSettings.backupFrequency" placeholder="请选择备份频率">
+                    <el-option label="每小时" value="hourly" />
+                    <el-option label="每天" value="daily" />
+                    <el-option label="每周" value="weekly" />
+                  </el-select>
+                  <div class="field-description">选择数据备份的频率</div>
+                </el-form-item>
+                
+                <el-form-item v-if="maintenanceSettings.backupEnabled" label="备份保留天数" prop="backupRetentionDays">
+                  <el-input-number 
+                    v-model="maintenanceSettings.backupRetentionDays" 
+                    :min="1" 
+                    :max="365"
+                    controls-position="right"
+                    class="number-input"
+                  />
+                  <div class="field-description">备份文件的保留时间（1-365天）</div>
+                </el-form-item>
+                
+                <el-form-item label="自动清理日志">
+                  <el-switch 
+                    v-model="maintenanceSettings.autoCleanLogs"
+                    active-text="开启"
+                    inactive-text="关闭"
+                  />
+                  <div class="field-description">定期清理过期的系统日志</div>
+                </el-form-item>
+                
+                <div class="form-actions">
+                  <el-button type="primary" @click="saveMaintenanceSettings" :loading="saving">
+                    <el-icon><Check /></el-icon>
+                    保存设置
+                  </el-button>
+                </div>
+              </el-form>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 移动端布局 -->
       <div class="mobile-settings-layout">
         <!-- 移动端导航 -->
@@ -59,14 +595,6 @@
                 <div class="tab-label">
                   <el-icon><Bell /></el-icon>
                   <span>通知设置</span>
-                </div>
-              </template>
-            </el-tab-pane>
-            <el-tab-pane label="外观设置" name="appearance">
-              <template #label>
-                <div class="tab-label">
-                  <el-icon><Monitor /></el-icon>
-                  <span>外观设置</span>
                 </div>
               </template>
             </el-tab-pane>
@@ -406,165 +934,6 @@
               </el-form>
             </div>
 
-            <!-- 外观设置 -->
-            <div v-if="activeTab === 'appearance'" class="mobile-settings-section">
-              <div class="mobile-section-header">
-                <div class="section-title">
-                  <el-icon class="section-icon"><Monitor /></el-icon>
-                  <span>外观设置</span>
-                </div>
-                <div class="section-description">配置系统界面外观和主题</div>
-              </div>
-              
-              <el-form :model="appearanceSettings" ref="appearanceFormRef" label-position="top" class="mobile-settings-form">
-                <!-- 主题设置组 -->
-                <div class="appearance-group">
-                  <div class="group-header">
-                    <el-icon class="group-icon"><Brush /></el-icon>
-                    <span class="group-title">主题配置</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <el-form-item label="主题模式">
-                      <el-radio-group v-model="appearanceSettings.themeMode" class="radio-group">
-                        <el-radio label="light" class="theme-radio">
-                          <div class="radio-content">
-                            <el-icon class="radio-icon"><Sunny /></el-icon>
-                            <span>浅色模式</span>
-                          </div>
-                        </el-radio>
-                        <el-radio label="dark" class="theme-radio">
-                          <div class="radio-content">
-                            <el-icon class="radio-icon"><Moon /></el-icon>
-                            <span>深色模式</span>
-                          </div>
-                        </el-radio>
-                        <el-radio label="auto" class="theme-radio">
-                          <div class="radio-content">
-                            <el-icon class="radio-icon"><Refresh /></el-icon>
-                            <span>跟随系统</span>
-                          </div>
-                        </el-radio>
-                      </el-radio-group>
-                      <div class="field-description">选择系统主题模式</div>
-                    </el-form-item>
-                  </div>
-                  
-                  <div class="form-group">
-                    <el-form-item label="主色调">
-                      <div class="color-picker-wrapper">
-                        <el-color-picker v-model="appearanceSettings.primaryColor" />
-                        <div class="color-preview">
-                          <div class="color-sample" :style="{ backgroundColor: appearanceSettings.primaryColor }"></div>
-                          <span class="color-value">{{ appearanceSettings.primaryColor }}</span>
-                        </div>
-                      </div>
-                      <div class="field-description">系统的主色调</div>
-                    </el-form-item>
-                  </div>
-                </div>
-                
-                <!-- 布局设置组 -->
-                <div class="appearance-group">
-                  <div class="group-header">
-                    <el-icon class="group-icon"><Grid /></el-icon>
-                    <span class="group-title">布局配置</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <el-form-item label="侧边栏宽度">
-                      <div class="slider-wrapper">
-                        <el-slider 
-                          v-model="appearanceSettings.sidebarWidth" 
-                          :min="200" 
-                          :max="300"
-                          show-input
-                          class="mobile-slider"
-                        />
-                      </div>
-                      <div class="field-description">侧边栏的宽度（200-300px）</div>
-                    </el-form-item>
-                  </div>
-                  
-                  <div class="form-group">
-                    <el-form-item label="页面动画">
-                      <div class="switch-wrapper">
-                        <el-switch 
-                          v-model="appearanceSettings.enableAnimation"
-                          active-text="开启"
-                          inactive-text="关闭"
-                          class="animation-switch"
-                        />
-                        <div class="switch-description">
-                          <el-icon class="switch-icon"><MagicStick /></el-icon>
-                          <span>页面切换动画效果</span>
-                        </div>
-                      </div>
-                      <div class="field-description">是否启用页面切换动画</div>
-                    </el-form-item>
-                  </div>
-                </div>
-                
-                <!-- 品牌设置组 -->
-                <div class="appearance-group">
-                  <div class="group-header">
-                    <el-icon class="group-icon"><Picture /></el-icon>
-                    <span class="group-title">品牌配置</span>
-                  </div>
-                  
-                  <div class="form-group">
-                    <el-form-item label="系统Logo">
-                      <div class="input-wrapper">
-                        <el-input 
-                          v-model="appearanceSettings.logoUrl" 
-                          placeholder="请输入Logo URL"
-                          clearable
-                          class="url-input"
-                        >
-                          <template #prefix>
-                            <el-icon><Link /></el-icon>
-                          </template>
-                        </el-input>
-                        <div class="logo-preview" v-if="appearanceSettings.logoUrl">
-                          <img :src="appearanceSettings.logoUrl" alt="Logo预览" class="preview-image" />
-                        </div>
-                      </div>
-                      <div class="field-description">系统Logo的URL地址</div>
-                    </el-form-item>
-                  </div>
-                  
-                  <div class="form-group">
-                    <el-form-item label="网站图标">
-                      <div class="input-wrapper">
-                        <el-input 
-                          v-model="appearanceSettings.faviconUrl" 
-                          placeholder="请输入Favicon URL"
-                          clearable
-                          class="url-input"
-                        >
-                          <template #prefix>
-                            <el-icon><Link /></el-icon>
-                          </template>
-                        </el-input>
-                        <div class="favicon-preview" v-if="appearanceSettings.faviconUrl">
-                          <img :src="appearanceSettings.faviconUrl" alt="Favicon预览" class="preview-image" />
-                        </div>
-                      </div>
-                      <div class="field-description">网站图标的URL地址</div>
-                    </el-form-item>
-                  </div>
-                </div>
-                
-                <div class="form-actions">
-                  <div class="button-container">
-                    <el-button type="primary" @click="saveAppearanceSettings" :loading="saving" class="save-btn">
-                      <el-icon><Check /></el-icon>
-                      保存设置
-                    </el-button>
-                  </div>
-                </div>
-              </el-form>
-            </div>
 
             <!-- 第三方集成设置 -->
             <div v-if="activeTab === 'integration'" class="mobile-settings-section">
@@ -916,11 +1285,20 @@ import api from '@/utils/api'
 const loading = ref(false)
 const saving = ref(false)
 const activeTab = ref('general')
+
+// 设置标签页配置
+const settingsTabs = [
+  { name: 'general', label: '常规设置', icon: 'Setting' },
+  { name: 'storage', label: '存储设置', icon: 'Folder' },
+  { name: 'security', label: '安全设置', icon: 'Lock' },
+  { name: 'notification', label: '通知设置', icon: 'Bell' },
+  { name: 'integration', label: '第三方集成', icon: 'Connection' },
+  { name: 'maintenance', label: '维护设置', icon: 'Tools' }
+]
 const generalFormRef = ref<FormInstance>()
 const storageFormRef = ref<FormInstance>()
 const securityFormRef = ref<FormInstance>()
 const notificationFormRef = ref<FormInstance>()
-const appearanceFormRef = ref<FormInstance>()
 const integrationFormRef = ref<FormInstance>()
 const maintenanceFormRef = ref<FormInstance>()
 
@@ -969,15 +1347,6 @@ const notificationSettings = reactive({
   enableSystemNotification: true
 })
 
-// 外观设置
-const appearanceSettings = reactive({
-  themeMode: 'light',
-  primaryColor: '#409EFF',
-  sidebarWidth: 240,
-  enableAnimation: true,
-  logoUrl: '/logo.png',
-  faviconUrl: '/logo.png'
-})
 
 // 第三方集成设置
 const integrationSettings = reactive({
@@ -1090,16 +1459,21 @@ const fetchSettings = async () => {
     const response = await api.get('/admin/settings')
     const settings = response.data.settings
     
+    
     // 更新常规设置
     generalSettings.systemName = settings.system_name?.value || '图库系统'
     generalSettings.systemDescription = settings.system_description?.value || ''
     
     // 更新存储设置
-    storageSettings.maxFileSize = parseInt(settings.max_file_size?.value) || 100
+    const maxFileSizeBytes = parseInt(settings.max_file_size?.value) || 100 * 1024 * 1024
+    const maxFileSizeMB = Math.round(maxFileSizeBytes / (1024 * 1024))
+    
+    storageSettings.maxFileSize = maxFileSizeMB
     storageSettings.maxUploadFiles = parseInt(settings.max_upload_files?.value) || 10
     storageSettings.allowedImageTypes = settings.allowed_image_types?.value?.split(',') || ['jpg', 'jpeg', 'png', 'gif', 'webp']
     storageSettings.allowedVideoTypes = settings.allowed_video_types?.value?.split(',') || ['mp4', 'webm', 'mov']
     storageSettings.thumbnailSize = parseInt(settings.thumbnail_size?.value) || 300
+    
     
     // 更新安全设置
     securitySettings.minPasswordLength = parseInt(settings.min_password_length?.value) || 6
@@ -1118,13 +1492,6 @@ const fetchSettings = async () => {
     notificationSettings.senderName = settings.sender_name?.value || '图库系统'
     notificationSettings.enableSystemNotification = settings.enable_system_notification?.value === 'true'
     
-    // 更新外观设置
-    appearanceSettings.themeMode = settings.theme_mode?.value || 'light'
-    appearanceSettings.primaryColor = settings.primary_color?.value || '#409EFF'
-    appearanceSettings.sidebarWidth = parseInt(settings.sidebar_width?.value) || 240
-    appearanceSettings.enableAnimation = settings.enable_animation?.value === 'true'
-    appearanceSettings.logoUrl = settings.logo_url?.value || '/logo.png'
-    appearanceSettings.faviconUrl = settings.favicon_url?.value || '/logo.png'
     
     // 更新第三方集成设置
     integrationSettings.qqLoginEnabled = settings.qq_login_enabled?.value === 'true'
@@ -1191,9 +1558,14 @@ const saveStorageSettings = async () => {
       thumbnail_size: storageSettings.thumbnailSize.toString()
     }
     
-    await api.put('/admin/settings', { settings })
+    const response = await api.put('/admin/settings', { settings })
+    
     ElMessage.success('存储设置保存成功')
+    
+    // 保存成功后重新获取设置以确保数据同步
+    await fetchSettings()
   } catch (error) {
+    console.error('保存存储设置失败:', error)
     ElMessage.error('保存存储设置失败')
   } finally {
     saving.value = false
@@ -1254,27 +1626,6 @@ const saveNotificationSettings = async () => {
   }
 }
 
-const saveAppearanceSettings = async () => {
-  try {
-    saving.value = true
-    
-    const settings = {
-      theme_mode: appearanceSettings.themeMode,
-      primary_color: appearanceSettings.primaryColor,
-      sidebar_width: appearanceSettings.sidebarWidth.toString(),
-      enable_animation: appearanceSettings.enableAnimation.toString(),
-      logo_url: appearanceSettings.logoUrl,
-      favicon_url: appearanceSettings.faviconUrl
-    }
-    
-    await api.put('/admin/settings', { settings })
-    ElMessage.success('外观设置保存成功')
-  } catch (error) {
-    ElMessage.error('保存外观设置失败')
-  } finally {
-    saving.value = false
-  }
-}
 
 const saveIntegrationSettings = async () => {
   if (!integrationFormRef.value) return
@@ -1395,6 +1746,24 @@ const handleWechatLoginToggle = (value: boolean) => {
 const getCallbackUrl = (type: string) => {
   const baseUrl = window.location.origin
   return `${baseUrl}/api/auth/${type}/callback`
+}
+
+// 复制回调URL
+const copyCallbackUrl = async (type: string) => {
+  const url = getCallbackUrl(type)
+  try {
+    await navigator.clipboard.writeText(url)
+    ElMessage.success('回调地址已复制到剪贴板')
+  } catch (error) {
+    // 降级方案
+    const textArea = document.createElement('textarea')
+    textArea.value = url
+    document.body.appendChild(textArea)
+    textArea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textArea)
+    ElMessage.success('回调地址已复制到剪贴板')
+  }
 }
 
 // 测试QQ连接
@@ -1604,6 +1973,212 @@ onMounted(() => {
 }
 
 .settings-content {
+  // 桌面端布局样式
+  .desktop-settings-layout {
+    display: none; // 默认隐藏桌面端布局
+    
+    @media (min-width: 1200px) {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 32px;
+      align-items: start;
+    }
+    
+    @media (min-width: 1600px) {
+      grid-template-columns: 320px 1fr;
+      gap: 40px;
+    }
+    
+    .desktop-settings-sidebar {
+      @media (min-width: 1200px) {
+        position: sticky;
+        top: 24px;
+        height: fit-content;
+      }
+      
+      .sidebar-menu {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e4e7ed;
+        
+        .menu-item {
+          display: flex;
+          align-items: center;
+          padding: 12px 16px;
+          margin-bottom: 4px;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          font-size: 14px;
+          color: #606266;
+          
+          &:hover {
+            background-color: #f5f7fa;
+            color: #409eff;
+          }
+          
+          &.is-active {
+            background: linear-gradient(135deg, #409eff 0%, #67c23a 100%);
+            color: #ffffff;
+            box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
+            
+            .menu-icon {
+              color: #ffffff;
+            }
+          }
+          
+          .menu-icon {
+            margin-right: 12px;
+            font-size: 16px;
+            transition: color 0.3s ease;
+          }
+          
+          .menu-text {
+            font-weight: 500;
+          }
+        }
+      }
+    }
+    
+    .desktop-settings-content {
+      .settings-panel {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 32px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e4e7ed;
+        min-height: 600px;
+        
+        .settings-section {
+          .section-header {
+            margin-bottom: 32px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f2f5;
+            
+            h3 {
+              font-size: 24px;
+              font-weight: 600;
+              color: #303133;
+              margin: 0 0 12px 0;
+            }
+            
+            p {
+              font-size: 15px;
+              color: #909399;
+              margin: 0;
+            }
+          }
+          
+          .settings-form {
+            max-width: 800px;
+            
+            @media (min-width: 1600px) {
+              max-width: 900px;
+            }
+            
+            .form-actions {
+              margin-top: 32px;
+              padding-top: 24px;
+              border-top: 1px solid #e4e7ed;
+              
+              .el-button {
+                padding: 12px 24px;
+                font-size: 14px;
+                font-weight: 500;
+              }
+            }
+            
+            .field-description {
+              font-size: 13px;
+              color: #909399;
+              margin-top: 8px;
+              line-height: 1.5;
+            }
+            
+            .input-with-unit {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              
+              .unit {
+                color: #909399;
+                font-size: 14px;
+                font-weight: 500;
+              }
+            }
+            
+            .integration-group {
+              margin-bottom: 32px;
+              padding: 24px;
+              background: #f8f9fa;
+              border-radius: 12px;
+              border: 1px solid #e4e7ed;
+              
+              .integration-header {
+                display: flex;
+                align-items: center;
+                margin-bottom: 20px;
+                padding-bottom: 12px;
+                border-bottom: 1px solid #e4e7ed;
+                
+                .integration-icon {
+                  margin-right: 10px;
+                  font-size: 18px;
+                  color: #409eff;
+                }
+                
+                span {
+                  font-size: 16px;
+                  font-weight: 600;
+                  color: #303133;
+                }
+              }
+              
+              .form-group {
+                margin-bottom: 20px;
+                
+                &:last-child {
+                  margin-bottom: 0;
+                }
+              }
+              
+              .test-buttons {
+                display: flex;
+                gap: 12px;
+                
+                .el-button {
+                  .el-icon {
+                    margin-right: 6px;
+                  }
+                }
+              }
+            }
+            
+            .readonly-input {
+              :deep(.el-input__wrapper) {
+                background-color: #f5f7fa;
+                cursor: not-allowed;
+              }
+            }
+            
+            .checkbox-group {
+              :deep(.el-checkbox) {
+                margin-right: 20px;
+                margin-bottom: 8px;
+              }
+            }
+            
+            .number-input {
+              width: 120px;
+            }
+          }
+        }
+      }
+    }
+  }
+  
   .settings-nav-card {
     .settings-menu {
       border: none;
@@ -1807,6 +2382,9 @@ onMounted(() => {
 
 // ==================== 移动端设置页面样式 ====================
 .mobile-settings-layout {
+  @media (min-width: 1200px) {
+    display: none; // 在桌面端隐藏移动端布局
+  }
   padding: 0 8px;
   
   .mobile-settings-nav {

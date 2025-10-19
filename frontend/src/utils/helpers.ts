@@ -53,11 +53,118 @@ export const getFileIcon = (mimeType: string): string => {
   }
 }
 
+import { imageCache } from './imageCache'
+
 // 获取文件预览URL
 export const getFilePreviewUrl = (fileId: number): string => {
-  const token = localStorage.getItem('token')
+  // 直接从localStorage和sessionStorage获取token，避免在组件外部使用store
+  let token = null
+  
+  // 优先检查localStorage
+  const localToken = localStorage.getItem('token')
+  if (localToken) {
+    try {
+      // 简单检查token格式
+      const parts = localToken.split('.')
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1]))
+        const now = Math.floor(Date.now() / 1000)
+        if (payload.exp && payload.exp > now) {
+          token = localToken
+        }
+      }
+    } catch (error) {
+      // token无效，继续检查sessionStorage
+    }
+  }
+  
+  // 如果localStorage无效，检查sessionStorage
+  if (!token) {
+    const sessionToken = sessionStorage.getItem('token')
+    if (sessionToken) {
+      try {
+        const parts = sessionToken.split('.')
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]))
+          const now = Math.floor(Date.now() / 1000)
+          if (payload.exp && payload.exp > now) {
+            token = sessionToken
+          }
+        }
+      } catch (error) {
+        // token无效
+      }
+    }
+  }
+  
   const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://tukubackend.vtart.cn'
-  return `${baseUrl}/api/files/preview/${fileId}?token=${token}`
+  
+  if (token) {
+    return `${baseUrl}/api/files/preview/${fileId}?token=${token}`
+  } else {
+    // 如果没有有效token，返回不带token的URL（后端会返回401，前端会处理）
+    return `${baseUrl}/api/files/preview/${fileId}`
+  }
+}
+
+// 获取带缓存的图片URL
+export const getCachedImageUrl = async (fileId: number): Promise<string> => {
+  // 获取token
+  let token = null
+  const localToken = localStorage.getItem('token')
+  if (localToken) {
+    try {
+      const parts = localToken.split('.')
+      if (parts.length === 3) {
+        const payload = JSON.parse(atob(parts[1]))
+        const now = Math.floor(Date.now() / 1000)
+        if (payload.exp && payload.exp > now) {
+          token = localToken
+        }
+      }
+    } catch (error) {
+      // token无效
+    }
+  }
+  
+  if (!token) {
+    const sessionToken = sessionStorage.getItem('token')
+    if (sessionToken) {
+      try {
+        const parts = sessionToken.split('.')
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]))
+          const now = Math.floor(Date.now() / 1000)
+          if (payload.exp && payload.exp > now) {
+            token = sessionToken
+          }
+        }
+      } catch (error) {
+        // token无效
+      }
+    }
+  }
+
+  if (!token) {
+    return getFilePreviewUrl(fileId)
+  }
+
+  // 检查缓存
+  const cachedUrl = imageCache.getCacheUrl(fileId, token)
+  if (cachedUrl) {
+    return cachedUrl
+  }
+
+  // 缓存不存在，获取原始URL
+  const originalUrl = getFilePreviewUrl(fileId)
+  
+  // 异步缓存图片（不阻塞返回）
+  imageCache.cacheImage(fileId, token, originalUrl).catch((error) => {
+    // 缓存失败不影响正常显示，但记录错误
+    console.warn(`图片缓存失败 (${fileId}):`, error)
+  })
+
+  return originalUrl
 }
 
 // 下载文件

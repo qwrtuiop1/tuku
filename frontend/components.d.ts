@@ -54,6 +54,7 @@ declare module 'vue' {
     FileThumbnail: typeof import('./src/components/FileThumbnail.vue')['default']
     FileUploader: typeof import('./src/components/FileUploader.vue')['default']
     ImageViewer: typeof import('./src/components/ImageViewer.vue')['default']
+    NginxConfigManager: typeof import('./src/components/NginxConfigManager.vue')['default']
     QuickPreview: typeof import('./src/components/QuickPreview.vue')['default']
     ResponsiveDebugger: typeof import('./src/components/ResponsiveDebugger.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
