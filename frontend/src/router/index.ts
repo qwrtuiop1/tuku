@@ -122,6 +122,16 @@ const routes = [
           requiresAdmin: true 
         }
       },
+      {
+        path: '/notifications',
+        name: 'NotificationHistory',
+        component: () => import('@/views/NotificationHistory.vue'),
+        meta: { 
+          title: '通知历史',
+          requiresAuth: true,
+          requiresAdmin: true 
+        }
+      },
     ]
   },
   {

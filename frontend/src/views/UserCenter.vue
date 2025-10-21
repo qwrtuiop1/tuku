@@ -728,7 +728,7 @@ const loadUserSettingsFromServer = async () => {
       preferences.defaultView = prefsData.defaultView || 'grid'
     }
     
-    // 加载通知设置
+    // 加载通知设置（用户级）
     const notificationResponse = await api.get('/auth/notification-settings')
     if (notificationResponse.data.success) {
       const notifData = notificationResponse.data.data
@@ -1127,40 +1127,39 @@ const savePreferences = async () => {
   }
 }
 
-// 保存通知设置
+// 保存通知设置（使用系统级设置）
 const saveNotificationSettings = async () => {
   // 验证设置数据
   if (!validateSettings('notifications')) return
   
   try {
     saving.value = true
-    
     const updateData = {
       emailNotifications: preferences.emailNotifications,
       storageWarnings: preferences.storageWarnings,
       securityAlerts: preferences.securityAlerts
     }
     
-    // 调用API保存通知设置
+    // 调用用户级API保存通知设置
     const response = await api.put('/auth/notification-settings', updateData)
     
     if (response.data.success) {
       ElMessage.success('通知设置保存成功')
-      
+    
       // 保存到本地存储
       localStorage.setItem('notificationSettings', JSON.stringify(updateData))
-      
-      // 更新全局状态
+    
+    // 更新全局状态
       if (window.notificationSettings) {
         Object.assign(window.notificationSettings, updateData)
       }
-      
-      // 触发通知设置更新事件
+    
+    // 触发通知设置更新事件
       window.dispatchEvent(new CustomEvent('notificationSettingsUpdated', {
         detail: updateData
       }))
-      
-      // 如果启用了存储警告，立即检查一次
+    
+    // 如果启用了存储警告，立即检查一次
       if (preferences.storageWarnings) {
         checkStorageWarning()
       }

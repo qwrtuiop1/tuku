@@ -48,6 +48,7 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
     rollupOptions: {
+      external: [],
       output: {
         manualChunks: {
           vendor: ['vue', 'vue-router', 'pinia'],

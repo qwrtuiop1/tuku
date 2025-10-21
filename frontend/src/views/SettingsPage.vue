@@ -236,46 +236,155 @@
                 <p>配置系统通知相关参数</p>
               </div>
               <el-form :model="notificationSettings" ref="notificationFormRef" label-position="top" class="settings-form">
-                <el-form-item label="邮件通知">
-                  <el-switch 
-                    v-model="notificationSettings.enableEmailNotification"
-                    active-text="开启"
-                    inactive-text="关闭"
-                  />
-                  <div class="field-description">是否启用邮件通知功能</div>
-                </el-form-item>
                 
-                <el-form-item v-if="notificationSettings.enableEmailNotification" label="SMTP服务器" prop="smtpHost">
-                  <el-input v-model="notificationSettings.smtpHost" placeholder="请输入SMTP服务器地址" />
-                </el-form-item>
-                
-                <el-form-item v-if="notificationSettings.enableEmailNotification" label="SMTP端口" prop="smtpPort">
-                  <el-input-number 
-                    v-model="notificationSettings.smtpPort" 
-                    :min="1" 
-                    :max="65535"
-                    controls-position="right"
-                    class="number-input"
-                  />
-                </el-form-item>
-                
-                <el-form-item v-if="notificationSettings.enableEmailNotification" label="发件人邮箱" prop="senderEmail">
-                  <el-input v-model="notificationSettings.senderEmail" placeholder="请输入发件人邮箱" />
-                </el-form-item>
-                
-                <el-form-item label="系统通知">
-                  <el-switch 
-                    v-model="notificationSettings.enableSystemNotification"
-                    active-text="开启"
-                    inactive-text="关闭"
-                  />
-                  <div class="field-description">是否在系统内显示通知</div>
-                </el-form-item>
+                <!-- 邮件通知配置 -->
+                <div class="notification-group">
+                  <div class="group-header">
+                    <el-icon class="group-icon"><Message /></el-icon>
+                    <span>邮件通知配置</span>
+                  </div>
+                  
+                  <el-form-item label="启用邮件通知">
+                    <el-switch 
+                      v-model="notificationSettings.enableEmailNotification"
+                      active-text="开启"
+                      inactive-text="关闭"
+                    />
+                    <div class="field-description">是否启用邮件通知功能</div>
+                  </el-form-item>
+                  
+                  <template v-if="notificationSettings.enableEmailNotification">
+                    <el-form-item label="SMTP服务器" prop="smtpHost" :rules="[{ required: true, message: '请输入SMTP服务器地址', trigger: 'blur' }]">
+                      <el-input 
+                        v-model="notificationSettings.smtpHost" 
+                        placeholder="请输入SMTP服务器地址"
+                        clearable
+                      />
+                      <div class="field-description">例如：smtp.qq.com、smtp.gmail.com</div>
+                    </el-form-item>
+                    
+                    <el-form-item label="SMTP端口" prop="smtpPort" :rules="[{ required: true, message: '请输入SMTP端口', trigger: 'blur' }]">
+                      <el-input-number 
+                        v-model="notificationSettings.smtpPort" 
+                        :min="1" 
+                        :max="65535"
+                        controls-position="right"
+                        class="number-input"
+                      />
+                      <div class="field-description">常用端口：587（TLS）、465（SSL）、25（非加密）</div>
+                    </el-form-item>
+                    
+                    <el-form-item label="SMTP用户名" prop="smtpUsername" :rules="[{ required: true, message: '请输入SMTP用户名', trigger: 'blur' }]">
+                      <el-input 
+                        v-model="notificationSettings.smtpUsername" 
+                        placeholder="请输入SMTP用户名"
+                        clearable
+                      />
+                    </el-form-item>
+                    
+                    <el-form-item label="SMTP密码" prop="smtpPassword" :rules="[{ required: true, message: '请输入SMTP密码', trigger: 'blur' }]">
+                      <el-input 
+                        v-model="notificationSettings.smtpPassword" 
+                        type="password"
+                        placeholder="请输入SMTP密码"
+                        show-password
+                        clearable
+                      />
+                    </el-form-item>
+                    
+                    <el-form-item label="发件人邮箱" prop="senderEmail" :rules="[{ required: true, message: '请输入发件人邮箱', trigger: 'blur' }, { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }]">
+                      <el-input 
+                        v-model="notificationSettings.senderEmail" 
+                        placeholder="请输入发件人邮箱"
+                        clearable
+                      />
+                    </el-form-item>
+                    
+                    <el-form-item label="发件人名称" prop="senderName">
+                      <el-input 
+                        v-model="notificationSettings.senderName" 
+                        placeholder="请输入发件人名称"
+                        clearable
+                      />
+                    </el-form-item>
+                    
+                    <div class="test-connection">
+                      <el-button 
+                        type="primary" 
+                        @click="testEmailConnection" 
+                        :loading="testingEmail"
+                        size="small"
+                      >
+                        <el-icon><Connection /></el-icon>
+                        测试邮件连接
+                      </el-button>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- 系统通知配置 -->
+                <div class="notification-group">
+                  <div class="group-header">
+                    <el-icon class="group-icon"><Bell /></el-icon>
+                    <span>系统通知配置</span>
+                  </div>
+                  
+                  <el-form-item label="启用系统通知">
+                    <el-switch 
+                      v-model="notificationSettings.enableSystemNotification"
+                      active-text="开启"
+                      inactive-text="关闭"
+                    />
+                    <div class="field-description">是否在系统内显示通知</div>
+                  </el-form-item>
+                  
+                  <el-form-item label="通知保留天数" prop="notificationRetentionDays">
+                    <el-input-number 
+                      v-model="notificationSettings.notificationRetentionDays" 
+                      :min="1" 
+                      :max="365"
+                      controls-position="right"
+                      class="number-input"
+                    />
+                    <div class="field-description">系统通知的保留时间，超过此时间将自动清理</div>
+                  </el-form-item>
+                </div>
+
+
+                <!-- 通知频率设置 -->
+                <div class="notification-group">
+                  <div class="group-header">
+                    <el-icon class="group-icon"><Timer /></el-icon>
+                    <span>通知频率设置</span>
+                  </div>
+                  
+                  <el-form-item label="邮件通知频率">
+                    <el-select v-model="notificationSettings.emailFrequency" placeholder="请选择邮件通知频率">
+                      <el-option label="实时通知" value="realtime" />
+                      <el-option label="每小时汇总" value="hourly" />
+                      <el-option label="每日汇总" value="daily" />
+                      <el-option label="每周汇总" value="weekly" />
+                    </el-select>
+                    <div class="field-description">控制邮件通知的发送频率</div>
+                  </el-form-item>
+                  
+                  <el-form-item label="系统通知频率">
+                    <el-select v-model="notificationSettings.systemFrequency" placeholder="请选择系统通知频率">
+                      <el-option label="实时通知" value="realtime" />
+                      <el-option label="延迟通知" value="delayed" />
+                    </el-select>
+                    <div class="field-description">控制系统内通知的显示频率</div>
+                  </el-form-item>
+                </div>
                 
                 <div class="form-actions">
                   <el-button type="primary" @click="saveNotificationSettings" :loading="saving">
                     <el-icon><Check /></el-icon>
                     保存设置
+                  </el-button>
+                  <el-button @click="resetNotificationSettings" :disabled="saving">
+                    <el-icon><Refresh /></el-icon>
+                    重置设置
                   </el-button>
                 </div>
               </el-form>
@@ -877,50 +986,173 @@
               </div>
               
               <el-form :model="notificationSettings" ref="notificationFormRef" label-position="top" class="mobile-settings-form">
-                <div class="form-group">
-                  <el-form-item label="邮件通知">
-                    <el-switch 
-                      v-model="notificationSettings.enableEmailNotification"
-                      active-text="开启"
-                      inactive-text="关闭"
-                    />
-                    <div class="field-description">是否启用邮件通知功能</div>
-                  </el-form-item>
-                </div>
                 
-                <div class="form-group" v-if="notificationSettings.enableEmailNotification">
-                  <el-form-item label="SMTP服务器" prop="smtpHost">
-                    <el-input v-model="notificationSettings.smtpHost" placeholder="请输入SMTP服务器地址" />
-                  </el-form-item>
+                <!-- 邮件通知配置 -->
+                <div class="notification-group">
+                  <div class="group-header">
+                    <el-icon class="group-icon"><Message /></el-icon>
+                    <span>邮件通知配置</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <el-form-item label="启用邮件通知">
+                      <el-switch 
+                        v-model="notificationSettings.enableEmailNotification"
+                        active-text="开启"
+                        inactive-text="关闭"
+                      />
+                      <div class="field-description">是否启用邮件通知功能</div>
+                    </el-form-item>
+                  </div>
+                  
+                  <template v-if="notificationSettings.enableEmailNotification">
+                    <div class="form-group">
+                      <el-form-item label="SMTP服务器" prop="smtpHost" :rules="[{ required: true, message: '请输入SMTP服务器地址', trigger: 'blur' }]">
+                        <el-input 
+                          v-model="notificationSettings.smtpHost" 
+                          placeholder="请输入SMTP服务器地址"
+                          clearable
+                        />
+                        <div class="field-description">例如：smtp.qq.com、smtp.gmail.com</div>
+                      </el-form-item>
+                    </div>
+                    
+                    <div class="form-group">
+                      <el-form-item label="SMTP端口" prop="smtpPort" :rules="[{ required: true, message: '请输入SMTP端口', trigger: 'blur' }]">
+                        <el-input-number 
+                          v-model="notificationSettings.smtpPort" 
+                          :min="1" 
+                          :max="65535"
+                          controls-position="right"
+                          class="number-input"
+                        />
+                        <div class="field-description">常用端口：587（TLS）、465（SSL）</div>
+                      </el-form-item>
+                    </div>
+                    
+                    <div class="form-group">
+                      <el-form-item label="SMTP用户名" prop="smtpUsername" :rules="[{ required: true, message: '请输入SMTP用户名', trigger: 'blur' }]">
+                        <el-input 
+                          v-model="notificationSettings.smtpUsername" 
+                          placeholder="请输入SMTP用户名"
+                          clearable
+                        />
+                      </el-form-item>
+                    </div>
+                    
+                    <div class="form-group">
+                      <el-form-item label="SMTP密码" prop="smtpPassword" :rules="[{ required: true, message: '请输入SMTP密码', trigger: 'blur' }]">
+                        <el-input 
+                          v-model="notificationSettings.smtpPassword" 
+                          type="password"
+                          placeholder="请输入SMTP密码"
+                          show-password
+                          clearable
+                        />
+                      </el-form-item>
+                    </div>
+                    
+                    <div class="form-group">
+                      <el-form-item label="发件人邮箱" prop="senderEmail" :rules="[{ required: true, message: '请输入发件人邮箱', trigger: 'blur' }, { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }]">
+                        <el-input 
+                          v-model="notificationSettings.senderEmail" 
+                          placeholder="请输入发件人邮箱"
+                          clearable
+                        />
+                      </el-form-item>
+                    </div>
+                    
+                    <div class="form-group">
+                      <el-form-item label="发件人名称" prop="senderName">
+                        <el-input 
+                          v-model="notificationSettings.senderName" 
+                          placeholder="请输入发件人名称"
+                          clearable
+                        />
+                      </el-form-item>
+                    </div>
+                    
+                    <div class="form-group">
+                      <div class="test-connection">
+                        <el-button 
+                          type="primary" 
+                          @click="testEmailConnection" 
+                          :loading="testingEmail"
+                          size="small"
+                          class="test-btn"
+                        >
+                          <el-icon><Connection /></el-icon>
+                          测试邮件连接
+                        </el-button>
+                      </div>
+                    </div>
+                  </template>
                 </div>
-                
-                <div class="form-group" v-if="notificationSettings.enableEmailNotification">
-                  <el-form-item label="SMTP端口" prop="smtpPort">
-                    <el-input-number 
-                      v-model="notificationSettings.smtpPort" 
-                      :min="1" 
-                      :max="65535"
-                      controls-position="right"
-                      class="number-input"
-                    />
-                  </el-form-item>
+
+                <!-- 系统通知配置 -->
+                <div class="notification-group">
+                  <div class="group-header">
+                    <el-icon class="group-icon"><Bell /></el-icon>
+                    <span>系统通知配置</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <el-form-item label="启用系统通知">
+                      <el-switch 
+                        v-model="notificationSettings.enableSystemNotification"
+                        active-text="开启"
+                        inactive-text="关闭"
+                      />
+                      <div class="field-description">是否在系统内显示通知</div>
+                    </el-form-item>
+                  </div>
+                  
+                  <div class="form-group">
+                    <el-form-item label="通知保留天数" prop="notificationRetentionDays">
+                      <div class="input-with-unit">
+                        <el-input-number 
+                          v-model="notificationSettings.notificationRetentionDays" 
+                          :min="1" 
+                          :max="365"
+                          controls-position="right"
+                          class="number-input"
+                        />
+                        <span class="unit">天</span>
+                      </div>
+                      <div class="field-description">系统通知的保留时间</div>
+                    </el-form-item>
+                  </div>
                 </div>
-                
-                <div class="form-group" v-if="notificationSettings.enableEmailNotification">
-                  <el-form-item label="发件人邮箱" prop="senderEmail">
-                    <el-input v-model="notificationSettings.senderEmail" placeholder="请输入发件人邮箱" />
-                  </el-form-item>
-                </div>
-                
-                <div class="form-group">
-                  <el-form-item label="系统通知">
-                    <el-switch 
-                      v-model="notificationSettings.enableSystemNotification"
-                      active-text="开启"
-                      inactive-text="关闭"
-                    />
-                    <div class="field-description">是否在系统内显示通知</div>
-                  </el-form-item>
+
+
+                <!-- 通知频率设置 -->
+                <div class="notification-group">
+                  <div class="group-header">
+                    <el-icon class="group-icon"><Timer /></el-icon>
+                    <span>通知频率设置</span>
+                  </div>
+                  
+                  <div class="form-group">
+                    <el-form-item label="邮件通知频率">
+                      <el-select v-model="notificationSettings.emailFrequency" placeholder="请选择邮件通知频率">
+                        <el-option label="实时通知" value="realtime" />
+                        <el-option label="每小时汇总" value="hourly" />
+                        <el-option label="每日汇总" value="daily" />
+                        <el-option label="每周汇总" value="weekly" />
+                      </el-select>
+                      <div class="field-description">控制邮件通知的发送频率</div>
+                    </el-form-item>
+                  </div>
+                  
+                  <div class="form-group">
+                    <el-form-item label="系统通知频率">
+                      <el-select v-model="notificationSettings.systemFrequency" placeholder="请选择系统通知频率">
+                        <el-option label="实时通知" value="realtime" />
+                        <el-option label="延迟通知" value="delayed" />
+                      </el-select>
+                      <div class="field-description">控制系统内通知的显示频率</div>
+                    </el-form-item>
+                  </div>
                 </div>
                 
                 <div class="form-actions">
@@ -928,6 +1160,10 @@
                     <el-button type="primary" @click="saveNotificationSettings" :loading="saving" class="save-btn">
                       <el-icon><Check /></el-icon>
                       保存设置
+                    </el-button>
+                    <el-button @click="resetNotificationSettings" :disabled="saving" class="reset-btn">
+                      <el-icon><Refresh /></el-icon>
+                      重置设置
                     </el-button>
                   </div>
                 </div>
@@ -1267,18 +1503,19 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { type FormInstance, type FormRules, ElMessageBox, ElMessage } from 'element-plus'
 import {
   Refresh,
   Setting,
   Folder,
   Lock,
   Bell,
-  Monitor,
   Check,
   Connection,
   Tools,
-  Warning
+  Warning,
+  Message,
+  Timer
 } from '@element-plus/icons-vue'
 import api from '@/utils/api'
 
@@ -1310,6 +1547,7 @@ const scrollThumbPosition = ref(0)
 // 测试连接状态
 const testingQQ = ref(false)
 const testingWechat = ref(false)
+const testingEmail = ref(false)
 
 // 常规设置
 const generalSettings = reactive({
@@ -1337,6 +1575,7 @@ const securitySettings = reactive({
 
 // 通知设置
 const notificationSettings = reactive({
+  // 邮件通知配置
   enableEmailNotification: false,
   smtpHost: '',
   smtpPort: 587,
@@ -1344,7 +1583,14 @@ const notificationSettings = reactive({
   smtpPassword: '',
   senderEmail: '',
   senderName: '图库系统',
-  enableSystemNotification: true
+  
+  // 系统通知配置
+  enableSystemNotification: true,
+  notificationRetentionDays: 30,
+  
+  // 通知频率设置
+  emailFrequency: 'realtime',
+  systemFrequency: 'realtime'
 })
 
 
@@ -1491,6 +1737,11 @@ const fetchSettings = async () => {
     notificationSettings.senderEmail = settings.sender_email?.value || ''
     notificationSettings.senderName = settings.sender_name?.value || '图库系统'
     notificationSettings.enableSystemNotification = settings.enable_system_notification?.value === 'true'
+    notificationSettings.notificationRetentionDays = parseInt(settings.notification_retention_days?.value) || 30
+    
+    // 通知频率设置
+    notificationSettings.emailFrequency = settings.email_frequency?.value || 'realtime'
+    notificationSettings.systemFrequency = settings.system_frequency?.value || 'realtime'
     
     
     // 更新第三方集成设置
@@ -1558,7 +1809,7 @@ const saveStorageSettings = async () => {
       thumbnail_size: storageSettings.thumbnailSize.toString()
     }
     
-    const response = await api.put('/admin/settings', { settings })
+    await api.put('/admin/settings', { settings })
     
     ElMessage.success('存储设置保存成功')
     
@@ -1607,6 +1858,7 @@ const saveNotificationSettings = async () => {
     saving.value = true
     
     const settings = {
+      // 邮件通知配置
       enable_email_notification: notificationSettings.enableEmailNotification.toString(),
       smtp_host: notificationSettings.smtpHost,
       smtp_port: notificationSettings.smtpPort.toString(),
@@ -1614,7 +1866,14 @@ const saveNotificationSettings = async () => {
       smtp_password: notificationSettings.smtpPassword,
       sender_email: notificationSettings.senderEmail,
       sender_name: notificationSettings.senderName,
-      enable_system_notification: notificationSettings.enableSystemNotification.toString()
+      
+      // 系统通知配置
+      enable_system_notification: notificationSettings.enableSystemNotification.toString(),
+      notification_retention_days: notificationSettings.notificationRetentionDays.toString(),
+      
+      // 通知频率设置
+      email_frequency: notificationSettings.emailFrequency,
+      system_frequency: notificationSettings.systemFrequency
     }
     
     await api.put('/admin/settings', { settings })
@@ -1640,7 +1899,6 @@ const saveIntegrationSettings = async () => {
     
     // 如果有启用的服务，显示确认对话框
     if (enabledServices.length > 0) {
-      const { ElMessageBox } = await import('element-plus')
       await ElMessageBox.confirm(
         `确定要启用 ${enabledServices.join('、')} 吗？\n\n启用后用户将可以使用这些第三方账号登录系统。`,
         '确认启用第三方登录',
@@ -1820,6 +2078,76 @@ const testWechatConnection = async () => {
   }
 }
 
+// 测试邮件连接
+const testEmailConnection = async () => {
+  if (!notificationSettings.enableEmailNotification) {
+    ElMessage.warning('请先启用邮件通知')
+    return
+  }
+  
+  if (!notificationSettings.smtpHost || !notificationSettings.smtpPort || 
+      !notificationSettings.smtpUsername || !notificationSettings.smtpPassword || 
+      !notificationSettings.senderEmail) {
+    ElMessage.warning('请先填写完整的邮件配置信息')
+    return
+  }
+  
+  testingEmail.value = true
+  try {
+    const response = await api.post('/admin/test-connection', {
+      type: 'email',
+      smtpHost: notificationSettings.smtpHost,
+      smtpPort: notificationSettings.smtpPort,
+      smtpUsername: notificationSettings.smtpUsername,
+      smtpPassword: notificationSettings.smtpPassword,
+      senderEmail: notificationSettings.senderEmail,
+      senderName: notificationSettings.senderName
+    })
+    
+    if (response.data.success) {
+      ElMessage.success('邮件连接测试成功')
+    } else {
+      ElMessage.error(response.data.message || '邮件连接测试失败')
+    }
+  } catch (error) {
+    ElMessage.error('邮件连接测试失败，请检查SMTP配置')
+  } finally {
+    testingEmail.value = false
+  }
+}
+
+// 重置通知设置
+const resetNotificationSettings = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要重置所有通知设置吗？此操作将恢复默认配置。',
+      '确认重置',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    // 重置为默认值
+    notificationSettings.enableEmailNotification = false
+    notificationSettings.smtpHost = ''
+    notificationSettings.smtpPort = 587
+    notificationSettings.smtpUsername = ''
+    notificationSettings.smtpPassword = ''
+    notificationSettings.senderEmail = ''
+    notificationSettings.senderName = '图库系统'
+    notificationSettings.enableSystemNotification = true
+    notificationSettings.notificationRetentionDays = 30
+    notificationSettings.emailFrequency = 'realtime'
+    notificationSettings.systemFrequency = 'realtime'
+    
+    ElMessage.success('通知设置已重置为默认值')
+  } catch (error) {
+    // 用户取消操作
+  }
+}
+
 // 维护设置相关方法
 const handleMaintenanceModeToggle = (value: boolean) => {
   if (value) {
@@ -1854,7 +2182,6 @@ const saveMaintenanceSettings = async () => {
 
 const testMaintenanceMode = async () => {
   try {
-    const { ElMessageBox } = await import('element-plus')
     await ElMessageBox.confirm(
       '测试维护模式将模拟非管理员用户的访问体验。确定要继续吗？',
       '测试维护模式',
@@ -3253,6 +3580,105 @@ onMounted(() => {
       }
     }
     
+    // 通知设置样式
+    .notification-group {
+      margin-bottom: 32px;
+      padding: 24px;
+      background: #fafbfc;
+      border-radius: 12px;
+      border: 1px solid #e4e7ed;
+      
+      .group-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #e4e7ed;
+        
+        .group-icon {
+          font-size: 20px;
+          color: #409eff;
+          margin-right: 12px;
+        }
+        
+        span {
+          font-size: 16px;
+          font-weight: 600;
+          color: #303133;
+        }
+      }
+      
+      .el-form-item {
+        margin-bottom: 20px;
+        
+        .el-form-item__label {
+          font-weight: 500;
+          color: #606266;
+        }
+        
+        .field-description {
+          font-size: 12px;
+          color: #909399;
+          margin-top: 4px;
+          line-height: 1.4;
+        }
+      }
+      
+      .test-connection {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid #e4e7ed;
+        
+        .el-button {
+          background: linear-gradient(135deg, #409eff 0%, #67c23a 100%);
+          border: none;
+          color: white;
+          font-weight: 500;
+          
+          &:hover {
+            background: linear-gradient(135deg, #337ecc 0%, #529b2e 100%);
+          }
+        }
+      }
+    }
+    
+    .form-actions {
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 2px solid #e4e7ed;
+      display: flex;
+      gap: 16px;
+      
+      .el-button {
+        flex: 1;
+        height: 44px;
+        font-size: 15px;
+        font-weight: 500;
+        border-radius: 8px;
+        
+        &.el-button--primary {
+          background: linear-gradient(135deg, #409eff 0%, #67c23a 100%);
+          border: none;
+          
+          &:hover {
+            background: linear-gradient(135deg, #337ecc 0%, #529b2e 100%);
+          }
+        }
+        
+        &:not(.el-button--primary) {
+          background: #f5f7fa;
+          border: 1px solid #dcdfe6;
+          color: #606266;
+          
+          &:hover {
+            background: #ecf5ff;
+            border-color: #409eff;
+            color: #409eff;
+          }
+        }
+      }
+    }
+    
     .test-btn {
       width: 100%;
       height: 48px;
@@ -3283,6 +3709,82 @@ onMounted(() => {
 }
 
 // 响应式设计
+@media (max-width: 1200px) {
+  .settings-page {
+    .settings-content {
+      .desktop-settings-layout {
+        .desktop-settings-sidebar {
+          width: 200px;
+        }
+        
+        .desktop-settings-main {
+          margin-left: 220px;
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 992px) {
+  .settings-page {
+    .settings-content {
+      .desktop-settings-layout {
+        flex-direction: column;
+        
+        .desktop-settings-sidebar {
+          width: 100%;
+          margin-bottom: 24px;
+          
+          .settings-nav-card {
+            .settings-menu {
+              :deep(.el-menu-item) {
+                height: 48px;
+                line-height: 48px;
+                font-size: 15px;
+              }
+            }
+          }
+        }
+        
+        .desktop-settings-main {
+          margin-left: 0;
+        }
+      }
+    }
+    
+    .notification-group {
+      padding: 20px;
+      margin-bottom: 24px;
+      
+      .group-header {
+        margin-bottom: 16px;
+        
+        .group-icon {
+          font-size: 18px;
+        }
+        
+        span {
+          font-size: 15px;
+        }
+      }
+      
+      .el-form-item {
+        margin-bottom: 16px;
+      }
+    }
+    
+    .form-actions {
+      flex-direction: column;
+      gap: 12px;
+      
+      .el-button {
+        height: 48px;
+        font-size: 16px;
+      }
+    }
+  }
+}
+
 @media (max-width: 768px) {
   .settings-page {
     padding: 16px;
@@ -3293,6 +3795,26 @@ onMounted(() => {
       flex-direction: column;
       align-items: flex-start;
       gap: 16px;
+      
+      .header-left {
+        .page-title {
+          font-size: 24px;
+        }
+        
+        .page-subtitle {
+          font-size: 13px;
+        }
+      }
+      
+      .header-actions {
+        width: 100%;
+        justify-content: flex-end;
+        
+        .el-button {
+          flex: 1;
+          max-width: 120px;
+        }
+      }
     }
   }
   
@@ -3302,9 +3824,518 @@ onMounted(() => {
       
       .settings-menu {
         :deep(.el-menu-item) {
+          height: 44px;
+          line-height: 44px;
+          font-size: 14px;
+          padding: 0 16px;
+        }
+      }
+    }
+    
+    .settings-section {
+      padding: 20px;
+      
+      .section-header {
+        margin-bottom: 20px;
+        
+        h3 {
+          font-size: 18px;
+        }
+        
+        p {
+          font-size: 13px;
+        }
+      }
+    }
+    
+    .notification-group {
+      padding: 16px;
+      margin-bottom: 20px;
+      
+      .group-header {
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        
+        .group-icon {
+          font-size: 16px;
+          margin-right: 8px;
+        }
+        
+        span {
+          font-size: 14px;
+        }
+      }
+      
+      .el-form-item {
+        margin-bottom: 12px;
+        
+        .el-form-item__label {
+          font-size: 14px;
+          margin-bottom: 6px;
+        }
+        
+        .field-description {
+          font-size: 11px;
+          margin-top: 2px;
+        }
+      }
+      
+      .test-connection {
+        margin-top: 12px;
+        padding-top: 12px;
+        
+        .el-button {
+          width: 100%;
+          height: 44px;
+          font-size: 14px;
+        }
+      }
+    }
+    
+    .form-actions {
+      margin-top: 24px;
+      padding-top: 16px;
+      
+      .el-button {
+        height: 48px;
+        font-size: 15px;
+      }
+    }
+  }
+}
+
+@media (max-width: 576px) {
+  .settings-page {
+    padding: 12px;
+  }
+  
+  .page-header {
+    .header-content {
+      .header-left {
+        .page-title {
+          font-size: 20px;
+        }
+      }
+      
+      .header-actions {
+        flex-direction: column;
+        gap: 8px;
+        
+        .el-button {
+          max-width: none;
+          width: 100%;
+        }
+      }
+    }
+  }
+  
+  .settings-content {
+    .settings-nav-card {
+      .settings-menu {
+        :deep(.el-menu-item) {
           height: 40px;
           line-height: 40px;
+          font-size: 13px;
+          padding: 0 12px;
         }
+      }
+    }
+    
+    .settings-section {
+      padding: 16px;
+      
+      .section-header {
+        margin-bottom: 16px;
+        
+        h3 {
+          font-size: 16px;
+        }
+        
+        p {
+          font-size: 12px;
+        }
+      }
+    }
+    
+    .notification-group {
+      padding: 12px;
+      margin-bottom: 16px;
+      
+      .group-header {
+        margin-bottom: 10px;
+        padding-bottom: 6px;
+        
+        .group-icon {
+          font-size: 14px;
+          margin-right: 6px;
+        }
+        
+        span {
+          font-size: 13px;
+        }
+      }
+      
+      .el-form-item {
+        margin-bottom: 10px;
+        
+        .el-form-item__label {
+          font-size: 13px;
+          margin-bottom: 4px;
+        }
+        
+        .field-description {
+          font-size: 10px;
+        }
+      }
+      
+      .test-connection {
+        margin-top: 10px;
+        padding-top: 10px;
+        
+        .el-button {
+          height: 40px;
+          font-size: 13px;
+        }
+      }
+    }
+    
+    .form-actions {
+      margin-top: 20px;
+      padding-top: 12px;
+      gap: 8px;
+      
+      .el-button {
+        height: 44px;
+        font-size: 14px;
+      }
+    }
+  }
+}
+
+// 移动端特定样式
+@media (max-width: 768px) {
+  .mobile-settings-section {
+    .mobile-section-header {
+      margin-bottom: 16px;
+      
+      .section-title {
+        font-size: 16px;
+        
+        .section-icon {
+          font-size: 16px;
+        }
+      }
+      
+      .section-description {
+        font-size: 12px;
+      }
+    }
+    
+    .mobile-settings-form {
+      .form-group {
+        margin-bottom: 16px;
+        
+        .el-form-item {
+          margin-bottom: 12px;
+          
+          .el-form-item__label {
+            font-size: 14px;
+            margin-bottom: 6px;
+          }
+          
+          .field-description {
+            font-size: 11px;
+            margin-top: 2px;
+          }
+        }
+      }
+      
+      .form-actions {
+        margin-top: 20px;
+        
+        .button-container {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          
+          .el-button {
+            height: 48px;
+            font-size: 15px;
+            
+            &.save-btn {
+              background: linear-gradient(135deg, #409eff 0%, #67c23a 100%);
+              border: none;
+              color: white;
+              
+              &:hover {
+                background: linear-gradient(135deg, #337ecc 0%, #529b2e 100%);
+              }
+            }
+            
+            &.reset-btn {
+              background: #f5f7fa;
+              border: 1px solid #dcdfe6;
+              color: #606266;
+              
+              &:hover {
+                background: #ecf5ff;
+                border-color: #409eff;
+                color: #409eff;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// 超小屏幕优化
+@media (max-width: 480px) {
+  .settings-page {
+    padding: 8px;
+  }
+  
+  .page-header {
+    .header-content {
+      .header-left {
+        .page-title {
+          font-size: 18px;
+        }
+        
+        .page-subtitle {
+          font-size: 11px;
+        }
+      }
+    }
+  }
+  
+  .settings-content {
+    .settings-nav-card {
+      .settings-menu {
+        :deep(.el-menu-item) {
+          height: 36px;
+          line-height: 36px;
+          font-size: 12px;
+          padding: 0 8px;
+        }
+      }
+    }
+    
+    .settings-section {
+      padding: 12px;
+      
+      .section-header {
+        margin-bottom: 12px;
+        
+        h3 {
+          font-size: 15px;
+        }
+        
+        p {
+          font-size: 11px;
+        }
+      }
+    }
+    
+    .notification-group {
+      padding: 10px;
+      margin-bottom: 12px;
+      
+      .group-header {
+        margin-bottom: 8px;
+        padding-bottom: 4px;
+        
+        .group-icon {
+          font-size: 12px;
+          margin-right: 4px;
+        }
+        
+        span {
+          font-size: 12px;
+        }
+      }
+      
+      .el-form-item {
+        margin-bottom: 8px;
+        
+        .el-form-item__label {
+          font-size: 12px;
+          margin-bottom: 3px;
+        }
+        
+        .field-description {
+          font-size: 9px;
+        }
+      }
+      
+      .test-connection {
+        margin-top: 8px;
+        padding-top: 8px;
+        
+        .el-button {
+          height: 36px;
+          font-size: 12px;
+        }
+      }
+    }
+    
+    .form-actions {
+      margin-top: 16px;
+      padding-top: 10px;
+      gap: 6px;
+      
+      .el-button {
+        height: 40px;
+        font-size: 13px;
+      }
+    }
+  }
+  
+  .mobile-settings-section {
+    .mobile-section-header {
+      margin-bottom: 12px;
+      
+      .section-title {
+        font-size: 14px;
+        
+        .section-icon {
+          font-size: 14px;
+        }
+      }
+      
+      .section-description {
+        font-size: 11px;
+      }
+    }
+    
+    .mobile-settings-form {
+      .form-group {
+        margin-bottom: 12px;
+        
+        .el-form-item {
+          margin-bottom: 10px;
+          
+          .el-form-item__label {
+            font-size: 12px;
+            margin-bottom: 4px;
+          }
+          
+          .field-description {
+            font-size: 10px;
+          }
+        }
+      }
+      
+      .form-actions {
+        margin-top: 16px;
+        
+        .button-container {
+          gap: 8px;
+          
+          .el-button {
+            height: 44px;
+            font-size: 14px;
+          }
+        }
+      }
+    }
+  }
+}
+
+// 横屏模式优化
+@media (max-height: 600px) and (orientation: landscape) {
+  .settings-page {
+    .page-header {
+      .header-content {
+        flex-direction: row;
+        align-items: center;
+        
+        .header-actions {
+          width: auto;
+        }
+      }
+    }
+    
+    .settings-content {
+      .settings-nav-card {
+        margin-bottom: 12px;
+        
+        .settings-menu {
+          :deep(.el-menu-item) {
+            height: 36px;
+            line-height: 36px;
+          }
+        }
+      }
+      
+      .settings-section {
+        padding: 16px;
+      }
+      
+      .notification-group {
+        padding: 12px;
+        margin-bottom: 16px;
+      }
+    }
+  }
+}
+
+// 高分辨率屏幕优化
+@media (min-width: 1920px) {
+  .settings-page {
+    max-width: 1600px;
+    margin: 0 auto;
+    
+    .settings-content {
+      .desktop-settings-layout {
+        .desktop-settings-sidebar {
+          width: 280px;
+        }
+        
+        .desktop-settings-main {
+          margin-left: 300px;
+        }
+      }
+    }
+    
+    .notification-group {
+      padding: 32px;
+      margin-bottom: 40px;
+      
+      .group-header {
+        margin-bottom: 24px;
+        
+        .group-icon {
+          font-size: 24px;
+        }
+        
+        span {
+          font-size: 18px;
+        }
+      }
+      
+      .el-form-item {
+        margin-bottom: 24px;
+        
+        .el-form-item__label {
+          font-size: 16px;
+        }
+        
+        .field-description {
+          font-size: 14px;
+        }
+      }
+    }
+    
+    .form-actions {
+      margin-top: 40px;
+      padding-top: 32px;
+      gap: 20px;
+      
+      .el-button {
+        height: 52px;
+        font-size: 16px;
       }
     }
   }

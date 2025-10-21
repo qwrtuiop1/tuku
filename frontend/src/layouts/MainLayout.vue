@@ -175,6 +175,10 @@
                   <el-icon><Setting /></el-icon>
                   设置
                 </el-dropdown-item>
+                <el-dropdown-item v-if="authStore.isAdmin" command="notifications">
+                  <el-icon><Bell /></el-icon>
+                  通知
+                </el-dropdown-item>
                 <el-dropdown-item divided command="logout">
                   <el-icon><SwitchButton /></el-icon>
                   退出登录
@@ -206,6 +210,10 @@
                   <el-icon><Setting /></el-icon>
                   设置
                 </el-dropdown-item>
+                <el-dropdown-item v-if="authStore.isAdmin" command="notifications">
+                  <el-icon><Bell /></el-icon>
+                  通知
+                </el-dropdown-item>
                 <el-dropdown-item divided command="logout">
                   <el-icon><SwitchButton /></el-icon>
                   退出登录
@@ -215,6 +223,14 @@
           </el-dropdown>
         </div>
       </header>
+      
+      <!-- 顶部通知横条（紧贴头部下方） -->
+      <div class="global-notifications banner" v-if="hasUnreadNotifications">
+        <div class="notification-summary" :class="highestPriorityClass" @click="openNotificationsDialog">
+          <span class="summary-text">有 {{ unreadNotificationCount }} 条通知</span>
+          <el-icon class="summary-arrow"><ArrowDown /></el-icon>
+        </div>
+      </div>
       
       <!-- 页面内容 -->
       <main class="page-content">
@@ -228,6 +244,108 @@
       </main>
     </div>
     
+    <!-- 通知悬浮窗：批量展示与详情 -->
+    <el-dialog
+      v-model="notificationsDialogVisible"
+      title="通知"
+      :width="isMobile ? '95%' : '700px'"
+      :close-on-click-modal="false"
+      :destroy-on-close="false"
+      :append-to-body="true"
+      class="notifications-dialog"
+      @opened="onDialogOpened"
+      @closed="onDialogClosed"
+    >
+      <div class="notifications-dialog-body">
+        <!-- 通知列表面板 -->
+        <div class="notifications-list-panel">
+          <div class="list-header">
+            <h3 class="list-title">通知列表</h3>
+            <span class="notification-count">{{ allNotifications.length }} 条通知</span>
+          </div>
+          
+          <el-scrollbar class="notifications-scrollbar">
+            <div v-if="allNotifications.length === 0" class="empty-list">
+              <div class="empty-icon">📭</div>
+              <p class="empty-text">暂无通知</p>
+            </div>
+            <div
+              v-for="n in allNotifications"
+              :key="n.id"
+              :class="['notification-item', `priority-${n.priority}`, { 
+                active: detailNotification && detailNotification.id === n.id, 
+                'is-read': n.is_read 
+              }]"
+              @click="openNotificationDetail(n)"
+            >
+              <div class="notification-content">
+                <div class="notification-title">{{ n.title || '无标题' }}</div>
+                <div class="notification-meta">
+                  <span class="notification-type">{{ getNotificationTypeText(n.notification_type) }}</span>
+                  <span class="notification-priority priority-{{ n.priority }}">{{ getPriorityText(n.priority) }}</span>
+                  <span v-if="n.is_read" class="read-badge">已读</span>
+                </div>
+                <div class="notification-time">{{ formatDateTime(n.created_at) }}</div>
+              </div>
+              <div class="notification-indicator">
+                <div v-if="!n.is_read" class="unread-dot"></div>
+              </div>
+            </div>
+          </el-scrollbar>
+        </div>
+        
+        <!-- 通知详情面板 -->
+        <div class="notifications-detail-panel">
+          <div v-if="detailNotification" class="detail-content">
+            <div class="detail-header">
+              <h3 class="detail-title">{{ detailNotification.title || '无标题' }}</h3>
+              <div class="detail-badges">
+                <span class="detail-type">{{ getNotificationTypeText(detailNotification.notification_type) }}</span>
+                <span class="detail-priority priority-{{ detailNotification.priority }}">
+                  {{ getPriorityText(detailNotification.priority) }}
+                </span>
+                <span v-if="detailNotification.is_read" class="read-badge">已读</span>
+                <span v-else class="unread-badge">未读</span>
+              </div>
+            </div>
+            
+            <div class="detail-body">
+              <div class="detail-text">{{ detailNotification.content || '暂无内容' }}</div>
+            </div>
+            
+            <div class="detail-footer">
+              <div class="detail-time">
+                <i class="el-icon-time"></i>
+                {{ formatDateTime(detailNotification.created_at) }}
+                <span v-if="detailNotification.read_at" class="read-time">
+                  · 已读于 {{ formatDateTime(detailNotification.read_at) }}
+                </span>
+              </div>
+              <div class="detail-actions">
+                <el-button 
+                  v-if="!detailNotification.is_read"
+                  type="primary" 
+                  size="small" 
+                  @click="markNotificationAsRead(detailNotification.id)"
+                >
+                  标记为已读
+                </el-button>
+                <el-button size="small" @click="closeNotification(detailNotification.id)">
+                  关闭
+                </el-button>
+              </div>
+            </div>
+          </div>
+          
+          <div v-else class="detail-empty">
+            <div class="empty-icon">👆</div>
+            <h3 class="empty-title">选择通知查看详情</h3>
+            <p class="empty-description">点击左侧通知列表中的任意一条通知，即可查看详细内容</p>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
+
     <!-- 移动端底部导航栏 -->
     <div v-if="isMobile" class="mobile-bottom-nav">
       <div class="nav-items">
@@ -292,7 +410,8 @@ import {
   UserFilled,
   Monitor,
   Document,
-  Tools
+  Tools,
+  Close
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { formatFileSize, getStorageUsageColor, formatPercentage } from '@/utils/helpers'
@@ -309,6 +428,14 @@ const isDragging = ref(false)
 const isDevelopment = ref(process.env.NODE_ENV === 'development')
 const animationEnabled = ref(true) // 页面动画控制
 const mobileUserMenuVisible = ref(false) // 移动端用户菜单显示状态
+
+// 全局通知相关
+const globalNotifications = ref([])
+const allNotifications = ref([])
+const notificationCheckInterval = ref(null)
+const notificationsDialogVisible = ref(false)
+const detailNotification = ref<any>(null)
+const eventSource = ref<EventSource | null>(null)
 
 // 检测屏幕尺寸
 const checkScreenSize = () => {
@@ -390,6 +517,13 @@ const handleUserCommand = async (command: string) => {
     case 'settings':
       if (authStore.isAdmin) {
         router.push('/settings')
+      } else {
+        ElMessage.warning('需要管理员权限')
+      }
+      break
+    case 'notifications':
+      if (authStore.isAdmin) {
+        router.push('/notifications')
       } else {
         ElMessage.warning('需要管理员权限')
       }
@@ -496,6 +630,316 @@ const handleSystemSettingsChange = (event: CustomEvent) => {
   }
 }
 
+// 格式化日期时间
+const formatDateTime = (dateString: string) => {
+  if (!dateString) return '未知时间'
+  
+  const date = new Date(dateString)
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  
+  // 小于1分钟
+  if (diff < 60000) {
+    return '刚刚'
+  }
+  
+  // 小于1小时
+  if (diff < 3600000) {
+    const minutes = Math.floor(diff / 60000)
+    return `${minutes}分钟前`
+  }
+  
+  // 小于1天
+  if (diff < 86400000) {
+    const hours = Math.floor(diff / 3600000)
+    return `${hours}小时前`
+  }
+  
+  // 小于7天
+  if (diff < 604800000) {
+    const days = Math.floor(diff / 86400000)
+    return `${days}天前`
+  }
+  
+  // 超过7天，显示具体日期
+  return date.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+// 获取通知类型文本
+const getNotificationTypeText = (type: string) => {
+  const typeMap: Record<string, string> = {
+    'system': '系统通知',
+    'maintenance': '系统维护',
+    'security_alert': '安全提醒',
+    'storage_warning': '存储警告',
+    'email': '邮件通知',
+    'user': '用户通知'
+  }
+  return typeMap[type] || type || '未知类型'
+}
+
+// 获取优先级文本
+const getPriorityText = (priority: string) => {
+  const priorityMap: Record<string, string> = {
+    'low': '低',
+    'normal': '普通',
+    'high': '高',
+    'urgent': '紧急'
+  }
+  return priorityMap[priority] || priority || '普通'
+}
+
+// 获取所有通知（包括已读的）
+const fetchAllNotifications = async () => {
+  if (!authStore.user) {
+    console.log('用户未登录，跳过获取通知')
+    return
+  }
+  
+  try {
+    console.log('开始获取所有通知...')
+    console.log('API基础URL:', api.defaults.baseURL)
+    console.log('用户信息:', authStore.user)
+    
+    const response = await api.get('/auth/notifications/all')
+    console.log('获取所有通知响应:', response.data)
+    
+    if (response.data.success) {
+      allNotifications.value = response.data.notifications || []
+      console.log('设置allNotifications:', allNotifications.value.length, '条通知')
+      console.log('通知详情:', allNotifications.value)
+    } else {
+      console.error('获取通知失败:', response.data.message)
+      ElMessage.error('获取通知失败: ' + response.data.message)
+    }
+  } catch (error: any) {
+    console.error('获取所有通知失败:', error)
+    console.error('错误详情:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      config: error.config
+    })
+    
+    if (error.response?.status === 401) {
+      console.log('用户未授权，可能需要重新登录')
+    } else if (error.response?.status === 404) {
+      console.log('通知接口不存在')
+      ElMessage.error('通知服务暂不可用')
+    } else {
+      ElMessage.error('获取通知失败，请稍后重试')
+    }
+  }
+}
+
+// 全局通知相关方法
+const fetchGlobalNotifications = async () => {
+  if (!authStore.user) {
+    console.log('用户未登录，跳过获取全局通知')
+    return
+  }
+  
+  try {
+    console.log('开始获取全局通知...')
+    const response = await api.get('/auth/notifications/unread')
+    console.log('获取全局通知响应:', response.data)
+    
+    if (response.data.success) {
+      // 只显示未读通知
+      globalNotifications.value = response.data.notifications || []
+      console.log('设置globalNotifications:', globalNotifications.value.length, '条未读通知')
+    } else {
+      console.error('获取全局通知失败:', response.data.message)
+    }
+  } catch (error: any) {
+    console.error('获取全局通知失败:', error)
+    console.error('错误详情:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    })
+  }
+}
+
+const markNotificationAsRead = async (notificationId: number) => {
+  try {
+    await api.put(`/auth/notifications/${notificationId}/read`)
+    
+    // 从全局通知列表中移除
+    globalNotifications.value = globalNotifications.value.filter(n => n.id !== notificationId)
+    
+    ElMessage.success('通知已标记为已读')
+  } catch (error) {
+    ElMessage.error('标记通知为已读失败')
+  }
+}
+
+const closeNotification = (notificationId: number) => {
+  // 从全局通知列表中移除
+  globalNotifications.value = globalNotifications.value.filter(n => n.id !== notificationId)
+  
+  // 如果当前显示的是这个通知的详情，则关闭详情面板
+  if (detailNotification.value && detailNotification.value.id === notificationId) {
+    detailNotification.value = null
+  }
+  
+  // 如果所有通知都已关闭，关闭整个对话框
+  if (globalNotifications.value.length === 0) {
+    closeNotificationsDialog()
+  }
+}
+
+// 计算未读通知数量
+const unreadNotificationCount = computed(() => {
+  return globalNotifications.value.length
+})
+
+// 计算是否有未读通知
+const hasUnreadNotifications = computed(() => {
+  return unreadNotificationCount.value > 0
+})
+
+// 计算最高优先级用于汇总横条颜色
+const highestPriorityClass = computed(() => {
+  if (globalNotifications.value.length === 0) return ''
+  
+  const p = globalNotifications.value.reduce((max, n:any) => {
+    const rank = ({ low: 1, normal: 2, high: 3, urgent: 4 } as any)[n.priority] || 2
+    return rank > max ? rank : max
+  }, 0)
+  return p === 4 ? 'priority-urgent' : p === 3 ? 'priority-high' : p === 2 ? 'priority-normal' : 'priority-low'
+})
+
+// 对话框事件处理
+const onDialogOpened = () => {
+  console.log('对话框已打开')
+}
+
+const onDialogClosed = () => {
+  console.log('对话框已关闭')
+  detailNotification.value = null
+}
+
+// 关闭通知对话框
+const closeNotificationsDialog = () => {
+  notificationsDialogVisible.value = false
+  detailNotification.value = null
+}
+
+// 打开通知详情悬浮窗
+const openNotificationDetail = async (n: any) => {
+  console.log('打开通知详情:', n)
+  console.log('当前allNotifications数量:', allNotifications.value.length)
+  console.log('当前notificationsDialogVisible:', notificationsDialogVisible.value)
+  
+  detailNotification.value = n
+  
+  // 如果通知未读，自动标记为已读
+  if (!n.is_read) {
+    try {
+      console.log('自动标记通知为已读:', n.id)
+      await api.put(`/auth/notifications/${n.id}/read`)
+      
+      // 更新本地状态
+      n.is_read = 1
+      n.read_at = new Date().toISOString()
+      
+      // 更新allNotifications中的状态
+      const notificationIndex = allNotifications.value.findIndex(notif => notif.id === n.id)
+      if (notificationIndex !== -1) {
+        allNotifications.value[notificationIndex].is_read = 1
+        allNotifications.value[notificationIndex].read_at = n.read_at
+      }
+      
+      // 从全局未读通知列表中移除
+      globalNotifications.value = globalNotifications.value.filter(notif => notif.id !== n.id)
+      
+      console.log('通知已自动标记为已读')
+      
+      // 触发响应式更新
+      allNotifications.value = [...allNotifications.value]
+      globalNotifications.value = [...globalNotifications.value]
+      
+    } catch (error: any) {
+      console.error('自动标记通知为已读失败:', error)
+      // 即使标记失败，仍然显示详情
+    }
+  }
+  
+  // 确保对话框是打开的
+  if (!notificationsDialogVisible.value) {
+    notificationsDialogVisible.value = true
+  }
+  
+  console.log('设置后detailNotification:', detailNotification.value)
+  console.log('设置后notificationsDialogVisible:', notificationsDialogVisible.value)
+}
+
+// 打开通知对话框
+const openNotificationsDialog = async () => {
+  notificationsDialogVisible.value = true
+  await fetchAllNotifications() // 获取所有通知
+}
+
+const startNotificationPolling = () => {
+  // 每10秒检查一次新通知
+  notificationCheckInterval.value = setInterval(() => {
+    fetchGlobalNotifications()
+  }, 10000)
+}
+
+const stopNotificationPolling = () => {
+  if (notificationCheckInterval.value) {
+    clearInterval(notificationCheckInterval.value)
+    notificationCheckInterval.value = null
+  }
+}
+
+// SSE 连接管理
+const setupSSE = () => {
+  if (eventSource.value) {
+    eventSource.value.close()
+  }
+  
+  const token = localStorage.getItem('token')
+  if (!token) return
+  
+  eventSource.value = new EventSource(`${api.defaults.baseURL}/auth/notifications/stream`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  })
+
+  eventSource.value.onmessage = (event) => {
+    console.log('SSE message:', event.data)
+  }
+
+  eventSource.value.addEventListener('notification:new', (event) => {
+    console.log('New notification received via SSE:', event.data)
+    fetchGlobalNotifications() // 收到新通知事件后立即刷新
+  })
+
+  eventSource.value.onerror = (error) => {
+    console.error('SSE Error:', error)
+    eventSource.value?.close()
+    // 尝试重新连接
+    setTimeout(setupSSE, 5000)
+  }
+}
+
+const closeSSE = () => {
+  if (eventSource.value) {
+    eventSource.value.close()
+    eventSource.value = null
+  }
+}
+
 // 生命周期
 onMounted(() => {
   checkScreenSize()
@@ -511,6 +955,11 @@ onMounted(() => {
   // 获取系统设置
   fetchSystemSettings()
   
+  // 初始化全局通知
+  fetchGlobalNotifications()
+  startNotificationPolling()
+  setupSSE() // 建立 SSE 连接
+  
   // 添加全局事件监听
   window.addEventListener('system-settings-changed', handleSystemSettingsChange as EventListener)
 })
@@ -518,6 +967,12 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
   window.removeEventListener('system-settings-changed', handleSystemSettingsChange as EventListener)
+  
+  // 停止通知轮询
+  stopNotificationPolling()
+  
+  // 关闭 SSE 连接
+  closeSSE()
   
   // 移除触摸事件监听
   if (isMobile.value) {
@@ -1905,6 +2360,967 @@ onUnmounted(() => {
   
   &:hover {
     background: rgba(102, 126, 234, 0.5);
+  }
+}
+
+// 全局通知样式
+.global-notifications {
+  &.banner {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    padding: 8px 24px;
+    background: transparent;
+  }
+
+  .notification-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fefefe;
+    border-radius: 6px;
+    padding: 8px 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    cursor: pointer;
+    border-left: 4px solid #409EFF;
+    .summary-text { font-size: 13px; color: #303133; font-weight: 600; }
+    .summary-arrow { color: #909399; }
+    &.priority-low { border-left-color: #909399; }
+    &.priority-normal { border-left-color: #409EFF; }
+    &.priority-high { border-left-color: #E6A23C; }
+    &.priority-urgent { border-left-color: #F56C6C; }
+  }
+  
+  .notification-item {
+    background: #fefefe;
+    border-radius: 6px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    margin-bottom: 8px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    border-left: 4px solid #409EFF;
+    
+    &:hover { background: #fafcff; }
+    
+    &.priority-low {
+      border-left-color: #909399;
+    }
+    
+    &.priority-normal {
+      border-left-color: #409EFF;
+    }
+    
+    &.priority-high {
+      border-left-color: #E6A23C;
+    }
+    
+    &.priority-urgent {
+      border-left-color: #F56C6C;
+      animation: urgentPulse 2s infinite;
+    }
+    
+    .notification-content {
+      flex: 1;
+      
+      .notification-title { font-weight: 600; font-size: 13px; color: #303133; margin-bottom: 2px; }
+      
+      .notification-message { font-size: 12px; color: #606266; line-height: 1.4; }
+    }
+    
+    .notification-actions {
+      margin-left: 12px;
+    }
+  }
+}
+
+// 通知对话框样式
+.notifications-dialog {
+  :deep(.el-dialog) {
+    border-radius: 16px;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.95);
+  }
+  
+  :deep(.el-dialog__header) {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 16px 16px 0 0;
+    padding: 24px 28px;
+    position: relative;
+    overflow: hidden;
+    
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(45deg, rgba(255, 255, 255, 0.1) 0%, transparent 100%);
+      pointer-events: none;
+    }
+    
+    .el-dialog__title {
+      font-size: 20px;
+      font-weight: 700;
+      position: relative;
+      z-index: 1;
+    }
+    
+    .el-dialog__headerbtn {
+      color: white;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      
+      &:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: scale(1.05);
+      }
+    }
+  }
+  
+  :deep(.el-dialog__body) {
+    padding: 0;
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    border-radius: 0 0 16px 16px;
+  }
+}
+
+.notifications-dialog-body {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 500px;
+  background: #f8fafc;
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    min-height: 400px;
+  }
+}
+
+.notifications-list-panel {
+  background: white;
+  border-right: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  
+  @media (max-width: 768px) {
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+    max-height: 200px;
+  }
+  .list-header {
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+    
+    .list-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a202c;
+      margin: 0 0 8px 0;
+    }
+    
+    .notification-count {
+      font-size: 12px;
+      color: #64748b;
+      background: #e2e8f0;
+      padding: 4px 8px;
+      border-radius: 12px;
+    }
+  }
+  
+  .notifications-scrollbar {
+    flex: 1;
+    padding: 8px;
+    
+    :deep(.el-scrollbar__view) {
+      padding: 0;
+    }
+  }
+  
+  .empty-list {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    color: #64748b;
+    
+    .empty-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.6;
+    }
+    
+    .empty-text {
+      font-size: 14px;
+      margin: 0;
+    }
+  }
+  
+  .notification-item {
+    background: white;
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-left: 4px solid #e2e8f0;
+    position: relative;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(248, 250, 252, 0.4) 100%);
+      border-radius: 12px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+    
+    &:hover {
+      background: #f8fafc;
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+      
+      &::before {
+        opacity: 1;
+      }
+    }
+    
+    &.active {
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      border-left-color: #3b82f6;
+      box-shadow: 0 8px 25px rgba(59, 130, 246, 0.2);
+      transform: translateY(-1px);
+      
+      &::before {
+        opacity: 0.5;
+      }
+    }
+    
+    &.is-read {
+      opacity: 0.7;
+      
+      .notification-title {
+        color: #64748b;
+      }
+      
+      .notification-meta {
+        color: #94a3b8;
+      }
+    }
+    
+    &.priority-low {
+      border-left-color: #94a3b8;
+      
+      &:hover {
+        border-left-color: #64748b;
+      }
+    }
+    
+    &.priority-normal {
+      border-left-color: #3b82f6;
+      
+      &:hover {
+        border-left-color: #2563eb;
+      }
+    }
+    
+    &.priority-high {
+      border-left-color: #f59e0b;
+      
+      &:hover {
+        border-left-color: #d97706;
+      }
+    }
+    
+    &.priority-urgent {
+      border-left-color: #ef4444;
+      animation: urgentPulse 2s infinite;
+      
+      &:hover {
+        border-left-color: #dc2626;
+      }
+    }
+    
+    .notification-content {
+      flex: 1;
+      
+      .notification-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #1a202c;
+        margin-bottom: 8px;
+        line-height: 1.4;
+      }
+      
+      .notification-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+        font-size: 12px;
+        
+        .notification-type {
+          background: #e2e8f0;
+          color: #475569;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+        
+        .notification-priority {
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-weight: 500;
+          
+          &.priority-low {
+            background: #f1f5f9;
+            color: #64748b;
+          }
+          
+          &.priority-normal {
+            background: #dbeafe;
+            color: #1d4ed8;
+          }
+          
+          &.priority-high {
+            background: #fef3c7;
+            color: #d97706;
+          }
+          
+          &.priority-urgent {
+            background: #fee2e2;
+            color: #dc2626;
+          }
+        }
+        
+        .read-badge {
+          background: #dcfce7;
+          color: #16a34a;
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-weight: 500;
+        }
+      }
+      
+      .notification-time {
+        font-size: 11px;
+        color: #94a3b8;
+      }
+    }
+    
+    .notification-indicator {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      
+      .unread-dot {
+        width: 8px;
+        height: 8px;
+        background: #ef4444;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+      }
+    }
+  }
+}
+.notifications-detail-panel {
+  background: white;
+  display: flex;
+  flex-direction: column;
+  border-radius: 0 0 16px 0;
+  box-shadow: inset 1px 0 0 rgba(0, 0, 0, 0.05);
+  
+  .detail-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 28px;
+    
+    .detail-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #e2e8f0;
+      
+      .detail-title {
+        font-size: 22px;
+        font-weight: 700;
+        color: #1a202c;
+        margin: 0 0 16px 0;
+        line-height: 1.3;
+        background: linear-gradient(135deg, #1a202c 0%, #4a5568 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      
+      .detail-badges {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        
+        .detail-type {
+          background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+          color: #475569;
+          padding: 6px 12px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .detail-priority {
+          padding: 6px 12px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          
+          &.priority-low {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            color: #64748b;
+          }
+          
+          &.priority-normal {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            color: #1d4ed8;
+          }
+          
+          &.priority-high {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #d97706;
+          }
+          
+          &.priority-urgent {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #dc2626;
+          }
+        }
+        
+        .read-badge {
+          background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+          color: #16a34a;
+          padding: 6px 12px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .unread-badge {
+          background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+          color: #dc2626;
+          padding: 6px 12px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+      }
+    }
+    
+    .detail-body {
+      flex: 1;
+      margin-bottom: 24px;
+      
+      .detail-text {
+        font-size: 16px;
+        color: #374151;
+        line-height: 1.7;
+        white-space: pre-wrap;
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+        position: relative;
+        
+        &::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: linear-gradient(90deg, transparent 0%, rgba(59, 130, 246, 0.3) 50%, transparent 100%);
+        }
+      }
+    }
+    
+    .detail-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 20px;
+      border-top: 1px solid #e2e8f0;
+      
+      .detail-time {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: #64748b;
+        background: #f8fafc;
+        padding: 8px 12px;
+        border-radius: 8px;
+        
+        i {
+          font-size: 16px;
+          color: #94a3b8;
+        }
+        
+        .read-time {
+          color: #16a34a;
+          font-weight: 500;
+        }
+      }
+      
+      .detail-actions {
+        display: flex;
+        gap: 10px;
+        
+        .el-button {
+          border-radius: 8px;
+          font-weight: 500;
+          transition: all 0.3s ease;
+          
+          &:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          }
+        }
+      }
+    }
+  }
+  
+  .detail-empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: #64748b;
+    text-align: center;
+    
+    .empty-icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+      opacity: 0.6;
+    }
+    
+    .empty-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #374151;
+      margin: 0 0 12px 0;
+    }
+    
+    .empty-description {
+      font-size: 14px;
+      margin: 0;
+      max-width: 280px;
+      line-height: 1.5;
+    }
+  }
+}
+
+// 动画效果
+@keyframes urgentPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.notifications-dialog :deep(.el-dialog__body) {
+  padding: 0;
+}
+
+.notifications-dialog-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  min-height: 400px;
+}
+
+.notifications-list-panel {
+  border-right: 1px solid #e4e7ed;
+  padding-right: 16px;
+  
+  .el-scrollbar {
+    height: 400px;
+  }
+}
+
+.dialog-item {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  border-left: 4px solid #409EFF;
+  transition: all 0.3s ease;
+  
+  &:hover {
+    background: #f5f9ff;
+    transform: translateX(2px);
+  }
+  
+  &.priority-low { 
+    border-left-color: #909399; 
+    &:hover { background: #f8f9fa; }
+  }
+  &.priority-normal { 
+    border-left-color: #409EFF; 
+    &:hover { background: #f5f9ff; }
+  }
+  &.priority-high { 
+    border-left-color: #E6A23C; 
+    &:hover { background: #fdf6ec; }
+  }
+  &.priority-urgent { 
+    border-left-color: #F56C6C; 
+    &:hover { background: #fef0f0; }
+    animation: urgentPulse 2s infinite;
+  }
+  
+  &.active { 
+    background: #e6f7ff; 
+    border-left-width: 6px;
+    box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+  }
+  
+  &.is-read { 
+    opacity: 0.7;
+    background: #f8f9fa;
+    .title { color: #909399; }
+    .meta { color: #c0c4cc; }
+  }
+  
+  .title { 
+    font-weight: 600; 
+    font-size: 14px; 
+    color: #303133; 
+    margin-bottom: 6px; 
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .meta { 
+    font-size: 12px; 
+    color: #909399; 
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  
+  .read-status { 
+    color: #67c23a; 
+    font-weight: 500; 
+    background: rgba(103, 194, 58, 0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+}
+
+.notifications-detail-panel {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  
+  .detail-title { 
+    font-size: 18px; 
+    font-weight: 700; 
+    margin-bottom: 12px; 
+    color: #303133;
+    line-height: 1.4;
+  }
+  
+  .detail-content { 
+    font-size: 14px; 
+    color: #606266; 
+    line-height: 1.6; 
+    white-space: pre-wrap; 
+    flex: 1;
+    margin-bottom: 16px;
+  }
+  
+  .detail-meta { 
+    margin-bottom: 16px; 
+    display: flex; 
+    flex-wrap: wrap; 
+    gap: 16px; 
+    font-size: 12px; 
+    color: #909399;
+    
+    span {
+      background: #f5f7fa;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    
+    .read-status { 
+      color: #67c23a; 
+      font-weight: 500; 
+      background: rgba(103, 194, 58, 0.1);
+    }
+  }
+  
+  .detail-actions { 
+    display: flex; 
+    gap: 12px; 
+    margin-top: auto;
+  }
+  
+  &.empty { 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    color: #909399;
+    font-size: 14px;
+    background: #f8f9fa;
+    border: 2px dashed #e4e7ed;
+  }
+}
+
+@keyframes urgentPulse {
+  0%, 100% {
+    box-shadow: 0 2px 8px rgba(245, 108, 108, 0.2);
+  }
+  50% {
+    box-shadow: 0 4px 16px rgba(245, 108, 108, 0.4);
+  }
+}
+
+// 移动端响应式优化
+@media (max-width: 768px) {
+  .notifications-dialog {
+    :deep(.el-dialog) {
+      margin: 10px;
+      width: calc(100% - 20px);
+      max-height: calc(100vh - 20px);
+    }
+    
+    :deep(.el-dialog__header) {
+      padding: 16px 20px;
+      
+      .el-dialog__title {
+        font-size: 16px;
+      }
+    }
+  }
+  
+  .notifications-dialog-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    min-height: calc(100vh - 120px);
+  }
+  
+  .notifications-list-panel {
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+    max-height: 250px;
+    
+    .list-header {
+      padding: 16px 20px 12px;
+      
+      .list-title {
+        font-size: 14px;
+      }
+      
+      .notification-count {
+        font-size: 11px;
+        padding: 3px 6px;
+      }
+    }
+    
+    .notifications-scrollbar {
+      padding: 4px;
+    }
+    
+    .notification-item {
+      padding: 12px;
+      
+      .notification-content {
+        .notification-title {
+          font-size: 13px;
+        }
+        
+        .notification-meta {
+          font-size: 11px;
+        }
+        
+        .notification-time {
+          font-size: 10px;
+        }
+      }
+    }
+  }
+  
+  .notifications-detail-panel {
+    .detail-content {
+      padding: 16px;
+      
+      .detail-header {
+        margin-bottom: 16px;
+        
+        .detail-title {
+          font-size: 16px;
+        }
+        
+        .detail-badges {
+          gap: 6px;
+          
+          .detail-type,
+          .detail-priority,
+          .read-badge {
+            font-size: 11px;
+            padding: 3px 6px;
+          }
+        }
+      }
+      
+      .detail-body {
+        margin-bottom: 16px;
+        
+        .detail-text {
+          font-size: 14px;
+          padding: 12px;
+        }
+      }
+      
+      .detail-footer {
+        padding-top: 12px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        
+        .detail-time {
+          font-size: 12px;
+        }
+        
+        .detail-actions {
+          width: 100%;
+          justify-content: flex-end;
+        }
+      }
+    }
+    
+    .detail-empty {
+      padding: 20px;
+      
+      .empty-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+      }
+      
+      .empty-title {
+        font-size: 16px;
+      }
+      
+      .empty-description {
+        font-size: 13px;
+        max-width: 240px;
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .notifications-dialog-body {
+    min-height: 450px;
+  }
+  
+  .notifications-list-panel {
+    .el-scrollbar {
+      height: 150px;
+    }
+  }
+  
+  .notifications-detail-panel {
+    min-height: 250px;
+    padding: 12px;
+    
+    .detail-title {
+      font-size: 15px;
+    }
+    
+    .detail-content {
+      font-size: 12px;
+    }
+  }
+  
+  .dialog-item {
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    
+    .title {
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+    
+    .meta {
+      font-size: 10px;
+    }
+  }
+}
+
+// 移动端通知样式调整
+@media (max-width: 768px) {
+  .global-notifications {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    max-width: none;
+    
+    .notification-item {
+      padding: 12px;
+      
+      .notification-content {
+        .notification-title {
+          font-size: 13px;
+        }
+        
+        .notification-message {
+          font-size: 12px;
+        }
+      }
+    }
   }
 }
 </style>

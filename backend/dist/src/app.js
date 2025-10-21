@@ -18,6 +18,7 @@ const { checkMaintenanceMode } = require('./middleware/maintenance');
 const { startCleanupTask } = require('./services/verificationService');
 const TrendService = require('./services/trendService');
 const nginxAutoUpdateService = require('./services/nginxAutoUpdateService');
+const databaseInitService = require('./services/databaseInitService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -241,6 +242,11 @@ scheduleTrendCollection();
 
 // 启动Nginx配置自动更新服务
 nginxAutoUpdateService.start();
+
+// 数据库初始化（异步执行，不阻塞服务启动）
+databaseInitService.initialize().catch(error => {
+  console.error('❌ 数据库初始化失败:', error.message);
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 图库系统后端服务启动成功`);

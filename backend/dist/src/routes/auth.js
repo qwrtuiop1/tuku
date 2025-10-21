@@ -22,6 +22,7 @@ const {
 } = require('../services/verificationService');
 
 const router = express.Router();
+const pushService = require('../services/notificationPushService');
 
 // 用户注册
 router.post('/register', checkRegistrationEnabled, [
@@ -1554,6 +1555,90 @@ router.put('/notification-settings', [
     success: true,
     message: '通知设置保存成功'
   });
+}));
+
+// 获取用户所有通知（包括已读的）
+router.get('/notifications/all', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  
+  try {
+    const [notifications] = await pool.execute(
+      `SELECT nh.id, nh.notification_type, nh.title, nh.content, nh.priority, 
+              un.created_at, un.is_read, un.read_at
+       FROM user_notifications un
+       JOIN notification_history nh ON nh.id = un.notification_id
+       WHERE un.user_id = ?
+       ORDER BY un.created_at DESC
+       LIMIT 50`,
+      [userId]
+    );
+    
+    res.json({
+      success: true,
+      notifications: notifications
+    });
+  } catch (error) {
+    console.error('获取所有通知失败:', error);
+    res.status(500).json({ message: '获取所有通知失败' });
+  }
+}));
+
+// 获取用户未读通知
+router.get('/notifications/unread', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  
+  try {
+    const [notifications] = await pool.execute(
+      `SELECT nh.id, nh.notification_type, nh.title, nh.content, nh.priority, un.created_at
+       FROM user_notifications un
+       JOIN notification_history nh ON nh.id = un.notification_id
+       WHERE un.user_id = ? AND un.is_read = 0
+       ORDER BY un.created_at DESC
+       LIMIT 10`,
+      [userId]
+    );
+    
+    res.json({
+      success: true,
+      notifications
+    });
+  } catch (error) {
+    console.error('获取未读通知失败:', error);
+    res.status(500).json({ message: '获取未读通知失败' });
+  }
+}));
+
+// SSE: 订阅通知
+router.get('/notifications/stream', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  // 复用推送服务
+  // 注：订阅函数内部会设置必要的 SSE 头并保持连接
+  pushService.subscribe(userId, res);
+}));
+
+// 标记通知为已读
+router.put('/notifications/:id/read', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const notificationId = req.params.id;
+  
+  try {
+    const [result] = await pool.execute(
+      'UPDATE user_notifications SET is_read = 1, read_at = NOW() WHERE notification_id = ? AND user_id = ?',
+      [notificationId, userId]
+    );
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: '通知不存在' });
+    }
+    
+    res.json({
+      success: true,
+      message: '通知已标记为已读'
+    });
+  } catch (error) {
+    console.error('标记通知为已读失败:', error);
+    res.status(500).json({ message: '标记通知为已读失败' });
+  }
 }));
 
 // 获取用户设置历史

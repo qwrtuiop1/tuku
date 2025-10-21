@@ -980,6 +980,17 @@ router.put('/settings', [
     'enable_system_notification': { type: 'string', required: false },
     'notification_retention_days': { type: 'string', required: false },
     
+    // 用户通知偏好设置
+    'enable_login_notification': { type: 'string', required: false },
+    'enable_upload_notification': { type: 'string', required: false },
+    'enable_storage_warning': { type: 'string', required: false },
+    'enable_security_alert': { type: 'string', required: false },
+    'enable_maintenance_notification': { type: 'string', required: false },
+    
+    // 通知频率设置
+    'email_frequency': { type: 'string', required: false },
+    'system_frequency': { type: 'string', required: false },
+    
     // 外观设置
     'theme_mode': { type: 'string', required: false },
     'primary_color': { type: 'string', required: false },
@@ -1113,15 +1124,20 @@ router.put('/settings', [
 
 // 测试第三方连接
 router.post('/test-connection', [
-  body('type').isIn(['qq', 'wechat']).withMessage('连接类型必须是qq或wechat'),
-  body('appId').notEmpty().withMessage('应用ID不能为空')
+  body('type').isIn(['qq', 'wechat', 'email']).withMessage('连接类型必须是qq、wechat或email'),
+  body('appId').optional().notEmpty().withMessage('应用ID不能为空'),
+  body('smtpHost').optional().notEmpty().withMessage('SMTP服务器不能为空'),
+  body('smtpPort').optional().isInt({ min: 1, max: 65535 }).withMessage('SMTP端口必须是1-65535之间的整数'),
+  body('smtpUsername').optional().notEmpty().withMessage('SMTP用户名不能为空'),
+  body('smtpPassword').optional().notEmpty().withMessage('SMTP密码不能为空'),
+  body('senderEmail').optional().isEmail().withMessage('发件人邮箱格式不正确')
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ message: '参数错误', errors: errors.array() });
   }
 
-  const { type, appId, appKey, appSecret } = req.body;
+  const { type, appId, appKey, appSecret, smtpHost, smtpPort, smtpUsername, smtpPassword, senderEmail, senderName } = req.body;
   
   try {
     if (type === 'qq') {
@@ -1165,6 +1181,43 @@ router.post('/test-connection', [
           message: response.data.errmsg || '微信连接测试失败'
         });
       }
+    } else if (type === 'email') {
+      // 测试邮件连接
+      const nodemailer = require('nodemailer');
+      
+      // 创建邮件传输器
+      const transporter = nodemailer.createTransporter({
+        host: smtpHost,
+        port: parseInt(smtpPort),
+        secure: smtpPort == 465, // true for 465, false for other ports
+        auth: {
+          user: smtpUsername,
+          pass: smtpPassword
+        }
+      });
+      
+      // 验证连接
+      await transporter.verify();
+      
+      // 发送测试邮件
+      const testEmail = {
+        from: `"${senderName || '图库系统'}" <${senderEmail}>`,
+        to: senderEmail, // 发送给自己作为测试
+        subject: '邮件连接测试 - 图库系统',
+        html: `
+          <h2>邮件连接测试成功</h2>
+          <p>这是一封测试邮件，用于验证SMTP配置是否正确。</p>
+          <p>测试时间：${new Date().toLocaleString('zh-CN')}</p>
+          <p>如果您收到这封邮件，说明邮件通知功能配置正确。</p>
+        `
+      };
+      
+      await transporter.sendMail(testEmail);
+      
+      res.json({
+        success: true,
+        message: '邮件连接测试成功，测试邮件已发送'
+      });
     }
   } catch (error) {
     console.error(`${type}连接测试失败:`, error);
@@ -1251,6 +1304,443 @@ router.put('/users/:id/password', [
   res.json({
     message: '密码重置成功'
   });
+}));
+
+// 获取通知历史记录
+router.get('/notifications', asyncHandler(async (req, res) => {
+  const { userId, type, limit = 50, offset = 0 } = req.query;
+  const currentUserId = req.user.id; // 当前登录的管理员ID
+  
+  // 管理员需要能看到所有通知，同时显示自己的已读状态
+  let query = `
+    SELECT nh.*, su.username AS sender_username, 
+           un.is_read, un.read_at, un.created_at as user_notification_created_at
+    FROM notification_history nh
+    LEFT JOIN users su ON nh.sender_id = su.id
+    LEFT JOIN user_notifications un ON nh.id = un.notification_id AND un.user_id = ?
+    WHERE 1=1
+  `;
+  const params = [currentUserId];
+
+  if (userId) {
+    // 可选：按发送者过滤（注意这不是接收者）
+    query += ' AND nh.sender_id = ?';
+    params.push(userId);
+  }
+
+  if (type) {
+    query += ' AND nh.notification_type = ?';
+    params.push(type);
+  }
+
+  query += ' ORDER BY nh.created_at DESC LIMIT ? OFFSET ?';
+  params.push(parseInt(limit), parseInt(offset));
+
+  const [notifications] = await pool.execute(query, params);
+
+  // 统计总数
+  let countQuery = 'SELECT COUNT(*) as total FROM notification_history nh WHERE 1=1';
+  const countParams = [];
+  if (userId) { countQuery += ' AND nh.sender_id = ?'; countParams.push(userId); }
+  if (type) { countQuery += ' AND nh.notification_type = ?'; countParams.push(type); }
+  const [countResult] = await pool.execute(countQuery, countParams);
+
+  res.json({
+    notifications,
+    total: countResult[0].total,
+    limit: parseInt(limit),
+    offset: parseInt(offset)
+  });
+}));
+
+// 标记通知为已读
+router.put('/notifications/:id/read', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+  
+  const notificationService = require('../services/notificationService');
+  const success = await notificationService.markNotificationAsRead(id, userId);
+  
+  if (success) {
+    res.json({ message: '通知已标记为已读' });
+  } else {
+    res.status(404).json({ message: '通知不存在或无权限' });
+  }
+}));
+
+// 获取通知统计
+router.get('/notifications/stats', asyncHandler(async (req, res) => {
+  const { userId } = req.query;
+  
+  let query = 'SELECT ns.*, u.username FROM notification_stats ns JOIN users u ON ns.user_id = u.id';
+  let params = [];
+  
+  if (userId) {
+    query += ' WHERE ns.user_id = ?';
+    params.push(userId);
+  }
+  
+  query += ' ORDER BY ns.total_sent DESC';
+  
+  const [stats] = await pool.execute(query, params);
+  
+  res.json({ stats });
+}));
+
+// 清理过期通知
+router.delete('/notifications/cleanup', asyncHandler(async (req, res) => {
+  const notificationService = require('../services/notificationService');
+  const cleanedCount = await notificationService.cleanExpiredNotifications();
+  
+  res.json({ 
+    message: `清理完成，删除了 ${cleanedCount} 条过期通知`,
+    cleanedCount 
+  });
+}));
+
+// 创建通知
+// 辅助函数：格式化为 MySQL DATETIME 字符串
+function formatToMySqlDateTime(input) {
+  if (!input) return null;
+  const date = typeof input === 'string' || typeof input === 'number' ? new Date(input) : input;
+  if (Number.isNaN(date?.getTime?.())) return null;
+  const pad = (n) => String(n).padStart(2, '0');
+  const Y = date.getFullYear();
+  const M = pad(date.getMonth() + 1);
+  const D = pad(date.getDate());
+  const h = pad(date.getHours());
+  const m = pad(date.getMinutes());
+  const s = pad(date.getSeconds());
+  return `${Y}-${M}-${D} ${h}:${m}:${s}`;
+}
+
+router.post('/notifications', [
+  body('title').notEmpty().withMessage('通知标题不能为空'),
+  body('content').notEmpty().withMessage('通知内容不能为空'),
+  body('notification_type').isIn(['system', 'maintenance', 'security_alert', 'storage_warning', 'email']).withMessage('通知类型无效'),
+  body('priority').isIn(['low', 'normal', 'high', 'urgent']).withMessage('优先级无效'),
+  body('send_at').notEmpty().withMessage('发送时间不能为空'),
+  body('target').isIn(['all', 'admin', 'user']).withMessage('发送范围无效')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ message: '参数错误', errors: errors.array() });
+  }
+
+  const { title, content, notification_type, priority, send_at, delete_at, target } = req.body;
+  
+  const sendAtFormatted = formatToMySqlDateTime(send_at);
+  const deleteAtFormatted = delete_at ? formatToMySqlDateTime(delete_at) : null;
+  if (!sendAtFormatted) {
+    return res.status(400).json({ message: '发送时间格式无效，请使用 YYYY-MM-DD HH:mm:ss' });
+  }
+  
+  try {
+    // 插入单条通知主记录
+    const senderId = req.user?.id || null; // 允许为null（系统创建）
+    const [result] = await pool.execute(
+      'INSERT INTO notification_history (sender_id, notification_type, title, content, priority, send_at, delete_at, target, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+      [senderId, notification_type, title, content, priority, sendAtFormatted, deleteAtFormatted, target]
+    );
+
+    // 立即为目标用户创建投递记录，但不为发送者本人创建
+    const sendTime = new Date(sendAtFormatted);
+    const now = new Date();
+    if (sendTime <= now) {
+      await sendNotificationToUsers(result.insertId, senderId, target);
+    }
+
+    res.json({
+      success: true,
+      message: '通知创建成功',
+      data: { id: result.insertId }
+    });
+  } catch (error) {
+    console.error('创建通知失败:', error);
+    res.status(500).json({ 
+      message: '创建通知失败', 
+      error: error.message,
+      code: error.code || null,
+      sqlMessage: error.sqlMessage || null
+    });
+  }
+}));
+
+// 更新通知
+router.put('/notifications/:id', [
+  body('title').notEmpty().withMessage('通知标题不能为空'),
+  body('content').notEmpty().withMessage('通知内容不能为空'),
+  body('notification_type').isIn(['system', 'maintenance', 'security_alert', 'storage_warning', 'email']).withMessage('通知类型无效'),
+  body('priority').isIn(['low', 'normal', 'high', 'urgent']).withMessage('优先级无效'),
+  body('send_at').notEmpty().withMessage('发送时间不能为空'),
+  body('target').isIn(['all', 'admin', 'user']).withMessage('发送范围无效')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ message: '参数错误', errors: errors.array() });
+  }
+
+  const notificationId = req.params.id;
+  const { title, content, notification_type, priority, send_at, delete_at, target } = req.body;
+  
+  try {
+    // 更新通知记录
+    const [result] = await pool.execute(
+      'UPDATE notification_history SET notification_type = ?, title = ?, content = ?, priority = ?, send_at = ?, delete_at = ?, target = ?, updated_at = NOW() WHERE id = ?',
+      [notification_type, title, content, priority, send_at, delete_at || null, target, notificationId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: '通知不存在' });
+    }
+
+    res.json({
+      success: true,
+      message: '通知更新成功'
+    });
+  } catch (error) {
+    console.error('更新通知失败:', error);
+    res.status(500).json({ message: '更新通知失败', error: error.message });
+  }
+}));
+
+// 删除通知
+router.delete('/notifications/:id', asyncHandler(async (req, res) => {
+  const notificationId = req.params.id;
+  
+  try {
+    const [result] = await pool.execute(
+      'DELETE FROM notification_history WHERE id = ?',
+      [notificationId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: '通知不存在' });
+    }
+
+    res.json({
+      success: true,
+      message: '通知删除成功'
+    });
+  } catch (error) {
+    console.error('删除通知失败:', error);
+    res.status(500).json({ message: '删除通知失败', error: error.message });
+  }
+}));
+
+// 修复缺失的用户通知记录
+router.post('/notifications/fix-missing', requireAdmin, asyncHandler(async (req, res) => {
+  try {
+    console.log('🔍 检查缺失的用户通知记录...');
+    
+    // 查找所有没有 user_notifications 记录的通知
+    const [orphanedNotifications] = await pool.execute(`
+      SELECT nh.id, nh.title, nh.target, nh.sender_id, nh.created_at
+      FROM notification_history nh
+      LEFT JOIN user_notifications un ON nh.id = un.notification_id
+      WHERE un.notification_id IS NULL
+      ORDER BY nh.id DESC
+    `);
+    
+    console.log(`发现 ${orphanedNotifications.length} 条缺失用户通知记录的通知`);
+    
+    if (orphanedNotifications.length === 0) {
+      return res.json({ success: true, message: '没有发现缺失的用户通知记录', fixed: 0 });
+    }
+    
+    let fixedCount = 0;
+    
+    for (const notification of orphanedNotifications) {
+      console.log(`处理通知 ID: ${notification.id}`);
+      
+      // 根据通知的目标范围确定用户
+      let query = 'SELECT id FROM users WHERE status = "active"';
+      let params = [];
+      
+      if (notification.target === 'admin') {
+        query += ' AND role = "admin"';
+      } else if (notification.target === 'user') {
+        query += ' AND role = "user"';
+      }
+      
+      if (notification.sender_id) {
+        query += ' AND id <> ?';
+        params.push(notification.sender_id);
+      }
+      
+      const [users] = await pool.execute(query, params);
+      
+      // 为每个用户创建通知记录
+      for (const user of users) {
+        try {
+          await pool.execute(
+            'INSERT IGNORE INTO user_notifications (notification_id, user_id, is_read, created_at) VALUES (?, ?, 0, NOW())',
+            [notification.id, user.id]
+          );
+          fixedCount++;
+        } catch (error) {
+          console.error(`为用户 ${user.id} 创建通知记录失败:`, error.message);
+        }
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `修复完成，共创建 ${fixedCount} 条用户通知记录`,
+      fixed: fixedCount,
+      notifications: orphanedNotifications.length
+    });
+    
+  } catch (error) {
+    console.error('修复过程中出错:', error);
+    res.status(500).json({ message: '修复失败', error: error.message });
+  }
+}));
+
+// 发送通知给用户：仅写入 user_notifications 投递记录；不再向 notification_history 重复插入
+const sendNotificationToUsers = async (notificationId, senderId, target) => {
+  try {
+    let query = 'SELECT id FROM users WHERE status = "active"';
+    let params = [];
+
+    if (target === 'admin') {
+      query += ' AND role = "admin"';
+    } else if (target === 'user') {
+      query += ' AND role = "user"';
+    }
+
+    // 不再排除发送者，让所有目标用户都能收到通知
+    // if (senderId) {
+    //   query += ' AND id <> ?';
+    //   params.push(senderId);
+    // }
+
+    const [users] = await pool.execute(query, params);
+
+    // 为每个目标用户创建投递记录
+    for (const user of users) {
+      await pool.execute(
+        'INSERT IGNORE INTO user_notifications (notification_id, user_id, is_read, created_at) VALUES (?, ?, 0, NOW())',
+        [notificationId, user.id]
+      );
+    }
+
+    // 推送给在线用户（SSE）
+    try {
+      const pushService = require('../services/notificationPushService');
+      pushService.publishToUsers(users.map(u => u.id), {
+        type: 'notification:new',
+        notificationId
+      });
+    } catch (_) {}
+
+    console.log(`✅ 通知 ${notificationId} 已发送给 ${users.length} 个用户`);
+  } catch (error) {
+    console.error('发送通知给用户失败:', error);
+  }
+};
+
+// 手动迁移通知相关表结构（管理员接口）
+router.post('/notifications/migrate', asyncHandler(async (req, res) => {
+  try {
+    // 创建 notification_history（如果不存在）
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS notification_history (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NULL,
+        sender_id INT NULL,
+        notification_type VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        content TEXT NOT NULL,
+        priority VARCHAR(20) DEFAULT 'normal',
+        send_at DATETIME NULL,
+        delete_at DATETIME NULL,
+        target VARCHAR(20) DEFAULT 'all',
+        is_read TINYINT(1) DEFAULT 0,
+        read_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // 校验并补齐列
+    const [cols] = await pool.execute('DESCRIBE notification_history');
+    const colNames = cols.map(c => c.Field);
+    const userIdCol = cols.find(c => c.Field === 'user_id');
+    const safeAdd = async (sql) => { try { await pool.execute(sql); } catch (e) { /* ignore */ } };
+    if (!colNames.includes('sender_id')) await safeAdd(`ALTER TABLE notification_history ADD COLUMN sender_id INT NULL`);
+    if (!colNames.includes('priority')) await safeAdd(`ALTER TABLE notification_history ADD COLUMN priority VARCHAR(20) DEFAULT 'normal'`);
+    if (!colNames.includes('send_at')) await safeAdd(`ALTER TABLE notification_history ADD COLUMN send_at DATETIME NULL`);
+    if (!colNames.includes('delete_at')) await safeAdd(`ALTER TABLE notification_history ADD COLUMN delete_at DATETIME NULL`);
+    if (!colNames.includes('target')) await safeAdd(`ALTER TABLE notification_history ADD COLUMN target VARCHAR(20) DEFAULT 'all'`);
+    if (!colNames.includes('updated_at')) await safeAdd(`ALTER TABLE notification_history ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`);
+
+    // 将 user_id 列改为可为空（用于系统级通知主表记录）
+    try {
+      if (userIdCol && userIdCol.Null === 'NO') {
+        await pool.execute('ALTER TABLE notification_history MODIFY COLUMN user_id INT NULL');
+      }
+    } catch (e) {
+      // 忽略可能的权限或已修改错误
+    }
+
+    // 创建 user_notifications（如果不存在）
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS user_notifications (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        notification_id INT NOT NULL,
+        user_id INT NOT NULL,
+        is_read TINYINT(1) DEFAULT 0,
+        read_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_notification_user (notification_id, user_id),
+        INDEX idx_user_id_is_read (user_id, is_read)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    res.json({ success: true, message: '通知相关表结构校验/创建完成' });
+  } catch (error) {
+    console.error('通知表结构迁移失败:', error);
+    res.status(500).json({ success: false, message: '迁移失败', error: error.message });
+  }
+}));
+
+// 发送测试通知
+router.post('/notifications/test', [
+  body('type').isIn(['email', 'system']).withMessage('通知类型必须是email或system'),
+  body('recipient').notEmpty().withMessage('收件人不能为空'),
+  body('subject').notEmpty().withMessage('主题不能为空'),
+  body('content').notEmpty().withMessage('内容不能为空')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ message: '参数错误', errors: errors.array() });
+  }
+
+  const { type, recipient, subject, content } = req.body;
+  const notificationService = require('../services/notificationService');
+  
+  try {
+    if (type === 'email') {
+      await notificationService.sendEmailNotification(recipient, subject, content);
+      res.json({ message: '测试邮件发送成功' });
+    } else if (type === 'system') {
+      // 查找用户ID
+      const [users] = await pool.execute(
+        'SELECT id FROM users WHERE email = ? OR username = ?',
+        [recipient, recipient]
+      );
+      
+      if (users.length === 0) {
+        return res.status(404).json({ message: '用户不存在' });
+      }
+      
+      await notificationService.sendSystemNotification(users[0].id, 'test', subject, content);
+      res.json({ message: '测试系统通知发送成功' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: '发送测试通知失败', error: error.message });
+  }
 }));
 
 // 版本检查接口（不需要认证）
