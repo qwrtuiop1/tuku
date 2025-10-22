@@ -268,7 +268,7 @@ onMounted(() => {
 .login-container {
   position: relative;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
   overflow-x: hidden; // 只隐藏水平滚动，允许垂直滚动
 }
 
@@ -281,19 +281,21 @@ onMounted(() => {
   padding: 20px 0;
   
   .nav-content {
-    max-width: 1200px;
-    margin: 0 auto;
+    width: 100%;
+    max-width: none;
+    margin: 0;
     padding: 0 24px; // 统一使用24px，与MainLayout保持一致
     display: flex;
     align-items: center;
     justify-content: space-between;
+    box-sizing: border-box;
   }
   
   .nav-logo {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: white;
+    color: #111827;
     
     .logo-icon {
       font-size: 24px;
@@ -307,10 +309,10 @@ onMounted(() => {
   
   .nav-actions {
     .el-button {
-      color: white;
+      color: #374151;
       
       &:hover {
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(17, 24, 39, 0.06);
       }
     }
   }
@@ -330,10 +332,11 @@ onMounted(() => {
   width: 100%;
   max-width: 420px;
   padding: 40px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  backdrop-filter: blur(8px);
   border-radius: 24px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 14px 28px rgba(17, 24, 39, 0.08);
   animation: slideUp 0.8s ease-out;
 }
 
@@ -345,24 +348,24 @@ onMounted(() => {
     width: 60px;
     height: 60px;
     margin: 0 auto 16px;
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg, #374151, #111827);
     border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: #ffffff;
     font-size: 24px;
   }
   
   .login-title {
     font-size: 28px;
     font-weight: 700;
-    color: #2c3e50;
+    color: #111827;
     margin-bottom: 8px;
   }
   
   .login-subtitle {
-    color: #7f8c8d;
+    color: #6b7280;
     font-size: 14px;
     margin: 0;
   }
@@ -376,19 +379,19 @@ onMounted(() => {
   .custom-input {
     :deep(.el-input__wrapper) {
       border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      border: 1px solid #e1e8ed;
+      box-shadow: 0 2px 8px rgba(17, 24, 39, 0.06);
+      border: 1px solid #e5e7eb;
       transition: all 0.3s ease;
       padding: 12px 16px;
       
       &:hover {
-        border-color: #667eea;
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        border-color: #9ca3af;
+        box-shadow: 0 4px 12px rgba(17, 24, 39, 0.08);
       }
       
       &.is-focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        border-color: #111827;
+        box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08);
       }
     }
   }
@@ -424,12 +427,12 @@ onMounted(() => {
     }
     
     .forgot-password {
-      color: #667eea;
+      color: #374151;
       font-size: 14px;
       padding: 0;
       
       &:hover {
-        color: #764ba2;
+        color: #111827;
       }
     }
   }
@@ -441,13 +444,14 @@ onMounted(() => {
   border-radius: 12px;
   font-size: 16px;
   font-weight: 600;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  border: none;
+  background: linear-gradient(135deg, #374151, #111827);
+  border: 1px solid #111827;
+  color: #ffffff;
   transition: all 0.3s ease;
   
   &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.18);
   }
   
   &:active {
@@ -475,9 +479,9 @@ onMounted(() => {
   }
   
   .divider-text {
-    background: rgba(255, 255, 255, 0.95);
+    background: #ffffff;
     padding: 0 16px;
-    color: #7f8c8d;
+    color: #6b7280;
     font-size: 14px;
     position: relative;
     z-index: 1;
@@ -498,28 +502,16 @@ onMounted(() => {
       min-height: 44px;
       max-height: 44px;
       border-radius: 12px;
-      border: 1px solid #e1e8ed;
-      background: white;
-      color: #7f8c8d;
+      border: 1px solid #e5e7eb;
+      background: #ffffff;
+      color: #374151;
       transition: all 0.3s ease;
       box-sizing: border-box;
       
       &:hover {
-        border-color: #667eea;
-        color: #667eea;
+        border-color: #d1d5db;
+        color: #111827;
         transform: translateY(-1px);
-      }
-      
-      &.qq-btn:hover {
-        background: #12b7f5;
-        color: white;
-        border-color: #12b7f5;
-      }
-      
-      &.wechat-btn:hover {
-        background: #07c160;
-        color: white;
-        border-color: #07c160;
       }
     }
   }
@@ -553,15 +545,16 @@ onMounted(() => {
   width: 100%;
   max-width: 400px;
   padding: 40px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.06);
+  backdrop-filter: blur(8px);
   animation: slideUp 0.8s ease-out 0.2s both;
   
   .panel-content {
     .panel-title {
-      color: white;
+      color: #111827;
       font-size: 24px;
       font-weight: 600;
       margin-bottom: 32px;
@@ -582,26 +575,26 @@ onMounted(() => {
         .feature-icon {
           width: 40px;
           height: 40px;
-          background: rgba(255, 255, 255, 0.2);
+          background: #f3f4f6;
           border-radius: 12px;
           display: flex;
           align-items: center;
           justify-content: center;
-          color: white;
+          color: #111827;
           font-size: 18px;
           flex-shrink: 0;
         }
         
         .feature-content {
           h3 {
-            color: white;
+            color: #111827;
             font-size: 16px;
             font-weight: 600;
             margin: 0 0 4px 0;
           }
           
           p {
-            color: rgba(255, 255, 255, 0.8);
+            color: #374151;
             font-size: 14px;
             margin: 0;
             line-height: 1.5;
@@ -626,7 +619,7 @@ onMounted(() => {
 .floating-shape {
   position: absolute;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(17, 24, 39, 0.06);
   animation: float 8s ease-in-out infinite;
 }
 

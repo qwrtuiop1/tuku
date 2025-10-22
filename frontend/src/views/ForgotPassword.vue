@@ -544,7 +544,7 @@ onUnmounted(() => {
 .forgot-password-container {
   position: relative;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
   overflow-x: hidden; // 只隐藏水平滚动，允许垂直滚动
 }
 
@@ -569,7 +569,7 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: white;
+    color: #111827;
     
     .logo-icon {
       font-size: 24px;
@@ -595,10 +595,11 @@ onUnmounted(() => {
   width: 100%;
   max-width: 420px;
   padding: 40px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  backdrop-filter: blur(8px);
   border-radius: 24px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 14px 28px rgba(17, 24, 39, 0.08);
   animation: slideUp 0.8s ease-out;
 }
 
@@ -620,8 +621,8 @@ onUnmounted(() => {
       width: 32px;
       height: 32px;
       border-radius: 50%;
-      background: #e1e8ed;
-      color: #7f8c8d;
+      background: #f3f4f6;
+      color: #6b7280;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -632,31 +633,31 @@ onUnmounted(() => {
     
     .step-label {
       font-size: 12px;
-      color: #7f8c8d;
+      color: #6b7280;
       font-weight: 500;
       transition: color 0.3s ease;
     }
     
     &.active {
       .step-number {
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
+        background: linear-gradient(135deg, #374151, #111827);
+        color: #ffffff;
       }
       
       .step-label {
-        color: #667eea;
+        color: #111827;
         font-weight: 600;
       }
     }
     
     &.completed {
       .step-number {
-        background: #07c160;
-        color: white;
+        background: #111827;
+        color: #ffffff;
       }
       
       .step-label {
-        color: #07c160;
+        color: #111827;
         font-weight: 600;
       }
     }
@@ -665,12 +666,12 @@ onUnmounted(() => {
   .step-line {
     width: 40px;
     height: 2px;
-    background: #e1e8ed;
+    background: #e5e7eb;
     margin: 0 16px;
     transition: background 0.3s ease;
     
     &.active {
-      background: linear-gradient(135deg, #667eea, #764ba2);
+      background: linear-gradient(135deg, #374151, #111827);
     }
   }
 }
@@ -685,24 +686,24 @@ onUnmounted(() => {
       width: 60px;
       height: 60px;
       margin: 0 auto 16px;
-      background: linear-gradient(135deg, #667eea, #764ba2);
+      background: linear-gradient(135deg, #374151, #111827);
       border-radius: 16px;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
+      color: #ffffff;
       font-size: 24px;
     }
     
     .step-title {
       font-size: 28px;
       font-weight: 700;
-      color: #2c3e50;
+      color: #111827;
       margin-bottom: 8px;
     }
     
     .step-subtitle {
-      color: #7f8c8d;
+      color: #6b7280;
       font-size: 14px;
       margin: 0;
       line-height: 1.5;
@@ -720,20 +721,20 @@ onUnmounted(() => {
         min-height: 48px !important;
         max-height: 48px !important;
         border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        border: 1px solid #e1e8ed;
+        box-shadow: 0 2px 8px rgba(17, 24, 39, 0.06);
+        border: 1px solid #e5e7eb;
         transition: all 0.3s ease;
         padding: 0 16px !important;
         box-sizing: border-box !important;
         
         &:hover {
-          border-color: #667eea;
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+          border-color: #9ca3af;
+          box-shadow: 0 4px 12px rgba(17, 24, 39, 0.08);
         }
         
         &.is-focus {
-          border-color: #667eea;
-          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+          border-color: #111827;
+          box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08);
         }
       }
       
@@ -790,8 +791,9 @@ onUnmounted(() => {
         border-radius: 12px;
         font-size: 14px;
         font-weight: 600;
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        border: none;
+        background: linear-gradient(135deg, #374151, #111827);
+        border: 1px solid #111827;
+        color: #ffffff;
         transition: all 0.3s ease;
         padding: 0 !important;
         line-height: 48px !important;
@@ -799,7 +801,7 @@ onUnmounted(() => {
         
         &:hover:not(:disabled) {
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+          box-shadow: 0 8px 20px rgba(17, 24, 39, 0.18);
         }
         
         &:disabled {
@@ -898,27 +900,28 @@ onUnmounted(() => {
         }
         
         &:not(.el-button--primary) {
-          background: rgba(102, 126, 234, 0.1);
-          border-color: #667eea;
-          color: #667eea;
+          background: #ffffff;
+          border-color: #e5e7eb;
+          color: #374151;
           margin-right: auto; // 左对齐
           order: 1; // 确保在左边
           
           &:hover {
-            background: rgba(102, 126, 234, 0.2);
+            background: #f9fafb;
             transform: translateY(-1px);
           }
         }
         
         &.el-button--primary {
-          background: linear-gradient(135deg, #667eea, #764ba2);
-          border: none;
+          background: linear-gradient(135deg, #374151, #111827);
+          border: 1px solid #111827;
+          color: #ffffff;
           margin-left: auto; // 右对齐
           order: 2; // 确保在右边
           
           &:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            transform: translateY(-1px);
+            box-shadow: 0 10px 24px rgba(17, 24, 39, 0.18);
           }
         }
       }
@@ -932,13 +935,14 @@ onUnmounted(() => {
   border-radius: 12px;
   font-size: 16px;
   font-weight: 600;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  border: none;
+  background: linear-gradient(135deg, #374151, #111827);
+  border: 1px solid #111827;
+  color: #ffffff;
   transition: all 0.3s ease;
   
   &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.18);
   }
   
   &:active {
@@ -956,12 +960,12 @@ onUnmounted(() => {
   margin-top: 24px;
   
   .login-link {
-    color: #7f8c8d;
+    color: #6b7280;
     font-size: 14px;
     margin: 0;
     
     .link {
-      color: #667eea;
+      color: #374151;
       font-weight: 600;
       text-decoration: none;
       transition: color 0.3s ease;
@@ -970,7 +974,7 @@ onUnmounted(() => {
       gap: 4px;
       
       &:hover {
-        color: #764ba2;
+        color: #111827;
       }
     }
   }
@@ -980,15 +984,16 @@ onUnmounted(() => {
   width: 100%;
   max-width: 400px;
   padding: 40px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.06);
+  backdrop-filter: blur(8px);
   animation: slideUp 0.8s ease-out 0.2s both;
   
   .panel-content {
     .panel-title {
-      color: white;
+      color: #111827;
       font-size: 24px;
       font-weight: 600;
       margin-bottom: 32px;
@@ -1009,26 +1014,26 @@ onUnmounted(() => {
         .instruction-icon {
           width: 40px;
           height: 40px;
-          background: rgba(255, 255, 255, 0.2);
+          background: #f3f4f6;
           border-radius: 12px;
           display: flex;
           align-items: center;
           justify-content: center;
-          color: white;
+          color: #111827;
           font-size: 18px;
           flex-shrink: 0;
         }
         
         .instruction-content {
           h3 {
-            color: white;
+            color: #111827;
             font-size: 16px;
             font-weight: 600;
             margin: 0 0 4px 0;
           }
           
           p {
-            color: rgba(255, 255, 255, 0.8);
+            color: #374151;
             font-size: 14px;
             margin: 0;
             line-height: 1.5;
@@ -1053,7 +1058,7 @@ onUnmounted(() => {
 .floating-shape {
   position: absolute;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(17, 24, 39, 0.06);
   animation: float 8s ease-in-out infinite;
 }
 

@@ -384,7 +384,7 @@
                       选择
                     </el-checkbox>
                     <el-dropdown 
-                      @command="(command) => handleUserAction(command, user)" 
+                      @command="(command: string) => handleUserAction(command, user)" 
                       trigger="click"
                       :hide-on-click="true"
                     >
@@ -432,7 +432,7 @@
                 @selection-change="handleUserSelectionChange"
                 v-loading="refreshing"
                 empty-text="暂无用户数据"
-                :row-key="(row) => row.id"
+                :row-key="(row: User) => row.id"
               >
                 <el-table-column type="selection" width="55" />
                 <el-table-column prop="username" label="用户名" width="140">
@@ -490,8 +490,8 @@
                 <el-table-column label="操作" width="60" fixed="right">
                   <template #default="{ row }">
                     <el-dropdown 
-                      @command="(command) => handleUserAction(command, row)" 
-                      @visible-change="(visible) => handleMenuToggle(visible, row)"
+                      @command="(command: string) => handleUserAction(command, row)" 
+                      @visible-change="(visible: boolean) => handleMenuToggle(visible, row)"
                       trigger="click"
                       :hide-on-click="true">
                       <el-button 
@@ -771,8 +771,8 @@
                     v-model="systemSettings.allowRegistration"
                     active-text="允许"
                     inactive-text="禁止"
-                    active-color="#13ce66"
-                    inactive-color="#ff4949"
+                    active-color="#374151"
+                    inactive-color="#6b7280"
                   />
                   <div class="form-description">是否允许新用户注册，关闭后只能由管理员创建用户</div>
                 </el-form-item>
@@ -782,8 +782,8 @@
                     v-model="systemSettings.maintenanceMode"
                     active-text="开启"
                     inactive-text="关闭"
-                    active-color="#ff4949"
-                    inactive-color="#13ce66"
+                    active-color="#6b7280"
+                    inactive-color="#374151"
                   />
                   <div class="form-description">开启后只有管理员可以访问系统，普通用户将看到维护页面</div>
                 </el-form-item>
@@ -912,8 +912,8 @@
                     v-model="systemSettings.enableAnimation"
                     active-text="开启"
                     inactive-text="关闭"
-                    active-color="#13ce66"
-                    inactive-color="#ff4949"
+                    active-color="#374151"
+                    inactive-color="#6b7280"
                   />
                   <div class="form-description">开启页面切换和交互动画效果</div>
                 </el-form-item>
@@ -1216,7 +1216,7 @@
                     选择
                   </el-checkbox>
                   <el-dropdown 
-                    @command="(command) => handleUserAction(command, user)" 
+                    @command="(command: string) => handleUserAction(command, user)" 
                     trigger="click"
                     :hide-on-click="true"
                   >
@@ -1516,8 +1516,8 @@
                       v-model="systemSettings.allowRegistration"
                       active-text="允许"
                       inactive-text="禁止"
-                      active-color="#13ce66"
-                      inactive-color="#ff4949"
+                      active-color="#374151"
+                      inactive-color="#6b7280"
                     />
                     <div class="form-description">是否允许新用户注册，关闭后只能由管理员创建用户</div>
                   </el-form-item>
@@ -1527,8 +1527,8 @@
                       v-model="systemSettings.maintenanceMode"
                       active-text="开启"
                       inactive-text="关闭"
-                      active-color="#ff4949"
-                      inactive-color="#13ce66"
+                      active-color="#6b7280"
+                      inactive-color="#374151"
                     />
                     <div class="form-description">开启后只有管理员可以访问系统，普通用户将看到维护页面</div>
                   </el-form-item>
@@ -1683,6 +1683,35 @@ import {
 import { formatFileSize } from '@/utils/helpers'
 import api from '@/utils/api'
 
+// 类型定义
+interface User {
+  id: number
+  username: string
+  email: string
+  role: string
+  status: string
+  avatar_url?: string
+  used_storage: number
+  storage_limit: number
+  created_at: string
+}
+
+interface LogEntry {
+  id: number
+  timestamp: string
+  level: string
+  source: string
+  message: string
+  user_id?: number
+}
+
+interface NewUser {
+  username: string
+  email: string
+  password: string
+  role: string
+}
+
 // 响应式数据
 const activeSection = ref('overview')
 const refreshing = ref(false)
@@ -1690,7 +1719,7 @@ const savingSettings = ref(false)
 const loadingSettings = ref(false)
 const creatingUser = ref(false)
 const showCreateUserDialog = ref(false)
-const selectedUsers = ref([])
+const selectedUsers = ref<User[]>([])
 const userFormRef = ref<FormInstance>()
 const openMenus = ref<Set<number>>(new Set()) // 跟踪打开的菜单
 const showCleanupDialog = ref(false)
@@ -1813,7 +1842,8 @@ const setupSyncScroll = () => {
         headerWrapper.addEventListener('scroll', (e) => {
           if (!isScrolling) {
             isScrolling = true
-            bodyWrapper.scrollLeft = e.target.scrollLeft
+            const target = e.target as HTMLElement
+            bodyWrapper.scrollLeft = target.scrollLeft
             setTimeout(() => { isScrolling = false }, 10)
           }
         })
@@ -1822,7 +1852,8 @@ const setupSyncScroll = () => {
         bodyWrapper.addEventListener('scroll', (e) => {
           if (!isScrolling) {
             isScrolling = true
-            headerWrapper.scrollLeft = e.target.scrollLeft
+            const target = e.target as HTMLElement
+            headerWrapper.scrollLeft = target.scrollLeft
             setTimeout(() => { isScrolling = false }, 10)
           }
         })
@@ -1835,8 +1866,9 @@ const setupSyncScroll = () => {
           headerScrollbar.addEventListener('scroll', (e) => {
             if (!isScrolling) {
               isScrolling = true
+              const target = e.target as HTMLElement
               if (bodyScrollbar) {
-                bodyScrollbar.scrollLeft = e.target.scrollLeft
+                bodyScrollbar.scrollLeft = target.scrollLeft
               }
               setTimeout(() => { isScrolling = false }, 10)
             }
@@ -1847,8 +1879,9 @@ const setupSyncScroll = () => {
           bodyScrollbar.addEventListener('scroll', (e) => {
             if (!isScrolling) {
               isScrolling = true
+              const target = e.target as HTMLElement
               if (headerScrollbar) {
-                headerScrollbar.scrollLeft = e.target.scrollLeft
+                headerScrollbar.scrollLeft = target.scrollLeft
               }
               setTimeout(() => { isScrolling = false }, 10)
             }
@@ -1961,10 +1994,10 @@ const storageStats = reactive({
 })
 
 // 用户数据
-const users = ref([])
+const users = ref<User[]>([])
 
 // 日志数据
-const logs = ref([])
+const logs = ref<LogEntry[]>([])
 
 // 日志筛选
 const logFilter = reactive({
@@ -2035,7 +2068,7 @@ const predefineColors = [
 ]
 
 // 新用户表单
-const newUser = reactive({
+const newUser = reactive<NewUser>({
   username: '',
   email: '',
   password: '',
@@ -2049,7 +2082,7 @@ const userRules: FormRules = {
     { min: 2, max: 20, message: '用户名长度必须在2-20个字符之间', trigger: 'blur' },
     { pattern: /^[\u4e00-\u9fa5a-zA-Z0-9_\s]+$/, message: '用户名只能包含中文、字母、数字、下划线和空格', trigger: 'blur' },
     { 
-      validator: (rule: any, value: string, callback: any) => {
+      validator: (_rule: any, value: string, callback: any) => {
         if (value && value.includes('@')) {
           callback(new Error('用户名不能使用邮箱格式'));
         } else if (value && value.trim().length === 0) {
@@ -2124,7 +2157,7 @@ const refreshAllData = async () => {
     await fetchStorageStats()
     
     ElMessage.success('数据刷新成功')
-  } catch (error) {
+  } catch (error: any) {
     ElMessage.error('刷新数据失败')
   } finally {
     refreshing.value = false
@@ -2140,7 +2173,7 @@ const fetchSystemStats = async () => {
     systemStats.totalUsers = Number(data.total_users) || 0
     systemStats.totalFiles = Number(data.total_files) || 0
     systemStats.totalStorage = Number(data.total_file_size) || 0
-  } catch (error) {
+  } catch (error: any) {
     throw error
   }
 }
@@ -2182,7 +2215,7 @@ const fetchUsers = async () => {
     adjustTableWidth()
     // 设置同步滚动
     setupSyncScroll()
-  } catch (error) {
+  } catch (error: any) {
     throw error
   }
 }
@@ -2192,7 +2225,7 @@ const fetchLogs = async () => {
   try {
     const response = await api.get('/admin/logs')
     logs.value = response.data.logs || []
-  } catch (error) {
+  } catch (error: any) {
     throw error
   }
 }
@@ -2227,7 +2260,7 @@ const fetchSystemSettings = async () => {
     systemSettings.logoUrl = settings.logo_url?.value || ''
     systemSettings.faviconUrl = settings.favicon_url?.value || ''
     systemSettings.customCss = settings.custom_css?.value || ''
-  } catch (error) {
+  } catch (error: any) {
     ElMessage.error('获取系统设置失败')
     throw error
   } finally {
@@ -2245,7 +2278,7 @@ const fetchStorageStats = async () => {
     storageStats.totalStorage = Number(data.total_storage) || 0
     storageStats.usedStorage = Number(data.used_storage) || 0
     storageStats.availableStorage = Number(data.available_storage) || 0
-    } catch (error) {
+    } catch (error: any) {
       // 获取存储统计失败
     // 如果API不存在，使用系统统计数据
     storageStats.totalStorage = Number(systemStats.totalStorage) || 0
@@ -2259,7 +2292,7 @@ const refreshStorageStats = async () => {
   try {
     await fetchStorageStats()
     ElMessage.success('存储统计已刷新')
-  } catch (error) {
+  } catch (error: any) {
     ElMessage.error('刷新存储统计失败')
   }
 }
@@ -2292,7 +2325,7 @@ const showStorageAnalysis = () => {
     {
       confirmButtonText: '确定',
       dangerouslyUseHTMLString: true
-    }
+    } as any
   )
 }
 
@@ -2322,12 +2355,12 @@ const exportStorageReport = () => {
 }
 
 
-const handleUserSelectionChange = (selection: any[]) => {
+const handleUserSelectionChange = (selection: User[]) => {
   selectedUsers.value = selection
 }
 
 // 菜单状态管理
-const toggleMenu = (user: any) => {
+const toggleMenu = (user: User) => {
   const userId = user.id
   if (openMenus.value.has(userId)) {
     openMenus.value.delete(userId)
@@ -2338,11 +2371,11 @@ const toggleMenu = (user: any) => {
   }
 }
 
-const isMenuOpen = (user: any) => {
+const isMenuOpen = (user: User) => {
   return openMenus.value.has(user.id)
 }
 
-const handleMenuToggle = (visible: boolean, user: any) => {
+const handleMenuToggle = (visible: boolean, user: User) => {
   const userId = user.id
   if (visible) {
     // 关闭其他所有菜单
@@ -2369,7 +2402,7 @@ onMounted(() => {
   })
 })
 
-const handleUserAction = async (command: string, user: any) => {
+const handleUserAction = async (command: string, user: User) => {
   // 执行操作后关闭菜单
   closeAllMenus()
   
@@ -2411,8 +2444,17 @@ const handleUserAction = async (command: string, user: any) => {
         await toggleUserStatus(user)
       break
         
+    case 'editStorage':
+        // 兼容菜单项“设置存储”（移动端/部分视图）
+        await manageUserStorage(user)
+      break
+        
     case 'manageStorage':
         await manageUserStorage(user)
+      break
+        
+    case 'viewStats':
+        await viewUserStats(user)
       break
         
     case 'resetPassword':
@@ -2440,7 +2482,7 @@ const handleUserAction = async (command: string, user: any) => {
         ElMessage.success('用户已删除')
       break
     }
-  } catch (error) {
+  } catch (error: any) {
     if (error === 'cancel') {
       ElMessage.info('操作已取消')
     } else {
@@ -2450,7 +2492,7 @@ const handleUserAction = async (command: string, user: any) => {
 }
 
 // 切换用户角色
-const toggleUserRole = async (user: any) => {
+const toggleUserRole = async (user: User) => {
   try {
     const newRole = user.role === 'admin' ? 'user' : 'admin'
     await api.put(`/admin/users/${user.id}/role`, { role: newRole })
@@ -2462,14 +2504,14 @@ const toggleUserRole = async (user: any) => {
     }
     
     ElMessage.success(`用户角色已更新为${newRole === 'admin' ? '管理员' : '普通用户'}`)
-  } catch (error) {
+  } catch (error: any) {
     ElMessage.error('切换用户角色失败')
     throw error
   }
 }
 
 // 切换用户状态
-const toggleUserStatus = async (user: any) => {
+const toggleUserStatus = async (user: User) => {
   try {
     const newStatus = user.status === 'active' ? 'inactive' : 'active'
     await api.put(`/admin/users/${user.id}/status`, { status: newStatus })
@@ -2481,14 +2523,14 @@ const toggleUserStatus = async (user: any) => {
     }
     
     ElMessage.success(`用户状态已更新为${newStatus === 'active' ? '正常' : '已禁用'}`)
-  } catch (error) {
+  } catch (error: any) {
     ElMessage.error('切换用户状态失败')
     throw error
   }
 }
 
 // 管理用户存储
-const manageUserStorage = async (user: any) => {
+const manageUserStorage = async (user: User) => {
   try {
     // 创建自定义对话框
     const { value: formData } = await ElMessageBox({
@@ -2571,7 +2613,7 @@ const manageUserStorage = async (user: any) => {
               ElMessage.success(`用户存储限制已更新为 ${value} ${unit}`)
               done()
             })
-            .catch(error => {
+            .catch((error: any) => {
               ElMessage.error('更新存储限制失败')
               instance.confirmButtonLoading = false
             })
@@ -2580,15 +2622,42 @@ const manageUserStorage = async (user: any) => {
         }
       }
     })
-  } catch (error) {
+  } catch (error: any) {
     if (error !== 'cancel') {
       ElMessage.error('管理用户存储失败')
     }
   }
 }
 
+// 查看用户统计（移动端弹窗）
+const viewUserStats = async (user: User) => {
+  try {
+    const used = user.used_storage || 0
+    const limit = user.storage_limit || 0
+    const percent = limit > 0 ? ((used / limit) * 100).toFixed(2) : '0.00'
+    const createdAt = user.created_at || ''
+    await ElMessageBox({
+      title: '用户统计',
+      message: `
+        <div style="text-align:left; line-height:1.7;">
+          <p><strong>用户：</strong>${user.username}</p>
+          ${createdAt ? `<p><strong>创建时间：</strong>${createdAt}</p>` : ''}
+          <p><strong>已用存储：</strong>${formatFileSize(used)}</p>
+          <p><strong>存储上限：</strong>${limit ? formatFileSize(limit) : '未设置'}</p>
+          <p><strong>使用率：</strong>${percent}%</p>
+        </div>
+      `,
+      confirmButtonText: '知道了',
+      dangerouslyUseHTMLString: true,
+      customClass: 'custom-message-box'
+    })
+  } catch (error) {
+    // 用户取消或关闭弹窗，无需处理
+  }
+}
+
 // 重置用户密码
-const resetUserPassword = async (user: any) => {
+const resetUserPassword = async (user: User) => {
   try {
     await ElMessageBox.confirm(
       `确定要重置用户 "${user.username}" 的密码吗？\n\n重置后用户需要使用新密码登录。`,
@@ -2614,7 +2683,7 @@ const resetUserPassword = async (user: any) => {
     
     await api.put(`/admin/users/${user.id}/password`, { password: newPassword })
     ElMessage.success('用户密码重置成功')
-  } catch (error) {
+  } catch (error: any) {
     if (error !== 'cancel') {
       ElMessage.error('重置密码失败')
     }
@@ -2622,7 +2691,7 @@ const resetUserPassword = async (user: any) => {
 }
 
 // 强制用户登出
-const forceUserLogout = async (user: any) => {
+const forceUserLogout = async (user: User) => {
   try {
     await ElMessageBox.confirm(
       `确定要强制用户 "${user.username}" 登出吗？\n\n这将清除该用户的所有登录会话。`,
@@ -2636,7 +2705,7 @@ const forceUserLogout = async (user: any) => {
     
     await api.post(`/admin/users/${user.id}/logout`)
     ElMessage.success('用户已被强制登出')
-  } catch (error) {
+  } catch (error: any) {
     if (error !== 'cancel') {
       ElMessage.error('强制登出失败')
     }
@@ -2644,7 +2713,7 @@ const forceUserLogout = async (user: any) => {
 }
 
 // 删除用户
-const deleteUser = async (user: any) => {
+const deleteUser = async (user: User) => {
   try {
     await ElMessageBox.confirm(
       `确定要删除用户 "${user.username}" 吗？\n\n此操作将删除：\n- 用户的所有文件\n- 用户的所有文件夹\n- 用户的登录记录\n- 相关的系统日志\n\n此操作不可撤销！`,
@@ -2840,11 +2909,12 @@ const exportLogs = () => {
   }))
   
   // 创建CSV内容
-  const headers = ['时间', '级别', '来源', '消息', '用户ID']
+  const headers = ['时间', '级别', '来源', '消息', '用户ID'] as const
+  type HeaderKey = '时间' | '级别' | '来源' | '消息' | '用户ID'
   const csvContent = [
     headers.join(','),
     ...logData.map(row => 
-      headers.map(header => `"${(row[header] || '').toString().replace(/"/g, '""')}"`).join(',')
+      headers.map(header => `"${((row as any)[header] || '').toString().replace(/"/g, '""')}"`).join(',')
     )
   ].join('\n')
   
@@ -2910,7 +2980,7 @@ const saveSystemSettings = async () => {
         }
       )
     }
-    } catch (error) {
+    } catch (error: any) {
       // 保存系统设置失败
     if (error.response?.data?.message) {
       ElMessage.error(error.response.data.message)
@@ -3056,6 +3126,199 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+// 全局按钮样式覆盖 - 确保所有按钮使用灰白黑三色
+:deep(.el-button--primary) {
+  background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;
+  border: none !important;
+  color: white !important;
+  
+  &:hover {
+    background: linear-gradient(135deg, #111827 0%, #000000 100%) !important;
+  }
+}
+
+:deep(.el-button--default) {
+  background: linear-gradient(135deg, #f9fafb, #e5e7eb) !important;
+  border: 1px solid #d1d5db !important;
+  color: #374151 !important;
+  
+  &:hover {
+    background: linear-gradient(135deg, #e5e7eb, #d1d5db) !important;
+    border-color: #9ca3af !important;
+  }
+}
+
+:deep(.el-button--danger) {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+  border: none !important;
+  color: white !important;
+  
+  &:hover {
+    background: linear-gradient(135deg, #4b5563 0%, #374151 100%) !important;
+  }
+}
+
+:deep(.el-button--warning) {
+  background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%) !important;
+  border: none !important;
+  color: white !important;
+  
+  &:hover {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+  }
+}
+
+// 全局开关样式覆盖 - 确保所有开关使用灰白黑三色
+:deep(.el-switch) {
+  .el-switch__core {
+    background-color: #d1d5db !important;
+    border-color: #d1d5db !important;
+  }
+  
+  &.is-checked .el-switch__core {
+    background-color: #374151 !important;
+    border-color: #374151 !important;
+  }
+  
+  .el-switch__action {
+    background-color: white !important;
+  }
+}
+
+// 全局单选按钮组样式覆盖 - 确保所有单选按钮使用灰白黑三色
+:deep(.el-radio-group) {
+  .el-radio-button {
+    .el-radio-button__inner {
+      background: linear-gradient(135deg, #f9fafb, #e5e7eb) !important;
+      border: 1px solid #d1d5db !important;
+      color: #374151 !important;
+      
+      &:hover {
+        background: linear-gradient(135deg, #e5e7eb, #d1d5db) !important;
+        border-color: #9ca3af !important;
+      }
+    }
+    
+    &.is-active .el-radio-button__inner {
+      background: linear-gradient(135deg, #374151, #111827) !important;
+      border-color: #374151 !important;
+      color: white !important;
+      
+      &:hover {
+        background: linear-gradient(135deg, #111827, #000000) !important;
+      }
+    }
+  }
+}
+
+// 全局复选框组样式覆盖 - 确保所有复选框使用灰白黑三色
+:deep(.el-checkbox-group) {
+  .el-checkbox {
+    .el-checkbox__input {
+      .el-checkbox__inner {
+        background-color: #f9fafb !important;
+        border: 1px solid #d1d5db !important;
+        
+        &:hover {
+          border-color: #9ca3af !important;
+        }
+      }
+      
+      &.is-checked .el-checkbox__inner {
+        background-color: #374151 !important;
+        border-color: #374151 !important;
+        
+        &::after {
+          border-color: white !important;
+        }
+      }
+    }
+    
+    .el-checkbox__label {
+      color: #374151 !important;
+    }
+  }
+}
+
+// 全局侧边栏按钮样式覆盖 - 确保所有侧边栏按钮使用灰白黑三色
+:deep(.sidebar) {
+  .collapse-btn {
+    background: linear-gradient(135deg, #f9fafb, #e5e7eb) !important;
+    border: 1px solid #d1d5db !important;
+    color: #6b7280 !important; /* 默认灰色，与主布局一致 */
+    
+    &:hover {
+      background: linear-gradient(135deg, #e5e7eb, #d1d5db) !important;
+      border-color: #9ca3af !important;
+      color: #111827 !important; /* 悬停黑色 */
+    }
+
+    &:active,
+    &.is-active,
+    &[aria-pressed="true"] {
+      background: linear-gradient(135deg, #374151, #111827) !important;
+      border-color: #111827 !important;
+      color: #ffffff !important; /* 按下白色 */
+    }
+    
+    &[aria-disabled="true"],
+    &.is-disabled {
+      color: #9ca3af !important; /* 禁用浅灰 */
+      border-color: #e5e7eb !important;
+      background: linear-gradient(135deg, #f9fafb, #f3f4f6) !important;
+    }
+  }
+  
+  .user-menu-btn {
+    background: linear-gradient(135deg, #f9fafb, #e5e7eb) !important;
+    border: 1px solid #d1d5db !important;
+    color: #6b7280 !important; /* 默认灰色，与 collapse-btn 保持一致 */
+    
+    &:hover {
+      background: linear-gradient(135deg, #e5e7eb, #d1d5db) !important;
+      border-color: #9ca3af !important;
+      color: #111827 !important; /* 悬停黑色 */
+    }
+
+    &:active,
+    &.is-active,
+    &[aria-pressed="true"] {
+      background: linear-gradient(135deg, #374151, #111827) !important;
+      border-color: #111827 !important;
+      color: #ffffff !important; /* 按下白色 */
+    }
+    
+    &[aria-disabled="true"],
+    &.is-disabled {
+      color: #9ca3af !important; /* 禁用浅灰 */
+      border-color: #e5e7eb !important;
+      background: linear-gradient(135deg, #f9fafb, #f3f4f6) !important;
+    }
+    
+    :deep(.el-icon) {
+      color: currentColor !important; /* 图标跟随文字颜色 */
+    }
+  }
+  
+  .el-menu-item {
+    color: #374151 !important;
+    
+    &:hover {
+      background: linear-gradient(135deg, #f3f4f6, #e5e7eb) !important;
+      color: #111827 !important;
+    }
+    
+    &.is-active {
+      background: linear-gradient(135deg, #374151, #111827) !important;
+      color: white !important;
+      
+      &:hover {
+        background: linear-gradient(135deg, #111827, #000000) !important;
+      }
+    }
+  }
+}
+
 // 桌面端对话框居中优化
 :deep(.el-dialog) {
   margin: auto !important;
@@ -3127,7 +3390,7 @@ onUnmounted(() => {
             .el-input {
               .el-input__wrapper {
                 border-radius: 8px !important;
-                box-shadow: 0 0 0 1px #dcdfe6 inset !important;
+                box-shadow: 0 0 0 1px #d1d5db inset !important;
                 
                 .el-input__inner {
                   height: 44px !important;
@@ -3140,7 +3403,7 @@ onUnmounted(() => {
             .el-select {
               .el-select__wrapper {
                 border-radius: 8px !important;
-                box-shadow: 0 0 0 1px #dcdfe6 inset !important;
+                box-shadow: 0 0 0 1px #d1d5db inset !important;
                 min-height: 44px !important;
                 
                 .el-select__selection {
@@ -3169,11 +3432,11 @@ onUnmounted(() => {
         font-weight: 500 !important;
         
         &.el-button--primary {
-          background: linear-gradient(135deg, #409eff 0%, #337ecc 100%) !important;
+          background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;
           border: none !important;
           
           &:hover {
-            background: linear-gradient(135deg, #337ecc 0%, #2b6cb0 100%) !important;
+            background: linear-gradient(135deg, #111827 0%, #000000 100%) !important;
           }
         }
       }
@@ -3190,7 +3453,7 @@ onUnmounted(() => {
 .page-header {
   margin-bottom: 24px;
   padding: 20px 0;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #374151 0%, #111827 100%);
   border-radius: 12px;
   color: white;
   
@@ -3293,7 +3556,7 @@ onUnmounted(() => {
         transition: all 0.3s ease;
         
         &.is-active {
-          background: linear-gradient(135deg, #1890ff 0%, #40a9ff 100%);
+          background: linear-gradient(135deg, #374151 0%, #111827 100%);
           color: white;
           
           .el-icon {
@@ -3303,7 +3566,7 @@ onUnmounted(() => {
         
         &:hover {
           background: #f0f9ff;
-          color: #1890ff;
+          color: #111827;
         }
         
         .el-icon {
@@ -3380,15 +3643,15 @@ onUnmounted(() => {
             color: white;
             
             &.users {
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              background: linear-gradient(135deg, #374151 0%, #111827 100%);
             }
             
             &.files {
-              background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+              background: linear-gradient(135deg, #6b7280, #4b5563);
             }
             
             &.storage {
-              background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+              background: linear-gradient(135deg, #4b5563, #374151);
             }
           }
           
@@ -3419,11 +3682,11 @@ onUnmounted(() => {
                 font-size: 12px;
                 
                 &.up {
-                  color: #27ae60;
+                  color: #374151;
                 }
                 
                 &.down {
-                  color: #e74c3c;
+                  color: #6b7280;
                 }
               }
               
@@ -3606,15 +3869,15 @@ onUnmounted(() => {
               color: white;
               
               &.total {
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background: linear-gradient(135deg, #374151 0%, #111827 100%);
               }
               
               &.used {
-                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                background: linear-gradient(135deg, #6b7280, #4b5563);
               }
               
               &.available {
-                background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                background: linear-gradient(135deg, #4b5563, #374151);
               }
             }
             
@@ -3693,14 +3956,14 @@ onUnmounted(() => {
       left: 0;
       right: 0;
       height: 3px;
-      background: linear-gradient(90deg, #409eff, #67c23a, #e6a23c, #f56c6c);
+      background: linear-gradient(90deg, #374151, #6b7280, #9ca3af, #6b7280);
       opacity: 0.6;
     }
     
     &:hover {
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
       transform: translateY(-4px);
-      border-color: #409eff;
+      border-color: #374151;
     }
     
     &:active {
@@ -3870,11 +4133,11 @@ onUnmounted(() => {
 
 // ==================== 移动端用户筛选样式优化 ====================
 .mobile-user-filters {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
   border-radius: 24px;
   padding: 0;
   margin-bottom: 24px;
-  border: 1px solid rgba(64, 158, 255, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   box-shadow: 
     0 4px 20px rgba(0, 0, 0, 0.08),
     0 1px 3px rgba(0, 0, 0, 0.1);
@@ -3890,7 +4153,7 @@ onUnmounted(() => {
     left: 0;
     right: 0;
     height: 6px;
-    background: linear-gradient(90deg, #409eff 0%, #67c23a 50%, #e6a23c 100%);
+    background: linear-gradient(90deg, #374151 0%, #6b7280 50%, #9ca3af 100%);
     border-radius: 24px 24px 0 0;
   }
   
@@ -3921,9 +4184,9 @@ onUnmounted(() => {
       
       .filter-icon {
         font-size: 20px;
-        color: #409eff;
+        color: #374151;
         margin-right: 12px;
-        background: linear-gradient(135deg, #409eff, #67c23a);
+        background: linear-gradient(135deg, #374151, #6b7280);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -3972,7 +4235,7 @@ onUnmounted(() => {
           content: '';
           width: 4px;
           height: 16px;
-          background: linear-gradient(135deg, #409eff, #67c23a);
+          background: linear-gradient(135deg, #374151, #6b7280);
           border-radius: 2px;
           margin-right: 8px;
         }
@@ -3982,7 +4245,7 @@ onUnmounted(() => {
         :deep(.el-input__wrapper) {
           border-radius: 16px;
           box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-          border: 2px solid #e4e7ed;
+          border: 2px solid #d1d5db;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           height: 56px !important;
           background: #ffffff;
@@ -3994,7 +4257,7 @@ onUnmounted(() => {
           }
           
           &.is-focus {
-            border-color: #409eff;
+            border-color: #374151;
             box-shadow: 0 0 0 4px rgba(64, 158, 255, 0.15);
             transform: translateY(-2px);
           }
@@ -4047,7 +4310,7 @@ onUnmounted(() => {
           content: '';
           width: 4px;
           height: 16px;
-          background: linear-gradient(135deg, #409eff, #67c23a);
+          background: linear-gradient(135deg, #374151, #6b7280);
           border-radius: 2px;
           margin-right: 8px;
         }
@@ -4057,7 +4320,7 @@ onUnmounted(() => {
         :deep(.el-select__wrapper) {
           border-radius: 16px;
           box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-          border: 2px solid #e4e7ed;
+          border: 2px solid #d1d5db;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           height: 56px !important;
           background: #ffffff;
@@ -4069,7 +4332,7 @@ onUnmounted(() => {
           }
           
           &.is-focus {
-            border-color: #409eff;
+            border-color: #374151;
             box-shadow: 0 0 0 4px rgba(64, 158, 255, 0.15);
             transform: translateY(-2px);
           }
@@ -4138,20 +4401,20 @@ onUnmounted(() => {
         }
         
         &.primary-btn {
-          background: linear-gradient(135deg, #409eff 0%, #67c23a 100%) !important;
+          background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;
           color: #ffffff !important;
           
           &:hover {
-            background: linear-gradient(135deg, #337ecc 0%, #529b2e 100%) !important;
+            background: linear-gradient(135deg, #111827 0%, #000000 100%) !important;
           }
         }
         
         &.secondary-btn {
-          background: linear-gradient(135deg, #909399 0%, #c0c4cc 100%) !important;
+          background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%) !important;
           color: #ffffff !important;
           
           &:hover {
-            background: linear-gradient(135deg, #73767a 0%, #a6a9ad 100%) !important;
+            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
           }
         }
       }
@@ -4191,7 +4454,7 @@ onUnmounted(() => {
           :deep(.el-input__wrapper) {
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            border: 1px solid #dcdfe6;
+            border: 1px solid #d1d5db;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             height: 48px;
             
@@ -4201,7 +4464,7 @@ onUnmounted(() => {
             }
             
             &.is-focus {
-              border-color: #409eff;
+              border-color: #374151;
               box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.15);
             }
             
@@ -4232,7 +4495,7 @@ onUnmounted(() => {
           :deep(.el-select__wrapper) {
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            border: 1px solid #dcdfe6;
+            border: 1px solid #d1d5db;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             height: 48px;
             
@@ -4242,7 +4505,7 @@ onUnmounted(() => {
             }
             
             &.is-focus {
-              border-color: #409eff;
+              border-color: #374151;
               box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.15);
             }
             
@@ -4309,19 +4572,19 @@ onUnmounted(() => {
       }
       
       &.el-button--primary {
-        background: linear-gradient(135deg, #409eff, #66b3ff) !important;
+        background: linear-gradient(135deg, #374151, #111827) !important;
         
         &:hover {
-          background: linear-gradient(135deg, #66b3ff, #409eff) !important;
+          background: linear-gradient(135deg, #111827, #000000) !important;
         }
       }
       
       &.el-button--default {
-        background: linear-gradient(135deg, #f5f7fa, #e4e7ed) !important;
+        background: linear-gradient(135deg, #f9fafb, #e5e7eb) !important;
         color: #606266 !important;
         
         &:hover {
-          background: linear-gradient(135deg, #e4e7ed, #d3d4d6) !important;
+          background: linear-gradient(135deg, #e5e7eb, #d1d5db) !important;
           color: #303133 !important;
         }
       }
@@ -4364,19 +4627,19 @@ onUnmounted(() => {
     }
     
     &.el-button--primary {
-      background: linear-gradient(135deg, #409eff, #66b3ff);
+      background: linear-gradient(135deg, #374151, #111827);
       
       &:hover {
-        background: linear-gradient(135deg, #66b3ff, #409eff);
+        background: linear-gradient(135deg, #111827, #000000);
       }
     }
     
     &.el-button--default {
-      background: linear-gradient(135deg, #f5f7fa, #e4e7ed);
+      background: linear-gradient(135deg, #f9fafb, #e5e7eb);
       color: #606266;
       
       &:hover {
-        background: linear-gradient(135deg, #e4e7ed, #d3d4d6);
+        background: linear-gradient(135deg, #e5e7eb, #d1d5db);
         color: #303133;
       }
       
@@ -4427,7 +4690,7 @@ onUnmounted(() => {
           :deep(.el-input__wrapper) {
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            border: 1px solid #dcdfe6;
+            border: 1px solid #d1d5db;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             height: 48px;
             
@@ -4437,7 +4700,7 @@ onUnmounted(() => {
             }
             
             &.is-focus {
-              border-color: #409eff;
+              border-color: #374151;
               box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.15);
             }
             
@@ -4468,7 +4731,7 @@ onUnmounted(() => {
           :deep(.el-select__wrapper) {
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            border: 1px solid #dcdfe6;
+            border: 1px solid #d1d5db;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             height: 48px;
             
@@ -4478,7 +4741,7 @@ onUnmounted(() => {
             }
             
             &.is-focus {
-              border-color: #409eff;
+              border-color: #374151;
               box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.15);
             }
             
@@ -4545,19 +4808,19 @@ onUnmounted(() => {
       }
       
       &.el-button--primary {
-        background: linear-gradient(135deg, #409eff, #66b3ff) !important;
+        background: linear-gradient(135deg, #374151, #111827) !important;
         
         &:hover {
-          background: linear-gradient(135deg, #66b3ff, #409eff) !important;
+          background: linear-gradient(135deg, #111827, #000000) !important;
         }
       }
       
       &.el-button--default {
-        background: linear-gradient(135deg, #f5f7fa, #e4e7ed) !important;
+        background: linear-gradient(135deg, #f9fafb, #e5e7eb) !important;
         color: #606266 !important;
         
         &:hover {
-          background: linear-gradient(135deg, #e4e7ed, #d3d4d6) !important;
+          background: linear-gradient(135deg, #e5e7eb, #d1d5db) !important;
           color: #303133 !important;
         }
       }
@@ -4686,15 +4949,15 @@ onUnmounted(() => {
       }
       
       &.total {
-        background: linear-gradient(135deg, #409eff, #66b3ff);
+        background: linear-gradient(135deg, #374151, #111827);
       }
       
       &.used {
-        background: linear-gradient(135deg, #67c23a, #85ce61);
+        background: linear-gradient(135deg, #6b7280, #4b5563);
       }
       
       &.available {
-        background: linear-gradient(135deg, #e6a23c, #f0c78a);
+        background: linear-gradient(135deg, #4b5563, #374151);
       }
     }
     
@@ -4806,7 +5069,7 @@ onUnmounted(() => {
       
       .el-icon {
         font-size: 16px;
-        color: #409eff;
+        color: #374151;
       }
       
       span {
@@ -4886,19 +5149,19 @@ onUnmounted(() => {
       }
       
       &.el-button--primary {
-        background: linear-gradient(135deg, #409eff, #66b3ff);
+        background: linear-gradient(135deg, #374151, #111827);
         
         &:hover {
-          background: linear-gradient(135deg, #66b3ff, #409eff);
+          background: linear-gradient(135deg, #111827, #000000);
         }
       }
       
       &.el-button--default {
-        background: linear-gradient(135deg, #f5f7fa, #e4e7ed);
+        background: linear-gradient(135deg, #f9fafb, #e5e7eb);
         color: #606266;
         
         &:hover {
-          background: linear-gradient(135deg, #e4e7ed, #d3d4d6);
+          background: linear-gradient(135deg, #e5e7eb, #d1d5db);
           color: #303133;
         }
       }
@@ -5058,7 +5321,7 @@ onUnmounted(() => {
       
       &:hover {
         background: #e6f7ff;
-        color: #409eff;
+        color: #374151;
       }
       
       &.active {
@@ -5508,7 +5771,7 @@ onUnmounted(() => {
               padding: 8px 4px !important;
               font-size: 11px !important;
               font-weight: 600 !important;
-              background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+              background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%) !important;
               border-bottom: 2px solid #dee2e6 !important;
               
               .cell {
@@ -5592,7 +5855,7 @@ onUnmounted(() => {
               
               .el-progress-bar__inner {
                 border-radius: 2px !important;
-                background: linear-gradient(90deg, #28a745 0%, #20c997 100%) !important;
+                background: linear-gradient(90deg, #374151 0%, #6b7280 100%) !important;
               }
             }
             
@@ -5682,7 +5945,7 @@ onUnmounted(() => {
             font-weight: 500 !important;
             
             &.el-tag--primary {
-              background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
+              background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;
               color: white !important;
               border: none !important;
             }
@@ -5962,16 +6225,16 @@ onUnmounted(() => {
               font-weight: 500 !important;
               
               &.el-button--primary {
-                background: linear-gradient(135deg, #409eff 0%, #337ecc 100%) !important;
+                background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;
                 border: none !important;
                 
                 &:hover {
-                  background: linear-gradient(135deg, #337ecc 0%, #2b6cb0 100%) !important;
+                  background: linear-gradient(135deg, #111827 0%, #000000 100%) !important;
                 }
               }
               
               &.el-button--danger {
-                background: linear-gradient(135deg, #f56c6c 0%, #e74c3c 100%) !important;
+                background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
                 border: none !important;
                 
                 &:hover {
@@ -6022,7 +6285,7 @@ onUnmounted(() => {
       
       .el-divider__text {
         font-weight: 600;
-        color: #409eff;
+        color: #374151;
       }
     }
     
@@ -6184,7 +6447,7 @@ onUnmounted(() => {
         :deep(.el-select__wrapper) {
           border-radius: 16px;
           box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-          border: 2px solid #e4e7ed;
+          border: 2px solid #d1d5db;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           height: 56px !important;
           background: #ffffff;
@@ -6262,7 +6525,7 @@ onUnmounted(() => {
         :deep(.el-input__wrapper) {
           border-radius: 16px;
           box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-          border: 2px solid #e4e7ed;
+          border: 2px solid #d1d5db;
           transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
           height: 56px !important;
           background: #ffffff;

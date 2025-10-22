@@ -715,23 +715,67 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+// 全局按钮样式覆盖 - 确保所有按钮使用灰白黑三色
+:deep(.el-button--primary) {
+  background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;
+  border: none !important;
+  color: white !important;
+  
+  &:hover {
+    background: linear-gradient(135deg, #111827 0%, #000000 100%) !important;
+  }
+}
+
+:deep(.el-button--default) {
+  background: linear-gradient(135deg, #f9fafb, #e5e7eb) !important;
+  border: 1px solid #d1d5db !important;
+  color: #374151 !important;
+  
+  &:hover {
+    background: linear-gradient(135deg, #e5e7eb, #d1d5db) !important;
+    border-color: #9ca3af !important;
+  }
+}
+
+:deep(.el-button--text) {
+  color: #374151 !important;
+  
+  &:hover {
+    color: #111827 !important;
+    background: rgba(55, 65, 81, 0.1) !important;
+  }
+}
+
+// 全局标签样式覆盖
+:deep(.el-tag--primary) {
+  background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;
+  border-color: #374151 !important;
+  color: white !important;
+}
+
+:deep(.el-tag--danger) {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+  border-color: #6b7280 !important;
+  color: white !important;
+}
+
 // 确保消息颜色正确显示
 :deep(.el-message--success) {
-  background-color: #f0f9ff !important;
-  border-color: #b3d8ff !important;
-  color: #67c23a !important;
+  background-color: #f9fafb !important;
+  border-color: #d1d5db !important;
+  color: #374151 !important;
   
   .el-message__content {
-    color: #67c23a !important;
+    color: #374151 !important;
   }
   
   .el-message__icon {
-    color: #67c23a !important;
+    color: #374151 !important;
   }
 }
 .profile-page {
   padding: 24px;
-  background: #f5f7fa;
+  background: #f9fafb;
   min-height: 100vh;
 }
 
@@ -747,13 +791,13 @@ onUnmounted(() => {
       .page-title {
         font-size: 28px;
         font-weight: 600;
-        color: #303133;
+        color: #111827;
         margin: 0 0 8px 0;
       }
       
       .page-subtitle {
         font-size: 14px;
-        color: #909399;
+        color: #6b7280;
         margin: 0;
       }
     }
@@ -775,7 +819,7 @@ onUnmounted(() => {
         
         .profile-avatar {
           margin-bottom: 16px;
-          border: 4px solid #f0f0f0;
+          border: 4px solid #e5e7eb;
         }
         
         .avatar-actions {
@@ -792,7 +836,7 @@ onUnmounted(() => {
             .progress-text {
               margin-top: 8px;
               font-size: 12px;
-              color: #909399;
+              color: #6b7280;
               text-align: center;
             }
           }
@@ -811,12 +855,12 @@ onUnmounted(() => {
           }
           
           .label {
-            color: #909399;
+            color: #6b7280;
             font-size: 14px;
           }
           
           .value {
-            color: #303133;
+            color: #111827;
             font-weight: 500;
             font-size: 14px;
           }
@@ -837,7 +881,7 @@ onUnmounted(() => {
           
           .el-progress-bar__outer {
             border-radius: 12px; // 增大圆角
-            background: rgba(102, 126, 234, 0.08); // 更淡的背景
+            background: rgba(55, 65, 81, 0.08); // 更淡的背景
             height: 12px; // 增加高度
             box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1); // 添加内阴影
             overflow: hidden; // 确保圆角效果
@@ -845,8 +889,8 @@ onUnmounted(() => {
           
           .el-progress-bar__inner {
             border-radius: 12px; // 增大圆角
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%); // 更丰富的渐变
-            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3); // 添加阴影效果
+            background: linear-gradient(135deg, #374151 0%, #111827 50%, #000000 100%); // 更丰富的渐变
+            box-shadow: 0 2px 8px rgba(55, 65, 81, 0.3); // 添加阴影效果
             position: relative;
             overflow: hidden;
             
@@ -866,7 +910,7 @@ onUnmounted(() => {
           .el-progress__text {
             font-size: 14px; // 增大字体
             font-weight: 600; // 增加字重
-            color: #667eea; // 使用主题色
+            color: #374151; // 使用主题色
             margin-left: 12px; // 增加间距
           }
         }
@@ -874,7 +918,7 @@ onUnmounted(() => {
         .storage-text {
           margin-top: 8px;
           font-size: 12px;
-          color: #909399;
+          color: #6b7280;
           text-align: center;
         }
       }
@@ -936,9 +980,9 @@ onUnmounted(() => {
 .email-verification-section {
   margin-top: 16px;
   padding: 20px;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%);
   border-radius: 12px;
-  border: 1px solid #dee2e6;
+  border: 1px solid #d1d5db;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
   
@@ -953,12 +997,12 @@ onUnmounted(() => {
     align-items: center;
     margin-bottom: 16px;
     padding-bottom: 12px;
-    border-bottom: 1px solid #e9ecef;
+    border-bottom: 1px solid #d1d5db;
     
     .verification-title {
       font-size: 16px;
       font-weight: 600;
-      color: #495057;
+      color: #374151;
       display: flex;
       align-items: center;
       
@@ -978,7 +1022,7 @@ onUnmounted(() => {
       
       &:hover:not(:disabled) {
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+        box-shadow: 0 4px 12px rgba(55, 65, 81, 0.3);
       }
       
       &:disabled {
@@ -992,9 +1036,9 @@ onUnmounted(() => {
 .email-verification-section {
   margin-top: 16px;
   padding: 20px;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%);
   border-radius: 12px;
-  border: 1px solid #dee2e6;
+  border: 1px solid #d1d5db;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
   
@@ -1006,12 +1050,12 @@ onUnmounted(() => {
   .verification-header {
     margin-bottom: 16px;
     padding-bottom: 12px;
-    border-bottom: 1px solid #e9ecef;
+    border-bottom: 1px solid #d1d5db;
     
     .verification-title {
       font-size: 16px;
       font-weight: 600;
-      color: #495057;
+      color: #374151;
       display: flex;
       align-items: center;
       
@@ -1034,16 +1078,16 @@ onUnmounted(() => {
       
       :deep(.el-input__wrapper) {
         border-radius: 8px;
-        border: 2px solid #e3f2fd;
+        border: 2px solid #e5e7eb;
         transition: all 0.3s ease;
         
         &:hover {
-          border-color: #bbdefb;
+          border-color: #9ca3af;
         }
         
         &.is-focus {
-          border-color: #409eff;
-          box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
+          border-color: #374151;
+          box-shadow: 0 0 0 2px rgba(55, 65, 81, 0.1);
         }
       }
       
@@ -1064,7 +1108,7 @@ onUnmounted(() => {
       
       &:hover:not(:disabled) {
         transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+        box-shadow: 0 4px 12px rgba(55, 65, 81, 0.3);
       }
       
       &:disabled {
@@ -1079,10 +1123,10 @@ onUnmounted(() => {
     justify-content: space-between;
     align-items: center;
     font-size: 13px;
-    color: #6c757d;
+    color: #6b7280;
     
     .code-timer {
-      color: #dc3545;
+      color: #6b7280;
       font-weight: 600;
       display: flex;
       align-items: center;
@@ -1099,7 +1143,7 @@ onUnmounted(() => {
       height: auto;
       
       &:hover {
-        color: #409eff;
+        color: #374151;
       }
     }
   }
@@ -1177,7 +1221,7 @@ onUnmounted(() => {
 
 // 忘记密码按钮样式
 .forgot-password-btn {
-  color: #667eea;
+  color: #374151;
   font-size: 14px;
   padding: 0 8px;
   margin-left: 16px;
@@ -1187,11 +1231,11 @@ onUnmounted(() => {
   position: relative;
   
   &:hover {
-    color: #764ba2;
+    color: #111827;
   }
   
   &:active {
-    color: #5a4fcf;
+    color: #000000;
   }
   
   .el-icon {

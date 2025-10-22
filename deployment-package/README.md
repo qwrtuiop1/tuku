@@ -147,3 +147,8 @@ docker-compose logs -f
 
 
 
+
+
+
+
+

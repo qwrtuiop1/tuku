@@ -847,9 +847,284 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+// 全局Element Plus组件样式覆盖 - 确保所有组件使用灰白黑三色
+:deep(.el-button--primary) {
+  background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;
+  border: none !important;
+  color: white !important;
+  
+  &:hover {
+    background: linear-gradient(135deg, #111827 0%, #000000 100%) !important;
+  }
+  
+  &:active {
+    background: linear-gradient(135deg, #000000 0%, #111827 100%) !important;
+  }
+}
+
+:deep(.el-button--default) {
+  background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%) !important;
+  border: 1px solid #d1d5db !important;
+  color: #374151 !important;
+  
+  &:hover {
+    background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%) !important;
+    border-color: #9ca3af !important;
+  }
+}
+
+:deep(.el-button--danger) {
+  background: linear-gradient(135deg, #6b7280 0%, #374151 100%) !important;
+  border: none !important;
+  color: white !important;
+  
+  &:hover {
+    background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;
+  }
+}
+
+:deep(.el-button--text) {
+  color: #374151 !important;
+  
+  &:hover {
+    color: #111827 !important;
+    background-color: #f3f4f6 !important;
+  }
+}
+
+:deep(.el-tag--info) {
+  background-color: #f3f4f6 !important;
+  color: #374151 !important;
+  border-color: #d1d5db !important;
+}
+
+:deep(.el-tag--warning) {
+  background-color: #e5e7eb !important;
+  color: #111827 !important;
+  border-color: #9ca3af !important;
+}
+
+:deep(.el-tag--success) {
+  background-color: #f3f4f6 !important;
+  color: #374151 !important;
+  border-color: #d1d5db !important;
+}
+
+:deep(.el-tag--danger) {
+  background-color: #d1d5db !important;
+  color: #111827 !important;
+  border-color: #6b7280 !important;
+}
+
+:deep(.el-input__wrapper) {
+  background-color: #ffffff !important;
+  border: 1px solid #d1d5db !important;
+  
+  &:hover {
+    border-color: #9ca3af !important;
+  }
+  
+  &.is-focus {
+    border-color: #374151 !important;
+    box-shadow: 0 0 0 2px rgba(55, 65, 81, 0.1) !important;
+  }
+}
+
+:deep(.el-select__wrapper) {
+  background-color: #ffffff !important;
+  border: 1px solid #d1d5db !important;
+  
+  &:hover {
+    border-color: #9ca3af !important;
+  }
+  
+  &.is-focus {
+    border-color: #374151 !important;
+    box-shadow: 0 0 0 2px rgba(55, 65, 81, 0.1) !important;
+  }
+}
+
+:deep(.el-date-editor) {
+  background-color: #ffffff !important;
+  border: 1px solid #d1d5db !important;
+  
+  &:hover {
+    border-color: #9ca3af !important;
+  }
+  
+  &.is-focus {
+    border-color: #374151 !important;
+    box-shadow: 0 0 0 2px rgba(55, 65, 81, 0.1) !important;
+  }
+}
+
+:deep(.el-radio-group) {
+  .el-radio {
+    color: #374151 !important;
+    
+    .el-radio__input {
+      .el-radio__inner {
+        background-color: #ffffff !important;
+        border-color: #d1d5db !important;
+        
+        &:hover {
+          border-color: #9ca3af !important;
+        }
+      }
+      
+      &.is-checked .el-radio__inner {
+        background-color: #374151 !important;
+        border-color: #374151 !important;
+        
+        &::after {
+          background-color: #ffffff !important;
+        }
+      }
+    }
+    
+    .el-radio__label {
+      color: #374151 !important;
+    }
+    
+    &:hover .el-radio__label {
+      color: #111827 !important;
+    }
+  }
+}
+
+:deep(.el-textarea__inner) {
+  background-color: #ffffff !important;
+  border: 1px solid #d1d5db !important;
+  color: #374151 !important;
+  
+  &:hover {
+    border-color: #9ca3af !important;
+  }
+  
+  &:focus {
+    border-color: #374151 !important;
+    box-shadow: 0 0 0 2px rgba(55, 65, 81, 0.1) !important;
+  }
+  
+  &::placeholder {
+    color: #9ca3af !important;
+  }
+}
+
+:deep(.el-input__count) {
+  color: #6b7280 !important;
+  background-color: #f9fafb !important;
+}
+
+:deep(.el-form-item__label) {
+  color: #374151 !important;
+  font-weight: 500 !important;
+}
+
+:deep(.el-form-item.is-required .el-form-item__label::before) {
+  color: #6b7280 !important;
+}
+
+:deep(.el-select-dropdown) {
+  background-color: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  border-radius: 8px !important;
+}
+
+:deep(.el-select-dropdown__item) {
+  color: #374151 !important;
+  background-color: #ffffff !important;
+  
+  &:hover {
+    background-color: #f3f4f6 !important;
+    color: #111827 !important;
+  }
+  
+  &.is-selected {
+    background-color: #e5e7eb !important;
+    color: #111827 !important;
+    font-weight: 500 !important;
+  }
+  
+  &.is-disabled {
+    color: #9ca3af !important;
+    background-color: #f9fafb !important;
+  }
+}
+
+:deep(.el-select-dropdown__empty) {
+  color: #6b7280 !important;
+  background-color: #f9fafb !important;
+}
+
+:deep(.el-select-dropdown__loading) {
+  color: #6b7280 !important;
+  background-color: #f9fafb !important;
+}
+
+:deep(.el-picker-panel) {
+  background-color: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  border-radius: 8px !important;
+}
+
+:deep(.el-picker-panel__body) {
+  background-color: #ffffff !important;
+}
+
+:deep(.el-date-table td) {
+  color: #374151 !important;
+  
+  &:hover {
+    background-color: #f3f4f6 !important;
+    color: #111827 !important;
+  }
+  
+  &.is-selected {
+    background-color: #374151 !important;
+    color: #ffffff !important;
+  }
+  
+  &.is-today {
+    color: #111827 !important;
+    font-weight: 600 !important;
+  }
+  
+  &.is-disabled {
+    color: #9ca3af !important;
+    background-color: #f9fafb !important;
+  }
+}
+
+:deep(.el-time-panel) {
+  background-color: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+:deep(.el-time-spinner__item) {
+  color: #374151 !important;
+  
+  &:hover {
+    background-color: #f3f4f6 !important;
+    color: #111827 !important;
+  }
+  
+  &.is-active {
+    background-color: #374151 !important;
+    color: #ffffff !important;
+  }
+  
+  &.is-disabled {
+    color: #9ca3af !important;
+    background-color: #f9fafb !important;
+  }
+}
+
 .notification-history-page {
   padding: 24px;
-  background: #f5f7fa;
+  background: #f9fafb;
   min-height: 100vh;
   
   // 移动端适配
@@ -870,13 +1145,13 @@ onUnmounted(() => {
       .page-title {
         font-size: 28px;
         font-weight: 600;
-        color: #303133;
+        color: #111827;
         margin: 0 0 8px 0;
       }
       
       .page-subtitle {
         font-size: 14px;
-        color: #909399;
+        color: #6b7280;
         margin: 0;
       }
     }
@@ -1001,7 +1276,7 @@ onUnmounted(() => {
         .card-title {
           font-size: 16px;
           font-weight: 600;
-          color: #303133;
+          color: #111827;
         }
       }
       
@@ -1036,7 +1311,7 @@ onUnmounted(() => {
           display: flex;
           align-items: flex-start;
           padding: 16px;
-          border: 1px solid #e4e7ed;
+          border: 1px solid #e5e7eb;
           border-radius: 8px;
           margin-bottom: 12px;
           background: #fff;
@@ -1050,13 +1325,13 @@ onUnmounted(() => {
           }
           
           &:hover {
-            border-color: #409eff;
-            box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
+            border-color: #374151;
+            box-shadow: 0 2px 8px rgba(55, 65, 81, 0.1);
           }
           
           &.unread {
-            border-left: 4px solid #409eff;
-            background: #f0f9ff;
+            border-left: 4px solid #374151;
+            background: #f9fafb;
           }
           
           .notification-icon {
@@ -1065,7 +1340,7 @@ onUnmounted(() => {
             
             .el-icon {
               font-size: 20px;
-              color: #409eff;
+              color: #374151;
             }
             
             // 移动端适配
@@ -1090,7 +1365,7 @@ onUnmounted(() => {
               .notification-title {
                 font-size: 16px;
                 font-weight: 500;
-                color: #303133;
+                color: #111827;
                 margin: 0;
                 
                 // 移动端适配
@@ -1106,7 +1381,7 @@ onUnmounted(() => {
                 
                 .notification-time {
                   font-size: 12px;
-                  color: #909399;
+                  color: #6b7280;
                 }
               }
             }
@@ -1116,7 +1391,7 @@ onUnmounted(() => {
               
               .notification-text {
                 font-size: 14px;
-                color: #606266;
+                color: #374151;
                 line-height: 1.5;
                 margin: 0;
               }
@@ -1139,7 +1414,7 @@ onUnmounted(() => {
                 align-items: center;
                 gap: 4px;
                 font-size: 12px;
-                color: #909399;
+                color: #6b7280;
               }
               
               .notification-status {
@@ -1149,7 +1424,7 @@ onUnmounted(() => {
                 
                 .read-time {
                   font-size: 12px;
-                  color: #909399;
+                  color: #6b7280;
                 }
               }
             }
@@ -1183,7 +1458,7 @@ onUnmounted(() => {
     overflow: hidden;
     
     .el-dialog__header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #374151 0%, #111827 100%);
       color: white;
       border-radius: 12px 12px 0 0;
       padding: 20px 24px;
@@ -1208,7 +1483,7 @@ onUnmounted(() => {
     
     .el-dialog__body {
       padding: 24px;
-      background: #fafbfc;
+      background: #f9fafb;
       max-height: calc(90vh - 140px);
       overflow-y: auto;
     }
@@ -1217,7 +1492,7 @@ onUnmounted(() => {
       background: white;
       border-radius: 0 0 12px 12px;
       padding: 16px 24px;
-      border-top: 1px solid #e4e7ed;
+      border-top: 1px solid #e5e7eb;
     }
   }
   
@@ -1289,15 +1564,15 @@ onUnmounted(() => {
   .detail-header {
     margin-bottom: 20px;
     padding-bottom: 16px;
-    border-bottom: 2px solid #f0f2f5;
+    border-bottom: 2px solid #f3f4f6;
     
     h3 {
       font-size: 20px;
       font-weight: 700;
-      color: #1a202c;
+      color: #111827;
       margin: 0 0 16px 0;
       line-height: 1.3;
-      background: linear-gradient(135deg, #1a202c 0%, #4a5568 100%);
+      background: linear-gradient(135deg, #111827 0%, #374151 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
@@ -1311,8 +1586,8 @@ onUnmounted(() => {
       
       .detail-time {
         font-size: 14px;
-        color: #64748b;
-        background: #f1f5f9;
+        color: #6b7280;
+        background: #f3f4f6;
         padding: 6px 12px;
         border-radius: 6px;
         font-weight: 500;
@@ -1322,10 +1597,10 @@ onUnmounted(() => {
   
   .detail-content {
     margin-bottom: 24px;
-    background: #f8fafc;
+    background: #f9fafb;
     padding: 16px;
     border-radius: 8px;
-    border-left: 4px solid #3b82f6;
+    border-left: 4px solid #374151;
     
     p {
       font-size: 15px;
@@ -1342,8 +1617,8 @@ onUnmounted(() => {
     justify-content: space-between;
     align-items: center;
     padding-top: 20px;
-    border-top: 1px solid #e2e8f0;
-    background: #fafbfc;
+    border-top: 1px solid #e5e7eb;
+    background: #f9fafb;
     margin: -20px -20px -20px -20px;
     padding: 20px;
     border-radius: 0 0 8px 8px;
@@ -1353,14 +1628,14 @@ onUnmounted(() => {
       align-items: center;
       gap: 8px;
       font-size: 14px;
-      color: #64748b;
+      color: #6b7280;
       background: white;
       padding: 8px 12px;
       border-radius: 6px;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
       
       .el-icon {
-        color: #3b82f6;
+        color: #374151;
         font-size: 16px;
       }
     }
@@ -1372,8 +1647,8 @@ onUnmounted(() => {
       
       .read-time {
         font-size: 13px;
-        color: #16a34a;
-        background: rgba(22, 163, 74, 0.1);
+        color: #374151;
+        background: rgba(55, 65, 81, 0.1);
         padding: 6px 10px;
         border-radius: 6px;
         font-weight: 500;
@@ -1507,15 +1782,17 @@ onUnmounted(() => {
     gap: 12px;
     align-items: center;
     
-    .el-button {
-      min-width: 80px;
-      font-weight: 500;
-      border-radius: 6px;
-      transition: all 0.3s ease;
-      
-      &:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    .dialog-button-item {
+      .el-button {
+        min-width: 80px;
+        font-weight: 500;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+        
+        &:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
       }
     }
     
@@ -1525,11 +1802,15 @@ onUnmounted(() => {
       gap: 10px;
       width: 100%;
       
-      .el-button {
+      .dialog-button-item {
         width: 100%;
-        min-width: auto;
-        padding: 12px 20px;
-        font-size: 14px;
+        
+        .el-button {
+          width: 100%;
+          min-width: auto;
+          padding: 12px 20px;
+          font-size: 14px;
+        }
       }
     }
     
@@ -1537,9 +1818,11 @@ onUnmounted(() => {
     @media (max-width: 480px) {
       gap: 8px;
       
-      .el-button {
-        padding: 10px 16px;
-        font-size: 13px;
+      .dialog-button-item {
+        .el-button {
+          padding: 10px 16px;
+          font-size: 13px;
+        }
       }
     }
   }

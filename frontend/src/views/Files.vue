@@ -1677,15 +1677,14 @@ onUnmounted(() => {
   justify-content: space-between;
   gap: 16px;
   padding: 12px 16px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  background: #ffffff;
   border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(102, 126, 234, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
   margin-bottom: 8px;
-  max-width: calc(100vw - 400px); // 限制宽度与内容区域一致
-  margin-left: auto;
-  margin-right: auto;
-  backdrop-filter: blur(10px);
+  width: 100%; // 不限宽，随内容区域
+  margin-left: 0;
+  margin-right: 0;
   
   .toolbar-main {
     display: flex;
@@ -1706,11 +1705,12 @@ onUnmounted(() => {
       }
       
       &.el-button--primary {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: #000000;
         border: none;
+        color: #ffffff;
         
         &:hover {
-          background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+          background: #374151;
         }
       }
     }
@@ -1729,17 +1729,17 @@ onUnmounted(() => {
       :deep(.el-input__wrapper) {
         border-radius: 12px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        border: 1px solid rgba(102, 126, 234, 0.2);
+        border: 1px solid #d1d5db;
         transition: all 0.3s ease;
         
         &:hover {
-          border-color: rgba(102, 126, 234, 0.4);
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+          border-color: #9ca3af;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
         
         &.is-focus {
-          border-color: #667eea;
-          box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
+          border-color: #000000;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
         }
       }
     }
@@ -1750,13 +1750,13 @@ onUnmounted(() => {
         padding: 0 12px;
         border-radius: 10px;
         font-weight: 500;
-        background: rgba(102, 126, 234, 0.1);
-        border: 1px solid rgba(102, 126, 234, 0.2);
-        color: #667eea;
+        background: #f9fafb;
+        border: 1px solid #d1d5db;
+        color: #374151;
         transition: all 0.3s ease;
         
         &:hover {
-          background: rgba(102, 126, 234, 0.2);
+          background: #f3f4f6;
           transform: translateY(-1px);
         }
       }
@@ -1780,8 +1780,9 @@ onUnmounted(() => {
         }
         
         &.el-button--primary {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: #000000;
           border: none;
+          color: #ffffff;
         }
       }
     }
@@ -1805,13 +1806,12 @@ onUnmounted(() => {
 // 移动端工具栏样式
 .mobile-toolbar {
   display: none;
-  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  background: #ffffff;
   border-radius: 16px;
   padding: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(102, 126, 234, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
   margin-bottom: 8px;
-  backdrop-filter: blur(10px);
   
   .mobile-actions {
     display: flex;
@@ -1839,21 +1839,22 @@ onUnmounted(() => {
     }
     
     .mobile-upload-btn {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: #000000;
       border: none;
+      color: #ffffff;
       
       &:hover {
-        background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+        background: #374151;
       }
     }
     
     .mobile-folder-btn {
-      background: rgba(102, 126, 234, 0.1);
-      border: 1px solid rgba(102, 126, 234, 0.3);
-      color: #667eea;
+      background: #f9fafb;
+      border: 1px solid #d1d5db;
+      color: #374151;
       
       &:hover {
-        background: rgba(102, 126, 234, 0.2);
+        background: #f3f4f6;
       }
     }
     
@@ -1862,13 +1863,13 @@ onUnmounted(() => {
       height: 44px;
       border-radius: 12px;
       padding: 0;
-      background: rgba(102, 126, 234, 0.1);
-      border: 1px solid rgba(102, 126, 234, 0.3);
-      color: #667eea;
+      background: #f9fafb;
+      border: 1px solid #d1d5db;
+      color: #374151;
       transition: all 0.3s ease;
       
       &:hover {
-        background: rgba(102, 126, 234, 0.2);
+        background: #f3f4f6;
         transform: translateY(-2px);
       }
     }
@@ -1885,16 +1886,16 @@ onUnmounted(() => {
       :deep(.el-input__wrapper) {
         border-radius: 12px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        border: 1px solid rgba(102, 126, 234, 0.2);
+        border: 1px solid #d1d5db;
         transition: all 0.3s ease;
         
         &:hover {
-          border-color: rgba(102, 126, 234, 0.4);
+          border-color: #9ca3af;
         }
         
         &.is-focus {
-          border-color: #667eea;
-          box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
+          border-color: #000000;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
         }
       }
     }
@@ -1904,13 +1905,13 @@ onUnmounted(() => {
         width: 36px;
         height: 32px;
         border-radius: 10px;
-        background: rgba(102, 126, 234, 0.1);
-        border: 1px solid rgba(102, 126, 234, 0.2);
-        color: #667eea;
+        background: #f9fafb;
+        border: 1px solid #d1d5db;
+        color: #374151;
         transition: all 0.3s ease;
         
         &:hover {
-          background: rgba(102, 126, 234, 0.2);
+          background: #f3f4f6;
           transform: translateY(-1px);
         }
       }
@@ -1928,8 +1929,9 @@ onUnmounted(() => {
         }
         
         &.el-button--primary {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: #000000;
           border: none;
+          color: #ffffff;
         }
       }
     }
@@ -1939,16 +1941,16 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-    border: 1px solid rgba(102, 126, 234, 0.2);
+    background: #f9fafb;
+    border: 1px solid #d1d5db;
     border-radius: 12px;
     padding: 12px 16px;
     margin-top: 12px;
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     
     .batch-info {
       font-size: 14px;
-      color: #667eea;
+      color: #374151;
       font-weight: 600;
     }
     
@@ -1971,13 +1973,12 @@ onUnmounted(() => {
 }
 
 .breadcrumb-nav {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #000000;
   border-radius: 16px;
   padding: 16px 20px;
   margin-bottom: 12px;
-  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  border: 1px solid #374151;
   position: relative;
   overflow: hidden;
   
@@ -1989,7 +1990,7 @@ onUnmounted(() => {
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
     animation: shimmer 3s infinite;
   }
   
@@ -2065,10 +2066,9 @@ onUnmounted(() => {
     font-weight: 600;
     font-size: 14px;
     padding: 4px 12px;
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
     display: flex;
     align-items: center;
     height: auto;
@@ -2147,8 +2147,8 @@ onUnmounted(() => {
   background: white;
   border-radius: 16px; // 增加圆角
   padding: 20px; // 统一设置所有方向的内边距
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); // 优化阴影
-  border: 1px solid rgba(102, 126, 234, 0.1); // 优化边框
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); // 优化阴影
+  border: 1px solid #e5e7eb; // 优化边框
   overflow: hidden;
   position: relative;
   margin-top: 8px; // 与工具栏的间距
@@ -2166,20 +2166,20 @@ onUnmounted(() => {
     
     .empty-icon {
       font-size: 24px;
-      color: #c0c4cc;
+      color: #9ca3af;
       margin-bottom: 3px;
     }
     
     .empty-title {
       font-size: 12px;
       font-weight: 600;
-      color: #606266;
+      color: #374151;
       margin-bottom: 1px;
     }
     
     .empty-description {
       font-size: 9px;
-      color: #909399;
+      color: #6b7280;
       margin-bottom: 4px;
       line-height: 1.1;
     }
@@ -2195,14 +2195,14 @@ onUnmounted(() => {
   
   .loading-icon {
     font-size: 16px;
-    color: #409eff;
+    color: #374151;
     margin-bottom: 4px;
     animation: spin 1s linear infinite;
   }
   
   .loading-text {
     font-size: 10px;
-    color: #606266;
+    color: #6b7280;
   }
 }
 
@@ -2334,7 +2334,7 @@ onUnmounted(() => {
 }
 
   .file-card {
-    border: 1px solid #e4e7ed;
+    border: 1px solid #e5e7eb;
     border-radius: 12px;
     overflow: hidden;
     transition: all 0.3s ease;
@@ -2342,17 +2342,17 @@ onUnmounted(() => {
     position: relative; // 添加相对定位，以便card-actions绝对定位
     
     &:hover {
-      border-color: #667eea;
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+      border-color: #000000;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       transform: translateY(-2px);
     }
     
     &.folder-card {
-      border-color: #ffa500;
+      border: none;
       
       &:hover {
-        border-color: #ff8c00;
-        box-shadow: 0 4px 12px rgba(255, 140, 0, 0.15);
+        border: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       }
       
       // 文件夹默认不显示操作按钮
@@ -2373,7 +2373,7 @@ onUnmounted(() => {
   
   .card-thumbnail {
     height: 120px;
-    background: #f8f9fa;
+    background: #f9fafb;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2385,7 +2385,7 @@ onUnmounted(() => {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, #ffa500, #ff8c00);
+      background: #6b7280;
       border-radius: 8px;
       
       .folder-icon {
@@ -2402,7 +2402,7 @@ onUnmounted(() => {
     
     .file-name {
       font-weight: 500;
-      color: #303133;
+      color: #111827;
       margin-bottom: 4px;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -2411,7 +2411,7 @@ onUnmounted(() => {
     
     .file-meta {
       font-size: 12px;
-      color: #909399;
+      color: #6b7280;
     }
   }
 }
@@ -2423,7 +2423,7 @@ onUnmounted(() => {
     gap: 8px;
     
     .file-type-icon {
-      color: #667eea;
+      color: #374151;
     }
   }
 }
@@ -2451,7 +2451,7 @@ onUnmounted(() => {
   .unified-toolbar {
     padding: 16px 20px;
     gap: 20px;
-    max-width: calc(100vw - 440px); // 与内容区域宽度一致
+    width: 100%; // 与内容区域一致，不限宽
     
     .toolbar-main .action-btn {
       height: 44px;
@@ -2841,13 +2841,13 @@ onUnmounted(() => {
         
         &:hover:not(.el-button--primary) {
           background: #f5f7fa;
-          color: #409eff;
+          color: #374151;
         }
         
         &.el-button--primary {
-          background: linear-gradient(135deg, #409eff, #36cfc9);
+          background: #000000;
           color: white;
-          box-shadow: 0 1px 4px rgba(64, 158, 255, 0.3);
+          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
         }
         
         .el-icon {
@@ -2861,15 +2861,15 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: #f0f9ff;
-    border: 1px solid #bae6fd;
+    background: #f9fafb;
+    border: 1px solid #d1d5db;
     border-radius: 8px;
     padding: 12px;
     margin-top: 12px;
     
     .batch-info {
       font-size: 14px;
-      color: #0369a1;
+      color: #374151;
       font-weight: 500;
     }
     
@@ -3234,11 +3234,11 @@ onUnmounted(() => {
     }
     
     &.folder-card {
-      border-color: #ffa500;
+      border: none;
       
       &:hover {
-        border-color: #ff8c00;
-        box-shadow: 0 4px 12px rgba(255, 140, 0, 0.15);
+        border: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       }
       
       // 文件夹默认不显示操作按钮
@@ -3269,12 +3269,12 @@ onUnmounted(() => {
     
     .file-icon {
       font-size: 18px;
-      color: #606266;
+      color: #374151;
     }
     
     .folder-icon {
       font-size: 18px;
-      color: #ffa500;
+      color: #6b7280;
     }
     
     img {
@@ -3301,7 +3301,7 @@ onUnmounted(() => {
     
     .file-meta {
       font-size: 7px;
-      color: #909399;
+      color: #6b7280;
       line-height: 1.2;
       margin-top: 1px;
     }
@@ -3729,13 +3729,13 @@ onUnmounted(() => {
     
     .el-dialog__header {
       padding: 20px 20px 0 20px !important;
-      border-bottom: 1px solid #f0f0f0 !important;
+      border-bottom: 1px solid #e5e7eb !important;
       margin-bottom: 0 !important;
       
       .el-dialog__title {
         font-size: 18px !important;
         font-weight: 600 !important;
-        color: #2c3e50 !important;
+        color: #111827 !important;
       }
       
       .el-dialog__headerbtn {
@@ -3746,10 +3746,10 @@ onUnmounted(() => {
         
         .el-dialog__close {
           font-size: 18px !important;
-          color: #909399 !important;
+          color: #6b7280 !important;
           
           &:hover {
-            color: #409eff !important;
+            color: #374151 !important;
           }
         }
       }
@@ -3768,11 +3768,18 @@ onUnmounted(() => {
               font-size: 16px !important;
               border-radius: 12px !important;
               padding: 0 16px !important;
-              border: 2px solid #e9ecef !important;
+              border: 2px solid #e5e7eb !important;
+              background-color: #f9fafb !important;
+              color: #111827 !important;
               
               &:focus {
-                border-color: #667eea !important;
-                box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+                border-color: #374151 !important;
+                box-shadow: 0 0 0 3px rgba(55, 65, 81, 0.1) !important;
+                background-color: #ffffff !important;
+              }
+              
+              &::placeholder {
+                color: #9ca3af !important;
               }
             }
           }
@@ -3782,7 +3789,7 @@ onUnmounted(() => {
     
     .el-dialog__footer {
       padding: 0 20px 20px 20px !important;
-      border-top: 1px solid #f0f0f0 !important;
+      border-top: 1px solid #e5e7eb !important;
       margin-top: 0 !important;
       
       .mobile-footer {
@@ -3798,26 +3805,27 @@ onUnmounted(() => {
           min-width: 80px !important;
           
           &.el-button--primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;
             border: none !important;
+            color: #ffffff !important;
             
             &:hover {
-              background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%) !important;
+              background: linear-gradient(135deg, #111827 0%, #000000 100%) !important;
               transform: translateY(-2px) !important;
-              box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3) !important;
+              box-shadow: 0 8px 25px rgba(55, 65, 81, 0.3) !important;
             }
           }
           
           &:not(.el-button--primary) {
-            background: #f8f9fa !important;
-            border: 1px solid #e9ecef !important;
-            color: #495057 !important;
+            background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%) !important;
+            border: 1px solid #d1d5db !important;
+            color: #374151 !important;
             
             &:hover {
-              background: #e9ecef !important;
-              border-color: #dee2e6 !important;
+              background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%) !important;
+              border-color: #9ca3af !important;
               transform: translateY(-2px) !important;
-              box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
+              box-shadow: 0 4px 15px rgba(55, 65, 81, 0.1) !important;
             }
           }
         }
@@ -4053,6 +4061,68 @@ onUnmounted(() => {
   .mobile-refresh-btn {
     min-height: 44px;
     -webkit-tap-highlight-color: transparent;
+  }
+}
+
+// 全局Element Plus组件样式覆盖 - 新建文件夹对话框
+:deep(.el-button--primary) {
+  background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  
+  &:hover {
+    background: linear-gradient(135deg, #111827 0%, #000000 100%) !important;
+  }
+  
+  &:active {
+    background: linear-gradient(135deg, #000000 0%, #111827 100%) !important;
+  }
+}
+
+:deep(.el-button--default) {
+  background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%) !important;
+  border: 1px solid #d1d5db !important;
+  color: #374151 !important;
+  
+  &:hover {
+    background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%) !important;
+    border-color: #9ca3af !important;
+  }
+  
+  &:active {
+    background: linear-gradient(135deg, #d1d5db 0%, #9ca3af 100%) !important;
+  }
+}
+
+:deep(.el-input__wrapper) {
+  background-color: #f9fafb !important;
+  border: 1px solid #e5e7eb !important;
+  color: #111827 !important;
+  
+  &:hover {
+    border-color: #9ca3af !important;
+  }
+  
+  &.is-focus {
+    border-color: #374151 !important;
+    box-shadow: 0 0 0 2px rgba(55, 65, 81, 0.1) !important;
+    background-color: #ffffff !important;
+  }
+}
+
+:deep(.el-input__inner) {
+  color: #111827 !important;
+  
+  &::placeholder {
+    color: #9ca3af !important;
+  }
+}
+
+:deep(.el-form-item__label) {
+  color: #374151 !important;
+  
+  &.is-required::before {
+    color: #6b7280 !important;
   }
 }
 </style>

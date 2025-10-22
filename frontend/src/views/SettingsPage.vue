@@ -1161,6 +1161,8 @@
                       <el-icon><Check /></el-icon>
                       保存设置
                     </el-button>
+                  </div>
+                  <div class="button-container">
                     <el-button @click="resetNotificationSettings" :disabled="saving" class="reset-btn">
                       <el-icon><Refresh /></el-icon>
                       重置设置
@@ -1373,7 +1375,7 @@
                     重置
                   </el-button>
                   
-                  <div v-if="hasIntegrationChanges" class="form-description" style="margin-top: 8px; color: #e6a23c;">
+                  <div v-if="hasIntegrationChanges" class="form-description" style="margin-top: 8px; color: #6b7280;">
                     <el-icon><Warning /></el-icon>
                     检测到未保存的更改
                   </div>
@@ -2268,9 +2270,174 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
+// 全局按钮样式覆盖 - 确保所有按钮使用灰白黑三色
+:deep(.el-button--primary) {
+  background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;
+  border: none !important;
+  color: white !important;
+  
+  &:hover {
+    background: linear-gradient(135deg, #111827 0%, #000000 100%) !important;
+  }
+}
+
+:deep(.el-button--default) {
+  background: linear-gradient(135deg, #f9fafb, #e5e7eb) !important;
+  border: 1px solid #d1d5db !important;
+  color: #374151 !important;
+  
+  &:hover {
+    background: linear-gradient(135deg, #e5e7eb, #d1d5db) !important;
+    border-color: #9ca3af !important;
+  }
+}
+
+:deep(.el-button--text) {
+  color: #374151 !important;
+  
+  &:hover {
+    color: #111827 !important;
+    background: rgba(55, 65, 81, 0.1) !important;
+  }
+}
+
+// 全局开关样式覆盖
+:deep(.el-switch) {
+  --el-switch-on-color: #374151;
+  --el-switch-off-color: #d1d5db;
+  
+  .el-switch__action {
+    background-color: #ffffff;
+  }
+}
+
+// 全局复选框样式覆盖
+:deep(.el-checkbox) {
+  .el-checkbox__input .el-checkbox__inner {
+    background-color: #ffffff;
+    border-color: #d1d5db;
+    
+    &:hover {
+      border-color: #9ca3af;
+    }
+  }
+  
+  .el-checkbox__input.is-checked .el-checkbox__inner {
+    background-color: #374151;
+    border-color: #374151;
+  }
+  
+  .el-checkbox__label {
+    color: #374151;
+  }
+}
+
+// 全局输入框样式覆盖
+:deep(.el-input__wrapper) {
+  background-color: #ffffff;
+  border-color: #d1d5db;
+  box-shadow: 0 0 0 1px #d1d5db inset;
+  
+  &:hover {
+    border-color: #9ca3af;
+  }
+  
+  &.is-focus {
+    border-color: #374151;
+    box-shadow: 0 0 0 1px #374151 inset;
+  }
+}
+
+// 全局数字输入框样式覆盖
+:deep(.el-input-number) {
+  .el-input-number__decrease,
+  .el-input-number__increase {
+    background-color: #f9fafb;
+    border-color: #d1d5db;
+    color: #374151;
+    
+    &:hover {
+      background-color: #f3f4f6;
+      border-color: #9ca3af;
+    }
+  }
+}
+
+// 全局选择器样式覆盖
+:deep(.el-select) {
+  .el-select__wrapper {
+    background-color: #ffffff;
+    border-color: #d1d5db;
+    box-shadow: 0 0 0 1px #d1d5db inset;
+    
+    &:hover {
+      border-color: #9ca3af;
+    }
+    
+    &.is-focus {
+      border-color: #374151;
+      box-shadow: 0 0 0 1px #374151 inset;
+    }
+  }
+  
+  .el-select__caret {
+    color: #6b7280;
+  }
+}
+
+// 全局文本域样式覆盖
+:deep(.el-textarea) {
+  .el-textarea__inner {
+    background-color: #ffffff;
+    border-color: #d1d5db;
+    color: #374151;
+    
+    &:hover {
+      border-color: #9ca3af;
+    }
+    
+    &:focus {
+      border-color: #374151;
+      box-shadow: 0 0 0 1px #374151 inset;
+    }
+  }
+}
+
+// 全局表单标签样式覆盖
+:deep(.el-form-item__label) {
+  color: #374151;
+}
+
+// 全局警告框样式覆盖
+:deep(.el-alert) {
+  &.el-alert--success {
+    background-color: #f0f9f0;
+    border-color: #d1fae5;
+    color: #374151;
+  }
+  
+  &.el-alert--warning {
+    background-color: #fffbeb;
+    border-color: #fde68a;
+    color: #374151;
+  }
+  
+  &.el-alert--error {
+    background-color: #fef2f2;
+    border-color: #fecaca;
+    color: #374151;
+  }
+  
+  &.el-alert--info {
+    background-color: #f9fafb;
+    border-color: #d1d5db;
+    color: #374151;
+  }
+}
+
 .settings-page {
   padding: 24px;
-  background: #f5f7fa;
+  background: #f9fafb;
   min-height: 100vh;
 }
 
@@ -2286,13 +2453,13 @@ onMounted(() => {
       .page-title {
         font-size: 28px;
         font-weight: 600;
-        color: #303133;
+        color: #111827;
         margin: 0 0 8px 0;
       }
       
       .page-subtitle {
         font-size: 14px;
-        color: #909399;
+        color: #6b7280;
         margin: 0;
       }
     }
@@ -2328,7 +2495,7 @@ onMounted(() => {
         border-radius: 12px;
         padding: 16px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-        border: 1px solid #e4e7ed;
+        border: 1px solid #e5e7eb;
         
         .menu-item {
           display: flex;
@@ -2339,17 +2506,17 @@ onMounted(() => {
           cursor: pointer;
           transition: all 0.3s ease;
           font-size: 14px;
-          color: #606266;
+          color: #6b7280;
           
           &:hover {
-            background-color: #f5f7fa;
-            color: #409eff;
+            background-color: #f3f4f6;
+            color: #374151;
           }
           
           &.is-active {
-            background: linear-gradient(135deg, #409eff 0%, #67c23a 100%);
+            background: linear-gradient(135deg, #374151 0%, #111827 100%);
             color: #ffffff;
-            box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
+            box-shadow: 0 2px 8px rgba(55, 65, 81, 0.3);
             
             .menu-icon {
               color: #ffffff;
@@ -2375,25 +2542,25 @@ onMounted(() => {
         border-radius: 12px;
         padding: 32px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-        border: 1px solid #e4e7ed;
+        border: 1px solid #e5e7eb;
         min-height: 600px;
         
         .settings-section {
           .section-header {
             margin-bottom: 32px;
             padding-bottom: 20px;
-            border-bottom: 2px solid #f0f2f5;
+            border-bottom: 2px solid #f3f4f6;
             
             h3 {
               font-size: 24px;
               font-weight: 600;
-              color: #303133;
+              color: #111827;
               margin: 0 0 12px 0;
             }
             
             p {
               font-size: 15px;
-              color: #909399;
+              color: #6b7280;
               margin: 0;
             }
           }
@@ -2408,7 +2575,7 @@ onMounted(() => {
             .form-actions {
               margin-top: 32px;
               padding-top: 24px;
-              border-top: 1px solid #e4e7ed;
+              border-top: 1px solid #e5e7eb;
               
               .el-button {
                 padding: 12px 24px;
@@ -2419,7 +2586,7 @@ onMounted(() => {
             
             .field-description {
               font-size: 13px;
-              color: #909399;
+              color: #6b7280;
               margin-top: 8px;
               line-height: 1.5;
             }
@@ -2430,7 +2597,7 @@ onMounted(() => {
               gap: 8px;
               
               .unit {
-                color: #909399;
+                color: #6b7280;
                 font-size: 14px;
                 font-weight: 500;
               }
@@ -2439,27 +2606,27 @@ onMounted(() => {
             .integration-group {
               margin-bottom: 32px;
               padding: 24px;
-              background: #f8f9fa;
+              background: #f9fafb;
               border-radius: 12px;
-              border: 1px solid #e4e7ed;
+              border: 1px solid #e5e7eb;
               
               .integration-header {
                 display: flex;
                 align-items: center;
                 margin-bottom: 20px;
                 padding-bottom: 12px;
-                border-bottom: 1px solid #e4e7ed;
+                border-bottom: 1px solid #e5e7eb;
                 
                 .integration-icon {
                   margin-right: 10px;
                   font-size: 18px;
-                  color: #409eff;
+                  color: #374151;
                 }
                 
                 span {
                   font-size: 16px;
                   font-weight: 600;
-                  color: #303133;
+                  color: #111827;
                 }
               }
               
@@ -2485,7 +2652,7 @@ onMounted(() => {
             
             .readonly-input {
               :deep(.el-input__wrapper) {
-                background-color: #f5f7fa;
+                background-color: #f9fafb;
                 cursor: not-allowed;
               }
             }
@@ -2517,12 +2684,12 @@ onMounted(() => {
         border-radius: 8px;
         
         &.is-active {
-          background-color: #ecf5ff;
-          color: #409eff;
+          background-color: #f3f4f6;
+          color: #374151;
         }
         
         &:hover {
-          background-color: #f5f7fa;
+          background-color: #f9fafb;
         }
       }
     }
@@ -2533,18 +2700,18 @@ onMounted(() => {
       .section-header {
         margin-bottom: 24px;
         padding-bottom: 16px;
-        border-bottom: 1px solid #e4e7ed;
+        border-bottom: 1px solid #e5e7eb;
         
         h3 {
           font-size: 20px;
           font-weight: 600;
-          color: #303133;
+          color: #111827;
           margin: 0 0 8px 0;
         }
         
         p {
           font-size: 14px;
-          color: #909399;
+          color: #6b7280;
           margin: 0;
         }
       }
@@ -2554,13 +2721,13 @@ onMounted(() => {
         
         .form-unit {
           margin-left: 8px;
-          color: #909399;
+          color: #6b7280;
           font-size: 14px;
         }
         
         .form-description {
           margin-left: 8px;
-          color: #909399;
+          color: #6b7280;
           font-size: 12px;
           line-height: 1.4;
         }
@@ -2570,8 +2737,8 @@ onMounted(() => {
           
           .el-divider__text {
             font-weight: 600;
-            color: #606266;
-            background-color: #f5f7fa;
+            color: #6b7280;
+            background-color: #f9fafb;
             padding: 0 16px;
           }
         }
@@ -2580,12 +2747,12 @@ onMounted(() => {
           margin-top: 12px;
           
           code {
-            background-color: #f4f4f5;
+            background-color: #f3f4f6;
             padding: 2px 6px;
             border-radius: 3px;
             font-family: 'Courier New', monospace;
             font-size: 12px;
-            color: #e6a23c;
+            color: #6b7280;
           }
           
           p {
@@ -2606,18 +2773,18 @@ onMounted(() => {
       // 第三方集成特殊样式
       &.integration-section {
         .integration-card {
-          border: 1px solid #e4e7ed;
+          border: 1px solid #e5e7eb;
           border-radius: 8px;
           padding: 20px;
           margin-bottom: 20px;
-          background: #fafafa;
+          background: #f9fafb;
           
           &.qq-card {
-            border-left: 4px solid #12b7f5;
+            border-left: 4px solid #6b7280;
           }
           
           &.wechat-card {
-            border-left: 4px solid #07c160;
+            border-left: 4px solid #374151;
           }
           
           .card-header {
@@ -2637,18 +2804,18 @@ onMounted(() => {
               font-weight: bold;
               
               &.qq-icon {
-                background: linear-gradient(135deg, #12b7f5, #0ea5e9);
+                background: linear-gradient(135deg, #6b7280, #4b5563);
               }
               
               &.wechat-icon {
-                background: linear-gradient(135deg, #07c160, #06ad56);
+                background: linear-gradient(135deg, #374151, #111827);
               }
             }
             
             .card-title {
               font-size: 16px;
               font-weight: 600;
-              color: #303133;
+              color: #111827;
               margin: 0;
             }
           }
@@ -2662,22 +2829,22 @@ onMounted(() => {
             font-weight: 500;
             
             &.enabled {
-              background-color: #f0f9ff;
-              color: #0369a1;
-              border: 1px solid #bae6fd;
+              background-color: #f3f4f6;
+              color: #374151;
+              border: 1px solid #d1d5db;
             }
             
             &.disabled {
-              background-color: #fef2f2;
-              color: #dc2626;
-              border: 1px solid #fecaca;
+              background-color: #f9fafb;
+              color: #6b7280;
+              border: 1px solid #e5e7eb;
             }
           }
         }
         
         .test-section {
-          background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-          border: 1px solid #e2e8f0;
+          background: linear-gradient(135deg, #f9fafb, #f3f4f6);
+          border: 1px solid #e5e7eb;
           border-radius: 8px;
           padding: 20px;
           margin-top: 24px;
@@ -2685,14 +2852,14 @@ onMounted(() => {
           .test-title {
             font-size: 16px;
             font-weight: 600;
-            color: #1e293b;
+            color: #111827;
             margin: 0 0 12px 0;
             display: flex;
             align-items: center;
             
             .el-icon {
               margin-right: 8px;
-              color: #3b82f6;
+              color: #374151;
             }
           }
           
@@ -2767,7 +2934,7 @@ onMounted(() => {
         border-radius: 8px;
         font-size: 12px;
         font-weight: 500;
-        color: #606266;
+        color: #6b7280;
         border: none;
         background: transparent;
         transition: all 0.3s ease;
@@ -2779,14 +2946,14 @@ onMounted(() => {
         }
         
         &.is-active {
-          background: #f0f9ff;
-          color: #409eff;
-          box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+          background: linear-gradient(135deg, #374151 0%, #111827 100%);
+          color: #ffffff;
+          box-shadow: 0 2px 8px rgba(55, 65, 81, 0.3);
         }
         
         &:hover {
-          background: #f5f7fa;
-          color: #409eff;
+          background: #f3f4f6;
+          color: #374151;
         }
       }
       
@@ -2825,23 +2992,23 @@ onMounted(() => {
         .scroll-track {
           width: 100%;
           height: 8px;
-          background: #e4e7ed;
+          background: #e5e7eb;
           border-radius: 4px;
           position: relative;
           overflow: hidden;
           box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
-          border: 1px solid #d3d4d6;
+          border: 1px solid #d1d5db;
           
           .scroll-thumb {
             height: 100%;
-            background: linear-gradient(90deg, #409eff 0%, #67c23a 100%);
+            background: linear-gradient(90deg, #374151 0%, #111827 100%);
             border-radius: 4px;
             transition: all 0.3s ease;
             position: absolute;
             top: 0;
             left: 0;
             min-width: 40px;
-            box-shadow: 0 2px 4px rgba(64, 158, 255, 0.4);
+            box-shadow: 0 2px 4px rgba(55, 65, 81, 0.4);
             border: 1px solid rgba(255, 255, 255, 0.3);
             
             &::after {
@@ -2867,7 +3034,7 @@ onMounted(() => {
     .mobile-settings-card {
       border-radius: 16px;
       box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-      border: 1px solid #e4e7ed;
+      border: 1px solid #e5e7eb;
       
       :deep(.el-card__body) {
         padding: 20px;
@@ -2878,7 +3045,7 @@ onMounted(() => {
       .mobile-section-header {
         margin-bottom: 24px;
         padding-bottom: 16px;
-        border-bottom: 2px solid #f0f2f5;
+        border-bottom: 2px solid #f3f4f6;
         
         .section-title {
           display: flex;
@@ -2887,20 +3054,20 @@ onMounted(() => {
           
           .section-icon {
             font-size: 20px;
-            color: #409eff;
+            color: #374151;
             margin-right: 12px;
           }
           
           span {
             font-size: 20px;
             font-weight: 600;
-            color: #303133;
+            color: #111827;
           }
         }
         
         .section-description {
           font-size: 14px;
-          color: #909399;
+          color: #6b7280;
           margin-left: 32px;
           line-height: 1.4;
         }
@@ -2920,7 +3087,7 @@ onMounted(() => {
             :deep(.el-form-item__label) {
               font-size: 15px;
               font-weight: 600;
-              color: #303133;
+              color: #111827;
               margin-bottom: 8px;
               line-height: 1.4;
             }
@@ -2940,15 +3107,15 @@ onMounted(() => {
                   }
                   
                   &.is-focus {
-                    border-color: #409eff;
-                    box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.1);
+                    border-color: #374151;
+                    box-shadow: 0 0 0 3px rgba(55, 65, 81, 0.1);
                   }
                   
                   .el-input__inner {
                     height: 46px;
                     font-size: 15px;
                     padding: 0 16px;
-                    color: #303133;
+                    color: #111827;
                     
                     &::placeholder {
                       color: #c0c4cc;
@@ -2966,7 +3133,7 @@ onMounted(() => {
                   transition: all 0.3s ease;
                   font-size: 15px;
                   padding: 12px 16px;
-                  color: #303133;
+                  color: #111827;
                   
                   &:hover {
                     border-color: #c0c4cc;
@@ -2974,8 +3141,8 @@ onMounted(() => {
                   }
                   
                   &:focus {
-                    border-color: #409eff;
-                    box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.1);
+                    border-color: #374151;
+                    box-shadow: 0 0 0 3px rgba(55, 65, 81, 0.1);
                   }
                   
                   &::placeholder {
@@ -3006,7 +3173,7 @@ onMounted(() => {
                 
                 .unit {
                   font-size: 14px;
-                  color: #909399;
+                  color: #6b7280;
                   font-weight: 500;
                   min-width: 24px;
                 }
@@ -3022,7 +3189,7 @@ onMounted(() => {
                   
                   :deep(.el-checkbox__label) {
                     font-size: 14px;
-                    color: #606266;
+                    color: #374151;
                     padding-left: 8px;
                   }
                 }
@@ -3045,7 +3212,7 @@ onMounted(() => {
               .field-description {
                 margin-top: 8px;
                 font-size: 13px;
-                color: #909399;
+                color: #6b7280;
                 line-height: 1.4;
               }
             }
@@ -3069,14 +3236,14 @@ onMounted(() => {
               border-radius: 12px;
               font-size: 15px;
               font-weight: 600;
-              background: linear-gradient(135deg, #409eff 0%, #67c23a 100%);
+              background: linear-gradient(135deg, #374151 0%, #111827 100%);
               border: none;
-              box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+              box-shadow: 0 4px 12px rgba(55, 65, 81, 0.3);
               transition: all 0.3s ease;
               
               &:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 6px 16px rgba(64, 158, 255, 0.4);
+                box-shadow: 0 6px 16px rgba(55, 65, 81, 0.4);
               }
               
               &:active {
@@ -3095,14 +3262,14 @@ onMounted(() => {
               border-radius: 12px;
               font-size: 15px;
               font-weight: 600;
-              background: linear-gradient(135deg, #e6a23c 0%, #f56c6c 100%);
+              background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
               border: none;
-              box-shadow: 0 4px 12px rgba(230, 162, 60, 0.3);
+              box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
               transition: all 0.3s ease;
               
               &:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 6px 16px rgba(230, 162, 60, 0.4);
+                box-shadow: 0 6px 16px rgba(107, 114, 128, 0.4);
               }
               
               &:active {
@@ -3151,9 +3318,9 @@ onMounted(() => {
           margin-bottom: 8px; // Add bottom margin to create space
           
           &:hover {
-            border-color: #409eff;
+            border-color: #374151;
             transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(64, 158, 255, 0.2);
+            box-shadow: 0 4px 12px rgba(55, 65, 81, 0.2);
           }
           
           &:active {
@@ -3173,7 +3340,7 @@ onMounted(() => {
       .field-description {
         margin-top: 8px; // Add top margin for additional spacing
         font-size: 13px;
-        color: #909399;
+        color: #6b7280;
         line-height: 1.5; // Increase line height for better readability
         padding-top: 4px; // Add padding top for extra space
       }
@@ -3204,16 +3371,16 @@ onMounted(() => {
         .el-slider__bar {
           height: 12px;
           border-radius: 6px;
-          background: linear-gradient(90deg, #409eff 0%, #67c23a 100%);
-          box-shadow: 0 1px 3px rgba(64, 158, 255, 0.3); // Add shadow
+          background: linear-gradient(90deg, #374151 0%, #111827 100%);
+          box-shadow: 0 1px 3px rgba(55, 65, 81, 0.3); // Add shadow
         }
         
         .el-slider__button {
           width: 32px; // Further increase button size
           height: 32px;
-          border: 4px solid #409eff; // Increase border width
+          border: 4px solid #374151; // Increase border width
           background: #ffffff;
-          box-shadow: 0 3px 12px rgba(64, 158, 255, 0.4); // Increase shadow
+          box-shadow: 0 3px 12px rgba(55, 65, 81, 0.4); // Increase shadow
           transition: all 0.3s ease;
           border-radius: 50%; // Ensure circular shape
           
@@ -3247,12 +3414,12 @@ onMounted(() => {
             padding: 8px 12px; // Add padding
             
             &:hover {
-              border-color: #409eff;
+              border-color: #374151;
             }
             
             &:focus-within {
-              border-color: #409eff;
-              box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
+              border-color: #374151;
+              box-shadow: 0 0 0 2px rgba(55, 65, 81, 0.1);
             }
           }
         }
@@ -3261,7 +3428,7 @@ onMounted(() => {
       .field-description {
         margin-top: 12px; // Increase top margin
         font-size: 14px; // Increase font size
-        color: #909399;
+        color: #6b7280;
         line-height: 1.6; // Increase line height
         padding-top: 8px; // Increase padding top
         text-align: center; // Center the text
@@ -3285,13 +3452,13 @@ onMounted(() => {
         
         .integration-icon {
           font-size: 18px;
-          color: #409eff;
+          color: #374151;
         }
         
         span {
           font-size: 16px;
           font-weight: 600;
-          color: #303133;
+          color: #111827;
         }
       }
     }
@@ -3321,8 +3488,8 @@ onMounted(() => {
         .group-icon {
           margin-right: 10px;
           font-size: 18px;
-          color: #409eff;
-          background: linear-gradient(135deg, #409eff 0%, #67c23a 100%);
+          color: #374151;
+          background: linear-gradient(135deg, #374151 0%, #111827 100%);
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
           background-clip: text;
@@ -3331,7 +3498,7 @@ onMounted(() => {
         .group-title {
           font-size: 16px;
           font-weight: 700;
-          color: #303133;
+          color: #111827;
           letter-spacing: 0.5px;
         }
       }
@@ -3364,29 +3531,29 @@ onMounted(() => {
           margin-top: 8px; // Add top margin
           
           &:hover {
-            border-color: #409eff;
-            background: #f0f9ff;
+            border-color: #374151;
+            background: #f9fafb;
             transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(64, 158, 255, 0.2);
+            box-shadow: 0 6px 16px rgba(55, 65, 81, 0.2);
           }
           
           .radio-icon {
             margin-right: 16px; // Further increase icon margin
             font-size: 22px; // Further increase icon size
-            color: #409eff;
+            color: #374151;
           }
           
           span {
             font-size: 16px; // Further increase font size
             font-weight: 600;
-            color: #303133;
+            color: #111827;
           }
         }
         
         :deep(.el-radio__input.is-checked) {
           .radio-content {
-            border-color: #409eff;
-            background: linear-gradient(135deg, #409eff 0%, #67c23a 100%);
+            border-color: #374151;
+            background: linear-gradient(135deg, #374151 0%, #111827 100%);
             color: #ffffff;
             
             .radio-icon,
@@ -3404,7 +3571,7 @@ onMounted(() => {
         .el-form-item__label {
           font-size: 16px; // Increase label font size
           font-weight: 600;
-          color: #303133;
+          color: #111827;
           margin-bottom: 12px; // Add bottom margin
         }
         
@@ -3416,7 +3583,7 @@ onMounted(() => {
           padding: 12px 16px; // Add padding
           background: #f8f9fa;
           border-radius: 8px;
-          border-left: 4px solid #409eff;
+          border-left: 4px solid #374151;
         }
       }
       
@@ -3468,12 +3635,12 @@ onMounted(() => {
           .switch-icon {
             margin-right: 8px;
             font-size: 16px;
-            color: #409eff;
+            color: #374151;
           }
           
           span {
             font-size: 13px;
-            color: #606266;
+            color: #374151;
             font-weight: 500;
           }
         }
@@ -3492,12 +3659,12 @@ onMounted(() => {
             transition: all 0.3s ease;
             
             &:hover {
-              border-color: #409eff;
+              border-color: #374151;
             }
             
             &:focus-within {
-              border-color: #409eff;
-              box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
+              border-color: #374151;
+              box-shadow: 0 0 0 2px rgba(55, 65, 81, 0.1);
             }
           }
         }
@@ -3572,7 +3739,7 @@ onMounted(() => {
               padding: 2px 6px;
               border-radius: 4px;
               font-size: 12px;
-              color: #e6a23c;
+              color: #6b7280;
               word-break: break-all; // Break long URLs
             }
           }
@@ -3597,14 +3764,14 @@ onMounted(() => {
         
         .group-icon {
           font-size: 20px;
-          color: #409eff;
+          color: #374151;
           margin-right: 12px;
         }
         
         span {
           font-size: 16px;
           font-weight: 600;
-          color: #303133;
+          color: #111827;
         }
       }
       
@@ -3630,13 +3797,13 @@ onMounted(() => {
         border-top: 1px solid #e4e7ed;
         
         .el-button {
-          background: linear-gradient(135deg, #409eff 0%, #67c23a 100%);
+          background: linear-gradient(135deg, #374151 0%, #111827 100%);
           border: none;
           color: white;
           font-weight: 500;
           
           &:hover {
-            background: linear-gradient(135deg, #337ecc 0%, #529b2e 100%);
+            background: linear-gradient(135deg, #111827 0%, #000000 100%);
           }
         }
       }
@@ -3657,11 +3824,11 @@ onMounted(() => {
         border-radius: 8px;
         
         &.el-button--primary {
-          background: linear-gradient(135deg, #409eff 0%, #67c23a 100%);
+          background: linear-gradient(135deg, #374151 0%, #111827 100%);
           border: none;
           
           &:hover {
-            background: linear-gradient(135deg, #337ecc 0%, #529b2e 100%);
+            background: linear-gradient(135deg, #111827 0%, #000000 100%);
           }
         }
         
@@ -3671,9 +3838,9 @@ onMounted(() => {
           color: #606266;
           
           &:hover {
-            background: #ecf5ff;
-            border-color: #409eff;
-            color: #409eff;
+            background: #f3f4f6;
+            border-color: #374151;
+            color: #374151;
           }
         }
       }
@@ -3685,15 +3852,15 @@ onMounted(() => {
       border-radius: 12px;
       font-size: 15px;
       font-weight: 600;
-      background: linear-gradient(135deg, #e6a23c 0%, #f56c6c 100%);
+      background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
       border: none;
-      box-shadow: 0 4px 12px rgba(230, 162, 60, 0.3);
+      box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
       transition: all 0.3s ease;
       margin-top: 12px;
       
       &:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(230, 162, 60, 0.4);
+        box-shadow: 0 6px 16px rgba(107, 114, 128, 0.4);
       }
       
       &:active {
@@ -4052,35 +4219,38 @@ onMounted(() => {
       
       .form-actions {
         margin-top: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
         
         .button-container {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
+          width: 100%;
           
           .el-button {
+            width: 100%;
             height: 48px;
             font-size: 15px;
+            border-radius: 8px;
+            font-weight: 500;
             
             &.save-btn {
-              background: linear-gradient(135deg, #409eff 0%, #67c23a 100%);
+              background: linear-gradient(135deg, #374151 0%, #111827 100%);
               border: none;
               color: white;
               
               &:hover {
-                background: linear-gradient(135deg, #337ecc 0%, #529b2e 100%);
+                background: linear-gradient(135deg, #111827 0%, #000000 100%);
               }
             }
             
             &.reset-btn {
-              background: #f5f7fa;
-              border: 1px solid #dcdfe6;
-              color: #606266;
+              background: linear-gradient(135deg, #f9fafb, #e5e7eb);
+              border: 1px solid #d1d5db;
+              color: #374151;
               
               &:hover {
-                background: #ecf5ff;
-                border-color: #409eff;
-                color: #409eff;
+                background: linear-gradient(135deg, #e5e7eb, #d1d5db);
+                border-color: #9ca3af;
               }
             }
           }
@@ -4229,13 +4399,19 @@ onMounted(() => {
       
       .form-actions {
         margin-top: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
         
         .button-container {
-          gap: 8px;
+          width: 100%;
           
           .el-button {
+            width: 100%;
             height: 44px;
             font-size: 14px;
+            border-radius: 6px;
+            font-weight: 500;
           }
         }
       }

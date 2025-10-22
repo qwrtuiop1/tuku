@@ -18,9 +18,10 @@ onMounted(() => {
 
 <style lang="scss">
 #app {
-  height: 100vh;
-  width: 100vw;
-  overflow: hidden;
+  min-height: 100vh;
+  width: 100%; /* 避免 100vw 导致滚动条出现时右侧留白 */
+  overflow-x: hidden; /* 禁止横向溢出 */
+  overflow-y: auto;
   background: #f5f7fa;
 }
 
@@ -34,6 +35,8 @@ html, body {
   height: 100%;
   font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
   background: #f5f7fa;
+  width: 100%;
+  overflow-x: hidden; /* 全局禁止横向溢出，移除滚动条右侧空白 */
 }
 
 // 滚动条样式

@@ -18,7 +18,7 @@
 
     <!-- 主要内容 -->
     <div class="user-center-content">
-      <el-row :gutter="24">
+      <el-row :gutter="40">
         <!-- 左侧：用户信息和快捷设置 -->
         <el-col :xs="24" :sm="24" :md="8" :lg="6" :xl="6">
           <!-- 用户信息卡片 -->
@@ -502,8 +502,10 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { formatFileSize, formatPercentage } from '@/utils/helpers'
 import api from '@/utils/api'
+import { useRouter } from 'vue-router'
 
 const authStore = useAuthStore()
+const router = useRouter()
 
 // 响应式数据
 const activeTab = ref('profile')
@@ -847,11 +849,7 @@ const storagePercentage = computed(() => {
   if (!userInfo.used_storage || userInfo.used_storage === 0) return 0
   
   const percentage = Math.round((userInfo.used_storage / userInfo.storage_limit) * 100)
-  return {
-    used_storage: userInfo.used_storage,
-    storage_limit: userInfo.storage_limit,
-    percentage: percentage
-  }
+  return percentage
 })
 
 const storageColor = computed(() => {
@@ -862,7 +860,7 @@ const storageColor = computed(() => {
 })
 
 const uploadAction = computed(() => {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://tukubackend.vtart.cn'
+  const baseUrl = (import.meta as any).env?.VITE_API_BASE_URL || 'https://tukubackend.vtart.cn'
   return `${baseUrl}/api/avatars/upload`
 })
 const uploadHeaders = computed(() => ({
@@ -894,7 +892,7 @@ const passwordRules: FormRules = {
   confirmPassword: [
     { required: true, message: '请确认新密码', trigger: 'blur' },
     {
-      validator: (rule, value, callback) => {
+      validator: (_rule, value, callback) => {
         if (value !== passwordForm.newPassword) {
           callback(new Error('两次输入的密码不一致'))
         } else {
@@ -1102,8 +1100,8 @@ const savePreferences = async () => {
       localStorage.setItem('userPreferences', JSON.stringify(updateData))
       
       // 更新全局状态（如果有的话）
-      if (window.userPreferences) {
-        window.userPreferences.defaultView = preferences.defaultView
+      if ((window as any).userPreferences) {
+        (window as any).userPreferences.defaultView = preferences.defaultView
       }
       
       // 触发视图更新事件
@@ -1150,8 +1148,8 @@ const saveNotificationSettings = async () => {
       localStorage.setItem('notificationSettings', JSON.stringify(updateData))
     
     // 更新全局状态
-      if (window.notificationSettings) {
-        Object.assign(window.notificationSettings, updateData)
+      if ((window as any).notificationSettings) {
+        Object.assign((window as any).notificationSettings, updateData)
       }
     
     // 触发通知设置更新事件
@@ -1278,7 +1276,7 @@ const beforeAvatarUpload = (file: File) => {
 const handleAvatarSuccess = (response: any) => {
   // 后端返回的格式是 { success: true, message: '...', data: { url: '...' } }
   if (response && response.success && response.data && response.data.url) {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://tukubackend.vtart.cn'
+    const baseUrl = (import.meta as any).env?.VITE_API_BASE_URL || 'https://tukubackend.vtart.cn'
     const avatarUrl = baseUrl + response.data.url + '?t=' + Date.now()
     
     userInfo.avatar_url = avatarUrl
@@ -1290,7 +1288,7 @@ const handleAvatarSuccess = (response: any) => {
 }
 
 // 头像加载错误处理
-const handleAvatarError = (event: Event) => {
+const handleAvatarError = (_event: Event) => {
   ElMessage.warning('头像加载失败，将显示默认头像')
 }
 
@@ -1448,9 +1446,21 @@ onUnmounted(() => {
   padding: 24px;
   background: #f5f7fa;
   min-height: 100vh;
+  
+  // 覆盖Element Plus的CSS变量，确保使用黑白灰配色
+  --el-color-primary: #374151;
+  --el-color-primary-light-3: #6b7280;
+  --el-color-primary-light-5: #9ca3af;
+  --el-color-primary-light-7: #d1d5db;
+  --el-color-primary-light-8: #e5e7eb;
+  --el-color-primary-light-9: #f3f4f6;
+  --el-color-primary-dark-2: #111827;
 }
 
 .page-header {
+  background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%);
+  border-bottom: 1px solid #d1d5db;
+  padding: 24px 0;
   margin-bottom: 24px;
   
   .header-content {
@@ -1462,14 +1472,38 @@ onUnmounted(() => {
       .page-title {
         font-size: 28px;
         font-weight: 600;
-        color: #303133;
+        color: #111827;
         margin: 0 0 8px 0;
+        letter-spacing: -0.5px;
       }
       
       .page-subtitle {
         font-size: 14px;
-        color: #909399;
+        color: #6b7280;
         margin: 0;
+        font-weight: 400;
+      }
+    }
+
+    .header-actions {
+      .el-button--primary {
+        background: linear-gradient(135deg, #374151 0%, #111827 100%);
+        border: none;
+        border-radius: 8px;
+        padding: 12px 24px;
+        font-weight: 500;
+        box-shadow: 0 2px 8px rgba(17, 24, 39, 0.15);
+        transition: all 0.3s ease;
+
+        &:hover {
+          background: linear-gradient(135deg, #111827 0%, #000000 100%);
+          box-shadow: 0 4px 12px rgba(17, 24, 39, 0.25);
+          transform: translateY(-1px);
+        }
+
+        :deep(.el-icon) {
+          color: #ffffff;
+        }
       }
     }
   }
@@ -1478,6 +1512,9 @@ onUnmounted(() => {
 .user-center-content {
   .user-info-card {
     margin-bottom: 24px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     
     .user-avatar-section {
       text-align: center;
@@ -1488,8 +1525,13 @@ onUnmounted(() => {
         margin-bottom: 20px;
         
         .user-avatar {
-          border: 4px solid #e4e7ed;
+          border: 3px solid #e5e7eb;
           transition: all 0.3s ease;
+          
+          &:hover {
+            border-color: #374151;
+            transform: scale(1.05);
+          }
         }
         
         .avatar-overlay {
@@ -1500,12 +1542,12 @@ onUnmounted(() => {
           transition: opacity 0.3s ease;
           
           .el-button {
-            background: rgba(0, 0, 0, 0.7);
+            background: linear-gradient(135deg, #374151 0%, #111827 100%);
             border: none;
             color: white;
             
             &:hover {
-              background: rgba(0, 0, 0, 0.8);
+              background: linear-gradient(135deg, #111827 0%, #000000 100%);
             }
           }
         }
@@ -1519,17 +1561,26 @@ onUnmounted(() => {
         .username {
           font-size: 18px;
           font-weight: 600;
-          color: #303133;
+          color: #111827;
           margin: 0 0 8px 0;
         }
         
         .user-role {
           margin: 0 0 8px 0;
+          
+          .el-tag {
+            background: #f3f4f6;
+            color: #374151;
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            font-size: 12px;
+            padding: 4px 8px;
+          }
         }
         
         .user-email {
           font-size: 14px;
-          color: #606266;
+          color: #6b7280;
           margin: 0;
         }
       }
@@ -1538,6 +1589,9 @@ onUnmounted(() => {
   
   .storage-card {
     margin-bottom: 24px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     
     .storage-header {
       display: flex;
@@ -1548,13 +1602,31 @@ onUnmounted(() => {
       h4 {
         font-size: 16px;
         font-weight: 600;
-        color: #303133;
+        color: #111827;
         margin: 0;
       }
     }
     
     .storage-progress {
       margin-bottom: 16px;
+      
+      .el-progress {
+        margin-bottom: 8px;
+        
+        :deep(.el-progress-bar__outer) {
+          background-color: rgba(55, 65, 81, 0.08);
+        }
+        
+        :deep(.el-progress-bar__inner) {
+          background: linear-gradient(135deg, #374151 0%, #111827 50%, #000000 100%);
+          box-shadow: 0 2px 4px rgba(55, 65, 81, 0.2);
+        }
+        
+        :deep(.el-progress__text) {
+          color: #374151;
+          font-weight: 500;
+        }
+      }
       
       .storage-info {
         display: flex;
@@ -1563,12 +1635,12 @@ onUnmounted(() => {
         font-size: 14px;
         
         .used {
-          color: #303133;
+          color: #111827;
           font-weight: 600;
         }
         
         .total {
-          color: #909399;
+          color: #6b7280;
         }
       }
     }
@@ -1581,7 +1653,7 @@ onUnmounted(() => {
         justify-content: space-between;
         align-items: center;
         padding: 8px 0;
-        border-bottom: 1px solid #f0f0f0;
+        border-bottom: 1px solid #f3f4f6;
         
         &:last-child {
           border-bottom: none;
@@ -1589,12 +1661,12 @@ onUnmounted(() => {
         
         .label {
           font-size: 14px;
-          color: #606266;
+          color: #6b7280;
         }
         
         .value {
           font-size: 14px;
-          color: #303133;
+          color: #111827;
           font-weight: 500;
         }
       }
@@ -1644,14 +1716,14 @@ onUnmounted(() => {
           
           &.el-button--primary {
             order: 1;
-            background: linear-gradient(135deg, #409eff 0%, #337ecc 100%);
+            background: linear-gradient(135deg, #374151 0%, #111827 100%);
             border: none;
             color: #ffffff;
             
             &:not(.is-disabled):hover {
-              background: linear-gradient(135deg, #337ecc 0%, #2b6cb0 100%);
+              background: linear-gradient(135deg, #111827 0%, #000000 100%);
               transform: translateY(-1px);
-              box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
+              box-shadow: 0 2px 8px rgba(17, 24, 39, 0.3);
             }
             
             &.is-disabled {
@@ -1666,15 +1738,16 @@ onUnmounted(() => {
           
           &.el-button--text {
             order: 2;
-            color: #409eff;
-            border: 1px solid #409eff;
-            background: transparent;
+            color: #6b7280;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
             
             &:hover {
-              background: #409eff;
-              color: #ffffff;
+              background: #f9fafb;
+              color: #374151;
+              border-color: #d1d5db;
               transform: translateY(-1px);
-              box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
+              box-shadow: 0 2px 8px rgba(55, 65, 81, 0.2);
             }
           }
         }
@@ -1683,13 +1756,17 @@ onUnmounted(() => {
   }
   
   .quick-settings-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    
     .quick-settings-header {
       margin-bottom: 16px;
       
       h4 {
         font-size: 16px;
         font-weight: 600;
-        color: #303133;
+        color: #111827;
         margin: 0;
       }
     }
@@ -1701,7 +1778,7 @@ onUnmounted(() => {
         align-items: center;
         margin-bottom: 12px;
         padding: 8px 0;
-        border-bottom: 1px solid #f0f0f0;
+        border-bottom: 1px solid #f3f4f6;
         
         &:last-child {
           margin-bottom: 0;
@@ -1710,7 +1787,7 @@ onUnmounted(() => {
         
         .setting-label {
           font-size: 14px;
-          color: #303133;
+          color: #374151;
           font-weight: 500;
         }
         
@@ -1721,14 +1798,14 @@ onUnmounted(() => {
           
           .setting-status {
             font-size: 11px;
-            color: #909399;
+            color: #6b7280;
             padding: 2px 6px;
             border-radius: 4px;
-            background: #f5f7fa;
+            background: #f3f4f6;
             
             &.success {
-              color: #67c23a;
-              background: #f0f9ff;
+              color: #374151;
+              background: #e5e7eb;
             }
           }
         }
@@ -1737,9 +1814,30 @@ onUnmounted(() => {
   }
   
   .settings-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    
     .settings-tabs {
       :deep(.el-tabs__content) {
         padding: 24px 0;
+      }
+      
+      :deep(.el-tabs__item) {
+        color: #6b7280;
+        font-weight: 500;
+        
+        &:hover {
+          color: #374151;
+        }
+        
+        &.is-active {
+          color: #111827;
+        }
+      }
+      
+      :deep(.el-tabs__active-bar) {
+        background: linear-gradient(135deg, #374151 0%, #111827 100%);
       }
     }
     
@@ -1750,7 +1848,7 @@ onUnmounted(() => {
       
       .form-hint {
         font-size: 12px;
-        color: #909399;
+        color: #6b7280;
         margin-top: 4px;
       }
     }
@@ -1767,10 +1865,10 @@ onUnmounted(() => {
       h4 {
         font-size: 16px;
         font-weight: 600;
-        color: #303133;
+        color: #111827;
         margin: 0 0 16px 0;
         padding-bottom: 8px;
-        border-bottom: 1px solid #e4e7ed;
+        border-bottom: 1px solid #e5e7eb;
       }
       
       .password-actions {
@@ -1786,24 +1884,24 @@ onUnmounted(() => {
           transition: all 0.3s ease;
           
           &.el-button--primary {
-            background: linear-gradient(135deg, #409eff 0%, #337ecc 100%);
+            background: linear-gradient(135deg, #374151 0%, #111827 100%);
             border: none;
             
             &:hover {
-              background: linear-gradient(135deg, #337ecc 0%, #2b6cb0 100%);
+              background: linear-gradient(135deg, #111827 0%, #000000 100%);
               transform: translateY(-1px);
-              box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+              box-shadow: 0 4px 12px rgba(17, 24, 39, 0.3);
             }
           }
         }
         
         .forgot-password {
-          color: #667eea;
+          color: #374151;
           font-size: 14px;
           padding: 0;
           
           &:hover {
-            color: #764ba2;
+            color: #111827;
           }
         }
       }
@@ -1834,20 +1932,20 @@ onUnmounted(() => {
     .stat-card {
       text-align: center;
       padding: 20px;
-      background: #f8f9fa;
+      background: #f9fafb;
       border-radius: 8px;
-      border: 1px solid #e4e7ed;
+      border: 1px solid #e5e7eb;
       
       .stat-number {
         font-size: 24px;
         font-weight: 600;
-        color: #409eff;
+        color: #111827;
         margin-bottom: 8px;
       }
       
       .stat-label {
         font-size: 14px;
-        color: #606266;
+        color: #6b7280;
       }
     }
   }
@@ -1886,7 +1984,7 @@ onUnmounted(() => {
       .type-name {
         font-size: 14px;
         font-weight: 600;
-        color: #303133;
+        color: #111827;
         margin-bottom: 4px;
       }
       
@@ -1899,7 +1997,7 @@ onUnmounted(() => {
       
       .type-count {
         font-size: 12px;
-        color: #909399;
+        color: #6b7280;
       }
     }
   }
@@ -2119,13 +2217,13 @@ onUnmounted(() => {
           
           &.el-button--primary {
             order: 1;
-            background: linear-gradient(135deg, #409eff 0%, #337ecc 100%);
+            background: linear-gradient(135deg, #374151 0%, #111827 100%);
             border: none;
             
             &:not(.is-disabled):hover {
-              background: linear-gradient(135deg, #337ecc 0%, #2b6cb0 100%);
+              background: linear-gradient(135deg, #111827 0%, #000000 100%);
               transform: translateY(-1px);
-              box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
+              box-shadow: 0 2px 8px rgba(17, 24, 39, 0.3);
             }
             
             &.is-disabled {
@@ -2140,15 +2238,16 @@ onUnmounted(() => {
           
           &.el-button--text {
             order: 2;
-            color: #409eff;
-            border: 1px solid #409eff;
-            background: transparent;
+            color: #6b7280;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
             
             &:hover {
-              background: #409eff;
-              color: #ffffff;
+              background: #f9fafb;
+              color: #374151;
+              border-color: #d1d5db;
               transform: translateY(-1px);
-              box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
+              box-shadow: 0 2px 8px rgba(55, 65, 81, 0.2);
             }
           }
         }
@@ -2541,14 +2640,14 @@ onUnmounted(() => {
             
             &.el-button--primary {
               order: 1;
-              background: linear-gradient(135deg, #409eff 0%, #337ecc 100%);
+              background: linear-gradient(135deg, #374151 0%, #111827 100%);
               border: none;
               color: #ffffff;
               
               &:not(.is-disabled):hover {
-                background: linear-gradient(135deg, #337ecc 0%, #2b6cb0 100%);
+                background: linear-gradient(135deg, #111827 0%, #000000 100%);
                 transform: translateY(-1px);
-                box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
+                box-shadow: 0 2px 8px rgba(17, 24, 39, 0.3);
               }
               
               &.is-disabled {
@@ -2563,15 +2662,16 @@ onUnmounted(() => {
             
             &.el-button--text {
               order: 2;
-              color: #409eff;
-              border: 1px solid #409eff;
-              background: transparent;
+              color: #6b7280;
+              border: 1px solid #e5e7eb;
+              background: #ffffff;
               
               &:hover {
-                background: #409eff;
-                color: #ffffff;
+                background: #f9fafb;
+                color: #374151;
+                border-color: #d1d5db;
                 transform: translateY(-1px);
-                box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
+                box-shadow: 0 2px 8px rgba(55, 65, 81, 0.2);
               }
             }
           }
@@ -3019,14 +3119,14 @@ onUnmounted(() => {
             
             &.el-button--primary {
               order: 1;
-              background: linear-gradient(135deg, #409eff 0%, #337ecc 100%);
+              background: linear-gradient(135deg, #374151 0%, #111827 100%);
               border: none;
               color: #ffffff;
               
               &:not(.is-disabled):hover {
-                background: linear-gradient(135deg, #337ecc 0%, #2b6cb0 100%);
+                background: linear-gradient(135deg, #111827 0%, #000000 100%);
                 transform: translateY(-1px);
-                box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
+                box-shadow: 0 2px 8px rgba(17, 24, 39, 0.3);
               }
               
               &.is-disabled {
@@ -3041,15 +3141,16 @@ onUnmounted(() => {
             
             &.el-button--text {
               order: 2;
-              color: #409eff;
-              border: 1px solid #409eff;
-              background: transparent;
+              color: #6b7280;
+              border: 1px solid #e5e7eb;
+              background: #ffffff;
               
               &:hover {
-                background: #409eff;
-                color: #ffffff;
+                background: #f9fafb;
+                color: #374151;
+                border-color: #d1d5db;
                 transform: translateY(-1px);
-                box-shadow: 0 2px 8px rgba(64, 158, 255, 0.3);
+                box-shadow: 0 2px 8px rgba(55, 65, 81, 0.2);
               }
             }
           }
@@ -3299,7 +3400,7 @@ onUnmounted(() => {
         
         .type-count {
           font-size: 12px;
-          color: #909399;
+          color: #6b7280;
         }
       }
     }
@@ -3445,7 +3546,7 @@ onUnmounted(() => {
           border-radius: 4px;
           
           &.el-button--primary {
-            background: linear-gradient(135deg, #409eff 0%, #337ecc 100%);
+            background: linear-gradient(135deg, #374151 0%, #111827 100%);
             border: none;
             
             &.is-disabled {
@@ -3457,9 +3558,9 @@ onUnmounted(() => {
           }
           
           &.el-button--text {
-            color: #409eff;
-            border: 1px solid #409eff;
-            background: transparent;
+            color: #6b7280;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
           }
         }
       }
@@ -3768,7 +3869,7 @@ onUnmounted(() => {
             
             &.el-button--primary {
               order: 1;
-              background: linear-gradient(135deg, #409eff 0%, #337ecc 100%);
+              background: linear-gradient(135deg, #374151 0%, #111827 100%);
               border: none;
               color: #ffffff;
               
@@ -3782,9 +3883,9 @@ onUnmounted(() => {
             
             &.el-button--text {
               order: 2;
-              color: #409eff;
-              border: 1px solid #409eff;
-              background: transparent;
+              color: #6b7280;
+              border: 1px solid #e5e7eb;
+              background: #ffffff;
             }
           }
         }
@@ -3830,6 +3931,227 @@ onUnmounted(() => {
           }
         }
       }
+    }
+  }
+}
+
+// 全局Element Plus组件样式覆盖 - 确保所有组件使用灰白黑三色
+:deep(.el-button--primary) {
+  --el-color-primary: #374151 !important;
+  --el-color-primary-light-3: #6b7280 !important;
+  --el-color-primary-light-5: #9ca3af !important;
+  --el-color-primary-light-7: #d1d5db !important;
+  --el-color-primary-light-8: #e5e7eb !important;
+  --el-color-primary-light-9: #f3f4f6 !important;
+  --el-color-primary-dark-2: #111827 !important;
+  
+  background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  
+  &:hover {
+    background: linear-gradient(135deg, #111827 0%, #000000 100%) !important;
+    color: #ffffff !important;
+  }
+  
+  &:focus {
+    background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;
+    color: #ffffff !important;
+  }
+  
+  &:active {
+    background: linear-gradient(135deg, #111827 0%, #000000 100%) !important;
+    color: #ffffff !important;
+  }
+}
+
+:deep(.el-button--default) {
+  background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%) !important;
+  border: 1px solid #d1d5db !important;
+  color: #374151 !important;
+  
+  &:hover {
+    background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%) !important;
+    border-color: #9ca3af !important;
+    color: #374151 !important;
+  }
+  
+  &:focus {
+    background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%) !important;
+    border-color: #d1d5db !important;
+    color: #374151 !important;
+  }
+  
+  &:active {
+    background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%) !important;
+    border-color: #9ca3af !important;
+    color: #374151 !important;
+  }
+}
+
+:deep(.el-button--text) {
+  color: #6b7280 !important;
+  background: transparent !important;
+  
+  &:hover {
+    color: #374151 !important;
+    background: #f3f4f6 !important;
+  }
+  
+  &:focus {
+    color: #6b7280 !important;
+    background: transparent !important;
+  }
+  
+  &:active {
+    color: #374151 !important;
+    background: #f3f4f6 !important;
+  }
+}
+
+:deep(.el-tag--primary) {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+:deep(.el-tag--success) {
+  background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+  color: #374151;
+  border: 1px solid #9ca3af;
+}
+
+:deep(.el-input__wrapper) {
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
+  
+  &:hover {
+    border-color: #9ca3af;
+  }
+  
+  &.is-focus {
+    border-color: #374151;
+    box-shadow: 0 0 0 2px rgba(55, 65, 81, 0.1);
+  }
+}
+
+:deep(.el-textarea__inner) {
+  background-color: #ffffff;
+  border: 1px solid #d1d5db;
+  color: #111827;
+  
+  &:hover {
+    border-color: #9ca3af;
+  }
+  
+  &:focus {
+    border-color: #374151;
+    box-shadow: 0 0 0 2px rgba(55, 65, 81, 0.1);
+  }
+  
+  &::placeholder {
+    color: #9ca3af;
+  }
+}
+
+:deep(.el-form-item__label) {
+  color: #111827;
+  
+  &.is-required::before {
+    color: #374151;
+  }
+}
+
+:deep(.el-switch) {
+  .el-switch__core {
+    background-color: #d1d5db;
+    border-color: #d1d5db;
+    transition: all 0.3s ease;
+    
+    &:hover {
+      background-color: #9ca3af;
+      border-color: #9ca3af;
+    }
+    
+    &.is-checked {
+      background-color: #374151;
+      border-color: #374151;
+      
+      &:hover {
+        background-color: #111827;
+        border-color: #111827;
+      }
+    }
+  }
+  
+  .el-switch__action {
+    background-color: #ffffff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    
+    &:hover {
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    }
+  }
+  
+  .el-switch__label {
+    color: #374151;
+    transition: color 0.3s ease;
+    
+    &.is-active {
+      color: #111827;
+    }
+    
+    &:hover {
+      color: #111827;
+    }
+  }
+}
+
+:deep(.el-radio-group) {
+  .el-radio {
+    .el-radio__input {
+      .el-radio__inner {
+        border-color: #d1d5db;
+        background-color: #ffffff;
+        
+        &:hover {
+          border-color: #374151;
+        }
+      }
+      
+      &.is-checked .el-radio__inner {
+        border-color: #374151;
+        background-color: #374151;
+      }
+    }
+    
+    .el-radio__label {
+      color: #374151;
+    }
+  }
+}
+
+:deep(.el-checkbox-group) {
+  .el-checkbox {
+    .el-checkbox__input {
+      .el-checkbox__inner {
+        border-color: #d1d5db;
+        background-color: #ffffff;
+        
+        &:hover {
+          border-color: #374151;
+        }
+      }
+      
+      &.is-checked .el-checkbox__inner {
+        border-color: #374151;
+        background-color: #374151;
+      }
+    }
+    
+    .el-checkbox__label {
+      color: #374151;
     }
   }
 }

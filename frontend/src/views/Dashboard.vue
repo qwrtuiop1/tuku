@@ -724,19 +724,20 @@ onMounted(() => {
   gap: 24px;
   grid-template-columns: 1fr;
   padding: 0; // 移除内边距，由MainLayout统一控制
-  background: #f5f7fa;
+  background: #f9fafb;
   min-height: 100vh;
 }
 
 .welcome-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+  border: 1px solid #e5e7eb;
   border-radius: 24px;
   padding: 48px;
-  color: white;
-  box-shadow: 0 12px 40px rgba(102, 126, 234, 0.25);
+  color: #111827;
+  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.08);
   position: relative;
   overflow: hidden;
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(8px);
   
   &::before {
     content: '';
@@ -746,19 +747,18 @@ onMounted(() => {
     right: 0;
     bottom: 0;
     background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="75" cy="75" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="50" cy="10" r="0.5" fill="rgba(255,255,255,0.1)"/><circle cx="10" cy="60" r="0.5" fill="rgba(255,255,255,0.1)"/><circle cx="90" cy="40" r="0.5" fill="rgba(255,255,255,0.1)"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
-    opacity: 0.4;
+    opacity: 0.12;
   }
   
   &::after {
     content: '';
     position: absolute;
-    top: -50%;
-    right: -20%;
-    width: 200px;
-    height: 200px;
-    background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+    top: -40%;
+    right: -15%;
+    width: 260px;
+    height: 260px;
+    background: radial-gradient(circle, rgba(17, 24, 39, 0.06) 0%, transparent 70%);
     border-radius: 50%;
-    animation: float 6s ease-in-out infinite;
   }
   
   // 主要内容区域：左右布局 - 桌面端优化
@@ -820,8 +820,8 @@ onMounted(() => {
       flex-shrink: 0; // 防止头像被压缩
       
       :deep(.el-avatar) {
-        border: 4px solid rgba(255, 255, 255, 0.3);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        border: 2px solid #e5e7eb;
+        box-shadow: 0 6px 16px rgba(17, 24, 39, 0.08);
         transition: all 0.3s ease;
         
         // 桌面端大屏幕头像
@@ -846,8 +846,8 @@ onMounted(() => {
         }
         
         &:hover {
-          transform: scale(1.05);
-          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+          transform: scale(1.03);
+          box-shadow: 0 10px 24px rgba(17, 24, 39, 0.12);
         }
       }
     }
@@ -860,11 +860,8 @@ onMounted(() => {
         font-size: 42px;
         font-weight: 900;
         margin-bottom: 12px;
-        text-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        background: linear-gradient(45deg, #ffffff, #f0f8ff);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
+        color: #111827;
+        letter-spacing: 0.3px;
         line-height: 1.2;
         word-break: break-word; // 长用户名换行
         
@@ -889,10 +886,9 @@ onMounted(() => {
       
       .welcome-subtitle {
         font-size: 20px;
-        opacity: 0.95;
         margin: 0;
         font-weight: 500;
-        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        color: #374151;
         line-height: 1.4;
         word-break: break-word; // 长文本换行
         
@@ -954,7 +950,10 @@ onMounted(() => {
       font-weight: 700;
       padding: 0 !important; // 重置padding，使用flex布局控制间距
       margin: 0 !important; // 重置margin
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+      background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+      border: 1px solid #e5e7eb;
+      color: #111827;
+      box-shadow: 0 10px 24px rgba(17, 24, 39, 0.08);
       transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
       overflow: hidden;
@@ -1131,42 +1130,51 @@ onMounted(() => {
       }
       
       &.primary {
-        background: rgba(255, 255, 255, 0.25);
-        border: 2px solid rgba(255, 255, 255, 0.4);
-        color: white;
-        
+        background: linear-gradient(135deg, #374151 0%, #111827 100%);
+        color: #ffffff;
+        border-color: #111827;
+        box-shadow: 0 14px 32px rgba(17, 24, 39, 0.18);
+
         &:hover {
-          background: rgba(255, 255, 255, 0.35);
-          transform: translateY(-4px) scale(1.02);
-          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+          background: linear-gradient(135deg, #4b5563 0%, #1f2937 100%);
+          border-color: #1f2937;
+          transform: translateY(-1px);
+          box-shadow: 0 16px 36px rgba(17, 24, 39, 0.22);
+        }
+        
+        &:active {
+          transform: translateY(0);
+          box-shadow: 0 8px 20px rgba(17, 24, 39, 0.16);
         }
       }
       
       &:not(.primary) {
-        background: white;
-        color: #667eea;
-        border: none;
+        background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+        color: #111827;
+        border: 1px solid #e5e7eb;
         
         &:hover {
-          background: rgba(255, 255, 255, 0.95);
-          transform: translateY(-4px) scale(1.02);
-          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+          background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+          border-color: #d1d5db;
+          transform: translateY(-1px);
+          box-shadow: 0 12px 28px rgba(17, 24, 39, 0.1);
         }
       }
       
       &.admin-btn {
-        background: linear-gradient(135deg, #ff6b6b, #ee5a52);
-        color: white;
-        border: none;
+        background: linear-gradient(135deg, #374151 0%, #111827 100%);
+        color: #ffffff;
+        border-color: #111827;
         
         &:hover {
-          background: linear-gradient(135deg, #ff5252, #e53935);
-          transform: translateY(-4px) scale(1.02);
+          background: linear-gradient(135deg, #4b5563 0%, #1f2937 100%);
+          transform: translateY(-1px);
         }
       }
       
       // 统一图标样式 - 桌面端优化
       .el-icon {
+        color: currentColor;
         font-size: 24px !important;
         flex-shrink: 0;
         display: flex !important;
@@ -1236,7 +1244,7 @@ onMounted(() => {
   .welcome-stats {
     display: flex;
     justify-content: center;
-    gap: 48px;
+    gap: 24px;
     position: relative;
     z-index: 1;
     margin-top: 8px;
@@ -1263,14 +1271,14 @@ onMounted(() => {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 10px;
-      padding: 24px 28px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 18px;
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      gap: 8px;
+      padding: 18px 20px;
+      background: #ffffff;
+      border-radius: 14px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 8px 20px rgba(17, 24, 39, 0.06);
       transition: all 0.3s ease;
-      min-width: 160px;
+      min-width: 140px;
       
       // 桌面端大屏幕统计项
       @media (min-width: 1440px) {
@@ -1297,20 +1305,15 @@ onMounted(() => {
       }
       
       &:hover {
-        background: rgba(255, 255, 255, 0.15);
-        transform: translateY(-3px);
-        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
-        border-color: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+        box-shadow: 0 12px 28px rgba(17, 24, 39, 0.1);
+        border-color: #d1d5db;
       }
       
       .stat-value {
-        font-size: 32px;
+        font-size: 26px;
         font-weight: 800;
-        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        background: linear-gradient(45deg, #ffffff, #f0f8ff);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
+        color: #111827;
         
         // 桌面端大屏幕数值
         @media (min-width: 1440px) {
@@ -1329,11 +1332,10 @@ onMounted(() => {
       }
       
       .stat-label {
-        font-size: 15px;
-        opacity: 0.9;
+        font-size: 13px;
+        color: #6b7280;
         font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.3px;
         text-align: center;
         
         // 桌面端大屏幕标签
@@ -1494,7 +1496,7 @@ onMounted(() => {
   padding: 28px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid rgba(102, 126, 234, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
   position: relative;
   overflow: hidden;
   
@@ -1505,15 +1507,15 @@ onMounted(() => {
     left: 0;
     right: 0;
     height: 4px;
-    background: linear-gradient(90deg, #667eea, #764ba2);
+    background: linear-gradient(90deg, #374151, #111827);
     opacity: 0;
     transition: opacity 0.3s ease;
   }
   
   &:hover {
     transform: translateY(-8px) scale(1.02);
-    box-shadow: 0 16px 48px rgba(102, 126, 234, 0.15);
-    border-color: rgba(102, 126, 234, 0.2);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15);
+    border-color: rgba(0, 0, 0, 0.2);
     
     &::before {
       opacity: 1;
@@ -1528,19 +1530,25 @@ onMounted(() => {
   
   &.image-card {
     .card-header .stat-icon {
-      background: linear-gradient(135deg, #f093fb, #f5576c);
+      background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
     }
   }
   
   &.video-card {
     .card-header .stat-icon {
-      background: linear-gradient(135deg, #4facfe, #00f2fe);
+      background: linear-gradient(135deg, #e5e7eb, #d1d5db);
     }
   }
   
   &.folder-card {
     .card-header .stat-icon {
-      background: linear-gradient(135deg, #43e97b, #38f9d7);
+      background: linear-gradient(135deg, #d1d5db, #9ca3af);
+    }
+  }
+  
+  &.storage-card {
+    .card-header .stat-icon {
+      background: linear-gradient(135deg, #9ca3af, #6b7280);
     }
   }
   
@@ -1557,7 +1565,7 @@ onMounted(() => {
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
+      color: #111827;
       font-size: 22px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
@@ -1568,8 +1576,8 @@ onMounted(() => {
       gap: 4px;
       font-size: 12px;
       font-weight: 600;
-      color: #27ae60;
-      background: rgba(39, 174, 96, 0.1);
+      color: #6b7280;
+      background: rgba(107, 114, 128, 0.1);
       padding: 4px 8px;
       border-radius: 12px;
       
@@ -1603,58 +1611,156 @@ onMounted(() => {
   }
 }
 
-.storage-section,
-.recent-section,
-.quick-actions {
-  grid-column: 1 / -1;
+.storage-section {
+  .storage-card {
+    border-radius: 20px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    transition: all 0.3s ease;
+    
+    &:hover {
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+      transform: translateY(-2px);
+    }
+    
+    :deep(.el-card__header) {
+      background: #ffffff;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 24px 24px 0 24px;
+    }
+    
+    :deep(.el-card__body) {
+      background: #ffffff;
+      padding: 24px;
+    }
+  }
 }
 
 .card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 20px 0;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 0;
   
-  h3 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 600;
-    color: #303133;
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    
+    .header-icon {
+      font-size: 20px;
+      color: #374151;
+      background: #f3f4f6;
+      padding: 8px;
+      border-radius: 8px;
+    }
+    
+    h3 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+      color: #111827;
+    }
+  }
+  
+  .header-actions {
+    :deep(.el-button) {
+      color: #374151;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 8px;
+      transition: all 0.3s ease;
+      
+      &:hover {
+        color: #111827;
+        background: #f3f4f6;
+      }
+    }
   }
 }
 
 .storage-content {
-  .storage-info {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-  }
-  
-  .storage-text {
-    font-size: 16px;
-    font-weight: 500;
+  .storage-overview {
+    background: linear-gradient(135deg, #f9fafb, #ffffff);
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
     
-    .used {
-      color: #303133;
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #374151, #111827);
     }
     
-    .separator {
-      color: #909399;
-      margin: 0 4px;
+    .storage-info {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      
+      .storage-text {
+        font-size: 18px;
+        font-weight: 600;
+        
+        .used {
+          color: #111827;
+          font-size: 20px;
+          font-weight: 700;
+        }
+        
+        .separator {
+          color: #6b7280;
+          margin: 0 8px;
+          font-weight: 500;
+        }
+        
+        .total {
+          color: #6b7280;
+          font-weight: 500;
+        }
+      }
+      
+      .storage-percent {
+        font-size: 16px;
+        color: #374151;
+        font-weight: 600;
+        background: #f3f4f6;
+        padding: 8px 16px;
+        border-radius: 20px;
+        border: 1px solid #e5e7eb;
+      }
     }
     
-    .total {
-      color: #909399;
+    .storage-progress {
+      margin-bottom: 0;
+      
+      :deep(.el-progress-bar__outer) {
+        background: #f3f4f6;
+        border-radius: 10px;
+        height: 20px !important;
+      }
+      
+      :deep(.el-progress-bar__inner) {
+        background: linear-gradient(90deg, #374151, #111827) !important;
+        border-radius: 10px;
+      }
+      
+      :deep(.el-progress__text) {
+        font-size: 16px !important;
+        font-weight: 700 !important;
+        color: #111827 !important;
+      }
     }
-  }
-  
-  .storage-percent {
-    font-size: 14px;
-    color: #909399;
-  }
-  
-  .storage-progress {
-    margin-bottom: 16px;
   }
   
   .storage-tips {
@@ -1663,13 +1769,93 @@ onMounted(() => {
       border: none;
       
       &.el-alert--warning {
-        background: linear-gradient(135deg, #ffeaa7, #fab1a0);
+        background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
         color: #2d3436;
       }
       
       &.el-alert--success {
-        background: linear-gradient(135deg, #a8e6cf, #7fcdcd);
+        background: linear-gradient(135deg, #e5e7eb, #d1d5db);
         color: #2d3436;
+      }
+    }
+  }
+  
+  .storage-breakdown {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 24px;
+    
+    .breakdown-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 20px;
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      
+      &::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #374151, #111827);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+      }
+      
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        border-color: #000000;
+        
+        &::before {
+          opacity: 1;
+        }
+      }
+      
+      .breakdown-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        color: white;
+        flex-shrink: 0;
+        
+        &.image {
+          background: linear-gradient(135deg, #9ca3af, #6b7280);
+        }
+        
+        &.video {
+          background: linear-gradient(135deg, #6b7280, #4b5563);
+        }
+      }
+      
+      .breakdown-content {
+        flex: 1;
+        min-width: 0;
+        
+        .breakdown-label {
+          font-size: 14px;
+          font-weight: 600;
+          color: #374151;
+          margin-bottom: 4px;
+        }
+        
+        .breakdown-value {
+          font-size: 16px;
+          font-weight: 700;
+          color: #111827;
+        }
       }
     }
   }
@@ -1715,7 +1901,7 @@ onMounted(() => {
     .file-icon {
       width: 100%;
       height: 100%;
-      background: linear-gradient(135deg, #667eea, #764ba2);
+      background: linear-gradient(135deg, #374151, #111827);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -1727,7 +1913,7 @@ onMounted(() => {
       position: absolute;
       bottom: -2px;
       right: -2px;
-      background: #667eea;
+      background: #374151;
       color: white;
       font-size: 10px;
       padding: 2px 6px;
@@ -1768,7 +1954,7 @@ onMounted(() => {
         border-radius: 6px;
         
         &:hover {
-          color: #667eea;
+          color: #374151;
         }
       }
     }
@@ -1801,7 +1987,7 @@ onMounted(() => {
   
   .action-icon {
     font-size: 28px;
-    color: #667eea;
+    color: #374151;
   }
   
   .action-text {
@@ -1827,7 +2013,7 @@ onMounted(() => {
       font-weight: 600;
       
       &.el-button--primary {
-        background: linear-gradient(135deg, #667eea, #764ba2);
+        background: linear-gradient(135deg, #374151, #111827);
         border: none;
         
         &:hover {
@@ -2772,7 +2958,7 @@ onMounted(() => {
             .chart-bar {
               flex: 1;
               margin: 0 2px;
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              background: linear-gradient(135deg, #374151 0%, #111827 100%);
               border-radius: 4px 4px 0 0;
               position: relative;
               transition: all 0.3s ease;
@@ -2780,7 +2966,7 @@ onMounted(() => {
               min-height: 20px;
               
               &:hover {
-                background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+                background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
                 transform: scaleY(1.05);
               }
               
@@ -2796,10 +2982,10 @@ onMounted(() => {
               }
               
               &.storage-bar {
-                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
                 
                 &:hover {
-                  background: linear-gradient(135deg, #ee82f0 0%, #f3455a 100%);
+                  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
                 }
               }
             }
@@ -2826,20 +3012,20 @@ onMounted(() => {
 // 趋势指示器样式
 .stat-trend {
   .trend-up {
-    color: #67c23a;
+    color: #6b7280;
   }
   
   .trend-down {
-    color: #f56c6c;
+    color: #9ca3af;
   }
   
   .trend-text {
     &.trend-positive {
-      color: #67c23a;
+      color: #6b7280;
     }
     
     &.trend-negative {
-      color: #f56c6c;
+      color: #9ca3af;
     }
   }
 }

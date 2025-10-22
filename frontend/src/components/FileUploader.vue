@@ -403,13 +403,13 @@ onMounted(() => {
 <style lang="scss" scoped>
 .file-uploader {
   .drop-zone {
-    border: 2px dashed #e4e7ed;
+    border: 2px dashed #d1d5db;
     border-radius: 16px;
     padding: 60px 40px;
     text-align: center;
     cursor: pointer;
     transition: all 0.3s ease;
-    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
     position: relative;
     overflow: hidden;
     
@@ -420,22 +420,22 @@ onMounted(() => {
       left: 0;
       right: 0;
       bottom: 0;
-      background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="10" cy="10" r="1" fill="rgba(102,126,234,0.1)"/></pattern></defs><rect width="100" height="100" fill="url(%23dots)"/></svg>');
+      background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="10" cy="10" r="1" fill="rgba(55,65,81,0.1)"/></pattern></defs><rect width="100" height="100" fill="url(%23dots)"/></svg>');
       opacity: 0.3;
     }
     
     &:hover {
-      border-color: #667eea;
-      background: linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%);
+      border-color: #374151;
+      background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
       transform: translateY(-2px);
-      box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+      box-shadow: 0 8px 25px rgba(55, 65, 81, 0.15);
     }
     
     &.is-dragover {
-      border-color: #667eea;
-      background: linear-gradient(135deg, #e6f7ff 0%, #d1ecf1 100%);
+      border-color: #111827;
+      background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
       transform: scale(1.02);
-      box-shadow: 0 12px 30px rgba(102, 126, 234, 0.2);
+      box-shadow: 0 12px 30px rgba(55, 65, 81, 0.2);
       
       &::before {
         opacity: 0.5;
@@ -443,8 +443,8 @@ onMounted(() => {
     }
     
     &.is-uploading {
-      border-color: #27ae60;
-      background: linear-gradient(135deg, #f0f9ff 0%, #e8f5e8 100%);
+      border-color: #6b7280;
+      background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
     }
   }
   
@@ -454,7 +454,7 @@ onMounted(() => {
     
     .upload-icon {
       font-size: 64px;
-      color: #667eea;
+      color: #374151;
       margin-bottom: 20px;
       animation: float 3s ease-in-out infinite;
     }
@@ -462,14 +462,14 @@ onMounted(() => {
     .upload-title {
       font-size: 24px;
       font-weight: 700;
-      color: #2c3e50;
+      color: #111827;
       margin-bottom: 12px;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     }
     
     .upload-subtitle {
       font-size: 16px;
-      color: #7f8c8d;
+      color: #6b7280;
       margin-bottom: 24px;
       font-weight: 500;
     }
@@ -482,12 +482,12 @@ onMounted(() => {
       
       .tip-item {
         font-size: 13px;
-        color: #667eea;
+        color: #374151;
         padding: 8px 16px;
-        background: rgba(102, 126, 234, 0.1);
+        background: rgba(55, 65, 81, 0.1);
         border-radius: 20px;
         font-weight: 500;
-        border: 1px solid rgba(102, 126, 234, 0.2);
+        border: 1px solid rgba(55, 65, 81, 0.2);
       }
     }
   }
@@ -498,7 +498,7 @@ onMounted(() => {
     
     .loading-icon {
       font-size: 64px;
-      color: #27ae60;
+      color: #374151;
       margin-bottom: 20px;
       animation: spin 1s linear infinite;
     }
@@ -506,7 +506,7 @@ onMounted(() => {
     .uploading-title {
       font-size: 24px;
       font-weight: 700;
-      color: #2c3e50;
+      color: #111827;
       margin-bottom: 20px;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     }
@@ -523,19 +523,19 @@ onMounted(() => {
         
         .el-progress-bar__outer {
           border-radius: 10px;
-          background: rgba(102, 126, 234, 0.1);
+          background: rgba(55, 65, 81, 0.1);
         }
         
         .el-progress-bar__inner {
           border-radius: 10px;
-          background: linear-gradient(135deg, #667eea, #764ba2);
+          background: linear-gradient(135deg, #374151, #111827);
         }
       }
       
       .progress-text {
         font-size: 16px;
         font-weight: 700;
-        color: #27ae60;
+        color: #374151;
         min-width: 50px;
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
       }

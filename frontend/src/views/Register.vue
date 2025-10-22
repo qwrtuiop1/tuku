@@ -154,14 +154,18 @@
         </div>
         
         <div class="social-register">
-          <el-button class="social-btn qq-btn">
-            <el-icon><User /></el-icon>
-            QQ注册
-          </el-button>
-          <el-button class="social-btn wechat-btn">
-            <el-icon><User /></el-icon>
-            微信注册
-          </el-button>
+          <div class="social-btn-wrapper">
+            <el-button class="social-btn qq-btn">
+              <el-icon><User /></el-icon>
+              QQ注册
+            </el-button>
+          </div>
+          <div class="social-btn-wrapper">
+            <el-button class="social-btn wechat-btn">
+              <el-icon><User /></el-icon>
+              微信注册
+            </el-button>
+          </div>
         </div>
         
         <div class="register-footer">
@@ -523,34 +527,39 @@ onUnmounted(() => {
 .register-container {
   position: relative;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
   overflow-x: hidden; // 只隐藏水平滚动，允许垂直滚动
   overflow-y: visible; // 允许垂直滚动
   height: auto; // 允许高度自适应
+  // 统一顶部偏移变量（桌面默认）
+  --nav-offset: 120px;
 }
 
 .top-nav {
-  position: absolute;
+  position: fixed; // 固定顶部，避免与内部滚动错位
   top: 0;
   left: 0;
   right: 0;
-  z-index: 100;
+  z-index: 1000;
   padding: 20px 0;
+  background: transparent;
   
   .nav-content {
-    max-width: 1200px;
-    margin: 0 auto;
+    width: 100%; // 占满视口，消除右侧空白
+    max-width: none;
+    margin: 0;
     padding: 0 20px;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    box-sizing: border-box;
   }
   
   .nav-logo {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: white;
+    color: #111827;
     
     .logo-icon {
       font-size: 24px;
@@ -564,34 +573,58 @@ onUnmounted(() => {
   
   .nav-actions {
     .el-button {
-      color: white;
+      color: #374151;
       
       &:hover {
-        background: rgba(255, 255, 255, 0.1);
+        background: rgba(17, 24, 39, 0.06);
       }
     }
   }
 }
 
 .register-content {
-  display: flex;
+  display: grid; // 两列自适应布局
+  grid-template-columns: max-content minmax(420px, 520px); // 左随内容宽度，右固定范围
+  align-items: start;
+  gap: 32px;
+  max-width: none; // 取消限宽
+  width: 100%;
+  margin: 0; // 不再居中包裹
+  justify-items: stretch;
+  align-content: start;
+  justify-content: center; // 居中整个两列块，左右留白一致
+  padding: var(--nav-offset) 24px 24px; // 两侧留安全边距
   min-height: 100vh;
-  align-items: center;
-  justify-content: center;
-  padding: 100px 20px 20px;
-  gap: 60px;
-  height: auto; // 允许高度自适应
-  overflow: visible; // 允许滚动
+  height: 100vh; // 固定视口高度，启用内部滚动容器
+  overflow-y: auto; // 允许垂直滚动
+  overflow-x: hidden; // 隐藏水平滚动
+  -webkit-overflow-scrolling: touch; // 移动端顺滑滚动
+  scroll-padding-top: var(--nav-offset); // 使用统一变量
+  overscroll-behavior: contain; // 阻止顶部回弹导致内容越界
+  box-sizing: border-box; // 防止因内边距导致宽度溢出
+}
+
+// 自动滚动的块统一使用同一顶部间距
+.register-form .el-form-item,
+.register-header,
+.register-divider,
+.social-register,
+.register-footer,
+.email-verification-section,
+.password-hint,
+.register-box {
+  scroll-margin-top: var(--nav-offset);
 }
 
 .register-box {
   width: 100%;
   max-width: 420px;
   padding: 40px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  backdrop-filter: blur(8px);
   border-radius: 24px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 14px 28px rgba(17, 24, 39, 0.08);
   animation: slideUp 0.8s ease-out;
   height: auto; // 允许高度自适应
   min-height: auto; // 允许最小高度自适应
@@ -606,24 +639,24 @@ onUnmounted(() => {
     width: 60px;
     height: 60px;
     margin: 0 auto 16px;
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg, #374151, #111827);
     border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: white;
+    color: #ffffff;
     font-size: 24px;
   }
   
   .register-title {
     font-size: 28px;
     font-weight: 700;
-    color: #2c3e50;
+    color: #111827;
     margin-bottom: 8px;
   }
   
   .register-subtitle {
-    color: #7f8c8d;
+    color: #6b7280;
     font-size: 14px;
     margin: 0;
   }
@@ -640,21 +673,21 @@ onUnmounted(() => {
     
     :deep(.el-input__wrapper) {
       border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      border: 1px solid #e1e8ed;
+      box-shadow: 0 2px 8px rgba(17, 24, 39, 0.06);
+      border: 1px solid #e5e7eb;
       transition: all 0.3s ease;
       padding: 12px 16px;
       width: 100%; // 确保包装器宽度为100%
       box-sizing: border-box;
       
       &:hover {
-        border-color: #667eea;
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        border-color: #9ca3af;
+        box-shadow: 0 4px 12px rgba(17, 24, 39, 0.08);
       }
       
       &.is-focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        border-color: #111827;
+        box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08);
       }
     }
     
@@ -669,19 +702,19 @@ onUnmounted(() => {
     
     .agreement-checkbox {
       :deep(.el-checkbox__label) {
-        color: #7f8c8d;
+        color: #6b7280;
         font-size: 14px;
         line-height: 1.5;
       }
       
       .terms-link {
-        color: #667eea;
+        color: #374151;
         font-size: 14px;
         padding: 0;
         margin: 0 2px;
         
         &:hover {
-          color: #764ba2;
+          color: #111827;
         }
       }
     }
@@ -754,11 +787,11 @@ onUnmounted(() => {
   .email-verification-section {
     margin-top: 16px;
     padding: 20px;
-    background: linear-gradient(135deg, rgba(102, 126, 234, 0.08), rgba(118, 75, 162, 0.05));
+    background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
     border-radius: 16px;
-    border: 1px solid rgba(102, 126, 234, 0.15);
-    box-shadow: 0 4px 20px rgba(102, 126, 234, 0.1);
-    backdrop-filter: blur(10px);
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 4px 20px rgba(17, 24, 39, 0.06);
+    backdrop-filter: blur(8px);
     transition: all 0.3s ease;
     width: 100%; // 确保与邮箱输入框同宽
     box-sizing: border-box;
@@ -766,19 +799,20 @@ onUnmounted(() => {
     position: relative; // 相对定位，不影响页面布局
     
     &:hover {
-      border-color: rgba(102, 126, 234, 0.25);
-      box-shadow: 0 6px 25px rgba(102, 126, 234, 0.15);
+      border-color: #d1d5db;
+      box-shadow: 0 6px 25px rgba(17, 24, 39, 0.1);
     }
     
     .verification-input-row {
-      display: flex;
-      gap: 16px;
+      display: grid;
+      grid-template-columns: 6fr 4fr; // 输入框:按钮 = 6:4
+      gap: 12px;
       align-items: stretch; // 统一高度
-      margin-bottom: 16px;
+      margin-bottom: 8px; // 减少下方空白
       width: 100%; // 确保行宽度为100%
       
       .email-code-input {
-        flex: 1;
+        width: 100%; // 网格下不依赖 flex:1
         width: 100%; // 确保输入框宽度
         
         :deep(.el-input__wrapper) {
@@ -786,21 +820,21 @@ onUnmounted(() => {
           min-height: 48px !important;
           max-height: 48px !important;
           border-radius: 12px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-          border: 1px solid #e1e8ed;
+          box-shadow: 0 2px 8px rgba(17, 24, 39, 0.06);
+          border: 1px solid #e5e7eb;
           transition: all 0.3s ease;
           padding: 0 16px;
           box-sizing: border-box;
           width: 100%; // 确保包装器宽度
           
           &:hover {
-            border-color: #667eea;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+            border-color: #9ca3af;
+            box-shadow: 0 4px 12px rgba(17, 24, 39, 0.08);
           }
           
           &.is-focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #111827;
+            box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08);
           }
         }
         
@@ -815,7 +849,7 @@ onUnmounted(() => {
       }
       
       .send-code-btn {
-        min-width: 140px;
+        min-width: 0; // 由网格控制宽度
         height: 48px !important;
         min-height: 48px !important;
         max-height: 48px !important;
@@ -823,15 +857,16 @@ onUnmounted(() => {
         font-weight: 600;
         font-size: 14px;
         transition: all 0.3s ease;
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        border: none;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-        flex-shrink: 0; // 防止按钮被压缩
+        background: linear-gradient(135deg, #374151, #111827);
+        border: 1px solid #111827;
+        color: #ffffff;
+        box-shadow: 0 4px 15px rgba(17, 24, 39, 0.18);
+        flex-shrink: 0; // 兼容性冗余
         
         &:hover:not(:disabled) {
-          transform: translateY(-2px);
-          box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
-          background: linear-gradient(135deg, #5a67d8, #6b46c1);
+          transform: translateY(-1px);
+          box-shadow: 0 8px 20px rgba(17, 24, 39, 0.22);
+          background: linear-gradient(135deg, #4b5563, #1f2937);
         }
         
         &:active:not(:disabled) {
@@ -842,7 +877,7 @@ onUnmounted(() => {
           opacity: 0.6;
           cursor: not-allowed;
           transform: none;
-          background: #cbd5e0;
+          background: #e5e7eb;
           box-shadow: none;
         }
         
@@ -862,13 +897,13 @@ onUnmounted(() => {
       justify-content: space-between;
       align-items: center;
       font-size: 13px;
-      color: #7f8c8d;
-      padding-top: 8px;
-      border-top: 1px solid rgba(102, 126, 234, 0.1);
+      color: #6b7280;
+      padding-top: 6px; // 进一步压缩底部空白
+      border-top: 1px solid #e5e7eb;
       width: 100%; // 确保提示区域宽度
       
       .code-timer {
-        color: #667eea;
+        color: #374151;
         font-weight: 600;
         font-size: 13px;
       }
@@ -876,14 +911,14 @@ onUnmounted(() => {
       .el-button {
         padding: 4px 8px;
         font-size: 13px;
-        color: #667eea;
+        color: #374151;
         font-weight: 500;
         border-radius: 6px;
         transition: all 0.3s ease;
         
         &:hover:not(:disabled) {
-          color: #5a67d8;
-          background: rgba(102, 126, 234, 0.1);
+          color: #111827;
+          background: rgba(17, 24, 39, 0.06);
         }
         
         &:disabled {
@@ -901,17 +936,20 @@ onUnmounted(() => {
   border-radius: 12px;
   font-size: 16px;
   font-weight: 600;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  border: none;
-  transition: all 0.3s ease;
+  background: linear-gradient(135deg, #374151, #111827);
+  border: 1px solid #111827;
+  color: #ffffff;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
   
   &:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0 14px 32px rgba(17, 24, 39, 0.20);
+    background: linear-gradient(135deg, #4b5563, #1f2937);
   }
   
-  &:active {
+  &:active:not(:disabled) {
     transform: translateY(0);
+    box-shadow: 0 8px 18px rgba(17, 24, 39, 0.16);
   }
   
   &:disabled {
@@ -940,9 +978,9 @@ onUnmounted(() => {
   }
   
   .divider-text {
-    background: rgba(255, 255, 255, 0.95);
+    background: #ffffff;
     padding: 0 16px;
-    color: #7f8c8d;
+    color: #6b7280;
     font-size: 14px;
     position: relative;
     z-index: 1;
@@ -962,28 +1000,16 @@ onUnmounted(() => {
     width: 100%;
     min-width: 0;
     border-radius: 12px;
-    border: 1px solid #e1e8ed;
-    background: white;
-    color: #7f8c8d;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    color: #374151;
     transition: all 0.3s ease;
     box-sizing: border-box;
     
     &:hover {
-      border-color: #667eea;
-      color: #667eea;
+      border-color: #d1d5db;
+      color: #111827;
       transform: translateY(-1px);
-    }
-    
-    &.qq-btn:hover {
-      background: #12b7f5;
-      color: white;
-      border-color: #12b7f5;
-    }
-    
-    &.wechat-btn:hover {
-      background: #07c160;
-      color: white;
-      border-color: #07c160;
     }
   }
 }
@@ -992,12 +1018,12 @@ onUnmounted(() => {
   text-align: center;
   
   .login-link {
-    color: #7f8c8d;
+    color: #6b7280;
     font-size: 14px;
     margin: 0;
     
     .link {
-      color: #667eea;
+      color: #374151;
       font-weight: 600;
       text-decoration: none;
       transition: color 0.3s ease;
@@ -1006,7 +1032,7 @@ onUnmounted(() => {
       gap: 4px;
       
       &:hover {
-        color: #764ba2;
+        color: #111827;
       }
     }
   }
@@ -1016,15 +1042,22 @@ onUnmounted(() => {
   width: 100%;
   max-width: 400px;
   padding: 40px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
   border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.06);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: var(--nav-offset); // 使用统一变量
+  align-self: flex-start;
+  max-height: calc(100vh - var(--nav-offset) - 24px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   animation: slideUp 0.8s ease-out 0.2s both;
   
   .panel-content {
     .panel-title {
-      color: white;
+      color: #111827;
       font-size: 24px;
       font-weight: 600;
       margin-bottom: 32px;
@@ -1045,26 +1078,26 @@ onUnmounted(() => {
         .benefit-icon {
           width: 40px;
           height: 40px;
-          background: rgba(255, 255, 255, 0.2);
+          background: #f3f4f6;
           border-radius: 12px;
           display: flex;
           align-items: center;
           justify-content: center;
-          color: white;
+          color: #111827;
           font-size: 18px;
           flex-shrink: 0;
         }
         
         .benefit-content {
           h3 {
-            color: white;
+            color: #111827;
             font-size: 16px;
             font-weight: 600;
             margin: 0 0 4px 0;
           }
           
           p {
-            color: rgba(255, 255, 255, 0.8);
+            color: #374151;
             font-size: 14px;
             margin: 0;
             line-height: 1.5;
@@ -1072,6 +1105,38 @@ onUnmounted(() => {
         }
       }
     }
+  }
+}
+
+@media (max-width: 1200px) {
+  .register-content {
+    gap: 28px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 1024px) {
+  .register-content {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    justify-content: stretch; // 单列时铺满
+  }
+}
+
+@media (max-width: 1024px) {
+  .register-container { --nav-offset: 100px; }
+  .info-panel { display: none; }
+  .register-box,
+  .email-verification-section,
+  .password-hint {
+    scroll-margin-top: 100px;
+  }
+  .register-form .el-form-item,
+  .register-header,
+  .register-divider,
+  .social-register,
+  .register-footer {
+    scroll-margin-top: 100px;
   }
 }
 
@@ -1089,7 +1154,7 @@ onUnmounted(() => {
 .floating-shape {
   position: absolute;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(17, 24, 39, 0.06);
   animation: float 8s ease-in-out infinite;
 }
 
@@ -1164,46 +1229,43 @@ onUnmounted(() => {
   .register-content {
     flex-direction: column;
     gap: 40px;
-    padding: 80px 20px 20px;
+    padding: 100px 20px 24px; // 适配平板的顶部空间
+    scroll-padding-top: 100px;
+    height: auto; // 小屏允许自适应高度
+    min-height: 100vh;
+    overflow-y: auto;
   }
   
   .info-panel {
     display: none; // 移动端隐藏info-panel
   }
+  .register-box,
+  .email-verification-section,
+  .password-hint {
+    scroll-margin-top: 100px;
+  }
+  .register-form .el-form-item,
+  .register-header,
+  .register-divider,
+  .social-register,
+  .register-footer {
+    scroll-margin-top: 100px;
+  }
 }
 
 @media (max-width: 768px) {
-  .top-nav {
-    padding: 16px 0;
-    
-    .nav-content {
-      padding: 0 16px;
-    }
-    
-    .nav-logo {
-      .logo-icon {
-        font-size: 20px;
-      }
-      
-      .logo-text {
-        font-size: 18px;
-      }
-    }
-    
-    .nav-actions {
-      .el-button {
-        font-size: 14px;
-        padding: 8px 12px;
-      }
-    }
-  }
+  .register-container { --nav-offset: 96px; }
+  .top-nav { padding: 16px 0; }
+  .top-nav .nav-content { padding: 0 16px; }
   
   .register-content {
-    padding: 80px 20px 20px;
+    padding: 96px 20px 24px; // 适配手机顶部空间，避免遮挡
+    scroll-padding-top: 96px;
     gap: 30px;
     min-height: auto; // 移动端允许高度自适应
     align-items: flex-start; // 移动端顶部对齐
-    overflow: visible; // 允许滚动
+    overflow-y: auto; // 允许滚动
+    overflow-x: hidden;
     height: auto; // 高度自适应
   }
   
@@ -1403,19 +1465,39 @@ onUnmounted(() => {
   }
   
   .social-register {
-    flex-direction: column;
-    gap: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+  
+  .social-btn-wrapper {
+    width: 100%;
+  }
+  
+  .social-btn {
+    width: 100%;
+    height: 40px;
+    font-size: 14px;
+    border-radius: 10px;
     
-    .social-btn {
-      height: 40px;
-      font-size: 14px;
-      border-radius: 10px;
-      
-      &:hover {
-        transform: translateY(-1px);
-      }
+    &:hover {
+      transform: translateY(-1px);
     }
   }
+  }
+
+// 桌面端强制 5:5 等分
+@media (min-width: 769px) {
+  .social-register {
+    display: grid;
+    grid-template-columns: 1fr 1fr; // 50% : 50%
+    align-items: stretch;
+  }
+  .social-register .social-btn-wrapper,
+  .social-register .social-btn {
+    width: 100%;
+  }
+}
   
   .register-footer {
     .login-link {
@@ -1426,6 +1508,13 @@ onUnmounted(() => {
         font-weight: 600;
       }
     }
+  }
+  .register-form .el-form-item,
+  .register-header,
+  .register-divider,
+  .social-register,
+  .register-footer {
+    scroll-margin-top: 96px;
   }
 }
 
@@ -1460,7 +1549,8 @@ onUnmounted(() => {
     gap: 24px;
     min-height: auto; // 小屏幕允许高度自适应
     align-items: flex-start; // 顶部对齐
-    overflow: visible; // 允许滚动
+    overflow-y: auto; // 允许滚动
+    overflow-x: hidden;
     height: auto; // 高度自适应
   }
   
@@ -1548,7 +1638,19 @@ onUnmounted(() => {
   }
   
   .social-register {
+    display: block; // 改为块级容器
+    
+    .social-btn-wrapper {
+      width: 100%;
+      margin-bottom: 10px;
+      
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+    
     .social-btn {
+      width: 100%;
       height: 38px;
       font-size: 13px;
     }
@@ -1681,7 +1783,11 @@ onUnmounted(() => {
   }
   
   .social-register {
+    .social-btn-wrapper {
+      margin-bottom: 8px;
+    }
     .social-btn {
+      width: 100%;
       height: 36px;
       font-size: 12px;
     }
@@ -1815,5 +1921,23 @@ onUnmounted(() => {
       }
     }
   }
+}
+
+// 表单微交互（轻量）
+.register-form .el-form-item {
+  transition: transform 0.2s ease;
+}
+
+.register-form .el-form-item:focus-within {
+  transform: translateY(-1px);
+}
+
+.register-form .custom-input :deep(.el-input__wrapper) {
+  background: #ffffff;
+}
+
+.register-form .custom-input :deep(.el-input__prefix .el-icon),
+.register-form .custom-input :deep(.el-input__suffix .el-icon) {
+  color: currentColor; // 跟随文本色
 }
 </style>
