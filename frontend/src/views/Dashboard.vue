@@ -726,6 +726,7 @@ onMounted(() => {
   padding: 0; // 移除内边距，由MainLayout统一控制
   background: #f9fafb;
   min-height: 100vh;
+  view-transition-name: vt-dashboard;
 }
 
 .welcome-section {
@@ -738,6 +739,7 @@ onMounted(() => {
   position: relative;
   overflow: hidden;
   backdrop-filter: blur(8px);
+  view-transition-name: vt-dashboard-welcome;
   
   &::before {
     content: '';
@@ -1488,6 +1490,7 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 24px;
+  view-transition-name: vt-dashboard-stats;
 }
 
 .stat-card {
@@ -3056,4 +3059,103 @@ onMounted(() => {
     }
   }
 }
+
+/* 动效统一覆盖（使用全局变量） */
+.action-btn,
+.stat-card {
+  transition: background var(--anim-duration-base) var(--anim-ease-standard),
+              box-shadow var(--anim-duration-base) var(--anim-ease-standard),
+              transform var(--anim-duration-fast) var(--anim-ease-standard),
+              border-color var(--anim-duration-fast) var(--anim-ease-standard);
+  will-change: transform, box-shadow;
+}
+.action-btn:active, .stat-card:active { transform: scale(var(--press-scale)); }
+
+.card-header .header-actions :deep(.el-button) {
+  transition: background var(--anim-duration-fast) var(--anim-ease-standard),
+              color var(--anim-duration-fast) var(--anim-ease-standard),
+              transform var(--anim-duration-fast) var(--anim-ease-standard);
+}
+.card-header .header-actions :deep(.el-button:active) { transform: scale(var(--press-scale)); }
+
+/* 降级：尊重用户减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .action-btn,
+  .stat-card,
+  .card-header .header-actions :deep(.el-button) { transition: none !important; }
+}
+
+/* 板块进场与统一动效（Dashboard） */
+.dashboard {
+  .welcome-section,
+  .stats-grid,
+  .main-content,
+  .quick-actions {
+    will-change: opacity, transform;
+    animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both;
+  }
+  .welcome-section { animation-delay: 0ms; }
+  .stats-grid { animation-delay: 60ms; }
+  .main-content { animation-delay: 100ms; }
+  .quick-actions { animation-delay: 140ms; }
+}
+
+@keyframes blockFadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cardRise {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 统计卡：同级错峰、悬停微动保持统一 */
+.stats-grid {
+  .stat-card { 
+    will-change: opacity, transform;
+    animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both;
+    transition: background var(--anim-duration-base) var(--anim-ease-standard),
+                box-shadow var(--anim-duration-base) var(--anim-ease-standard),
+                transform var(--anim-duration-fast) var(--anim-ease-standard);
+  }
+  .stat-card:nth-child(1) { animation-delay: 0ms; }
+  .stat-card:nth-child(2) { animation-delay: 40ms; }
+  .stat-card:nth-child(3) { animation-delay: 80ms; }
+  .stat-card:nth-child(4) { animation-delay: 120ms; }
+}
+
+/* 趋势图条：自下而上淡入 */
+.trend-section .trend-card .chart-bars .chart-bar {
+  will-change: transform, opacity;
+  animation: barGrow var(--anim-duration-base) var(--anim-ease-decelerate) both;
+}
+@keyframes barGrow { from { opacity: 0; transform: scaleY(0.7); } to { opacity: 1; transform: scaleY(1); } }
+
+/* 无障碍：减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .dashboard :deep(*),
+  .dashboard * { animation: none !important; transition: none !important; }
+}
+
+/* View Transitions（Dashboard） */
+.dashboard { view-transition-name: vt-dashboard; }
+.welcome-section { view-transition-name: vt-dashboard-welcome; }
+.stats-grid { view-transition-name: vt-dashboard-stats; }
+:global(::view-transition-old(vt-dashboard-welcome)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
+:global(::view-transition-new(vt-dashboard-welcome)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+:global(::view-transition-old(vt-dashboard-stats)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
+:global(::view-transition-new(vt-dashboard-stats)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+@keyframes vtFadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes vtFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* View Transitions（Dashboard Stats Numbers） */
+.stats-grid {
+  .stat-card .stat-number { view-transition-name: vt-dash-number; }
+  .stat-card .stat-label { view-transition-name: vt-dash-label; }
+}
+:global(::view-transition-old(vt-dash-number)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
+:global(::view-transition-new(vt-dash-number)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+:global(::view-transition-old(vt-dash-label)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
+:global(::view-transition-new(vt-dash-label)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
 </style>

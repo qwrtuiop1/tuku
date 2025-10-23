@@ -83,8 +83,26 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// CORS调试中间件
+// 统一CORS响应头（确保错误/非简单响应也携带CORS头）
 app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'https://tukufrontend.vtart.cn',
+    'https://tukubackend.vtart.cn',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3008',
+    'http://localhost:3010'
+  ];
+  if (!origin || allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin || 'https://tukufrontend.vtart.cn');
+    res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers, Cache-Control, X-File-Name, X-File-Size, X-File-Type');
+    res.header('Access-Control-Expose-Headers', 'Content-Type, Content-Length, Cache-Control, Last-Modified, ETag, Access-Control-Allow-Origin, Access-Control-Allow-Credentials');
+  }
   next();
 });
 

@@ -54,7 +54,9 @@
               class="custom-input"
             />
             <!-- 邮箱验证码区域 -->
+            <transition name="fade-up-soft" appear>
             <div v-if="registerForm.email" class="email-verification-section">
+              <div id="geetest-box" class="geetest-box"></div>
               <div class="verification-input-row">
                 <el-input 
                   v-model="emailCode"
@@ -80,6 +82,7 @@
                 </el-button>
               </div>
             </div>
+            </transition>
           </el-form-item>
           
           <el-form-item prop="password">
@@ -94,6 +97,7 @@
               @input="checkPasswordStrength"
             />
             <!-- 密码强度提示 -->
+            <transition name="fade-up-soft" appear>
             <div v-if="registerForm.password" class="password-hint">
               <div class="password-strength">
                 <span class="strength-label">密码强度：</span>
@@ -110,6 +114,7 @@
                 </ul>
               </div>
             </div>
+            </transition>
           </el-form-item>
           
           <el-form-item prop="confirmPassword">
@@ -154,18 +159,14 @@
         </div>
         
         <div class="social-register">
-          <div class="social-btn-wrapper">
-            <el-button class="social-btn qq-btn">
-              <el-icon><User /></el-icon>
-              QQ注册
-            </el-button>
-          </div>
-          <div class="social-btn-wrapper">
-            <el-button class="social-btn wechat-btn">
-              <el-icon><User /></el-icon>
-              微信注册
-            </el-button>
-          </div>
+          <el-button class="social-btn qq-btn">
+            <el-icon><User /></el-icon>
+            QQ注册
+          </el-button>
+          <el-button class="social-btn wechat-btn">
+            <el-icon><User /></el-icon>
+            微信注册
+          </el-button>
         </div>
         
         <div class="register-footer">
@@ -247,6 +248,7 @@ import {
   StarFilled
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import api from '@/utils/api'
 import { isValidEmail, isValidUsername } from '@/utils/helpers'
 
 const router = useRouter()
@@ -281,6 +283,117 @@ const emailCodeCooldown = ref(0)
 const codeExpireTime = ref(0)
 const emailCodeTimer = ref<NodeJS.Timeout | null>(null)
 const codeExpireTimer = ref<NodeJS.Timeout | null>(null)
+
+// GeeTest v4 人机验证
+type AnyFn = (...args: any[]) => any
+const geetestScriptUrl = 'https://static.geetest.com/v4/gt4.js'
+const geetestCaptchaId = ((import.meta.env as any).VITE_GEETEST_CAPTCHA_ID as string) || '7922d406fb215d02770d5a4cd71af066'
+const geetestReady = ref(false)
+let geetestHandler: any = null
+const geetestMaxWaitMs = 12000
+
+const loadScriptOnce = (src: string): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src=\"${src}\"]`)) return resolve()
+    const s = document.createElement('script')
+    s.src = src
+    s.async = true
+    s.onload = () => resolve()
+    s.onerror = () => reject(new Error('geetest script load failed'))
+    document.head.appendChild(s)
+  })
+}
+
+const ensureGeetest = async (): Promise<boolean> => {
+  if (!geetestCaptchaId) return false
+  if (geetestReady.value && geetestHandler) return true
+  await loadScriptOnce(geetestScriptUrl)
+  const initGeetest4: AnyFn | undefined = (window as any).initGeetest4
+  if (!initGeetest4) return false
+  return new Promise<boolean>((resolve) => {
+    try {
+      initGeetest4({
+        captchaId: geetestCaptchaId,
+        product: 'bind',
+        riskType: 'verify',
+        language: 'zho',
+        protocol: 'https://',
+        timeout: 30000
+      }, (handler: any) => {
+        geetestHandler = handler
+        geetestReady.value = !!handler
+        // 调试日志：监听极验事件
+        try {
+          if (geetestHandler?.onReady) geetestHandler.onReady(() => console.log('[GeeTest] ready'))
+          if (geetestHandler?.onSuccess) geetestHandler.onSuccess(() => {
+            const v = geetestHandler?.getValidate ? geetestHandler.getValidate() : null
+            console.log('[GeeTest] success', v)
+          })
+          if (geetestHandler?.onError) geetestHandler.onError((err: any) => console.log('[GeeTest] error', err))
+          if (geetestHandler?.onClose) geetestHandler.onClose(() => console.log('[GeeTest] close'))
+        } catch {}
+        
+        resolve(geetestReady.value)
+      })
+    } catch (_) {
+      resolve(false)
+    }
+  })
+}
+
+const runHumanVerification = async (): Promise<boolean> => {
+  if (!geetestCaptchaId) return true
+  const ok = await ensureGeetest()
+  if (!ok || !geetestHandler) return false
+  return new Promise<boolean>((resolve) => {
+    let settled = false
+    let popupShown = false
+    // 轻提示：正在拉起
+    try { ElMessage.info('正在拉起人机验证...', { duration: 1200 }) } catch {}
+    const onSuccess = async () => {
+      try {
+        const validate = geetestHandler.getValidate ? geetestHandler.getValidate() : null
+        if (!validate) return resolve(false)
+        const { lot_number, captcha_output, pass_token, gen_time } = validate
+        const resp = await api.post('/auth/captcha/validate', {
+          lot_number,
+          captcha_output,
+          pass_token,
+          gen_time,
+          sign_token: validate.sign_token,
+          captcha_id: geetestCaptchaId
+        })
+        settled = true
+        resolve(resp.data?.success === true)
+      } catch (e) {
+        settled = true
+        try { ElMessage.error('二次校验失败，请重试') } catch {}
+        resolve(false)
+      }
+    }
+    if (geetestHandler.onSuccess) geetestHandler.onSuccess(onSuccess)
+    if (geetestHandler.onError) geetestHandler.onError(() => { if (!settled) { settled = true; try { ElMessage.error('人机验证出错，请关闭拦截或更换网络后重试') } catch {}; resolve(false) } })
+    if (geetestHandler.onClose) geetestHandler.onClose(() => { if (!settled) { settled = true; try { ElMessage.warning('请先完成人机验证') } catch {}; resolve(false) } })
+    const showIt = () => {
+      popupShown = true
+      if (geetestHandler.showCaptcha) geetestHandler.showCaptcha()
+      else if (geetestHandler.showBox) geetestHandler.showBox()
+      else onSuccess()
+    }
+    try { showIt() } catch {}
+    if (geetestHandler.onReady) geetestHandler.onReady(() => { popupShown = true; showIt() })
+    // 超时兜底
+    setTimeout(() => {
+      if (!settled) {
+        settled = true
+        if (!popupShown) {
+          try { ElMessage.error('人机验证超时，请重试或检查拦截设置') } catch {}
+        }
+        resolve(false)
+      }
+    }, geetestMaxWaitMs)
+  })
+}
 
 const validateUsername = (rule: any, value: string, callback: Function) => {
   if (!value) {
@@ -407,6 +520,12 @@ const sendEmailCode = async () => {
   }
 
   try {
+    // 人机验证
+    const humanOk = await runHumanVerification()
+    if (!humanOk) {
+      ElMessage.error('请先完成人机验证')
+      return
+    }
     const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://tukubackend.vtart.cn'
     const response = await fetch(`${baseUrl}/api/auth/send-email-code`, {
       method: 'POST',
@@ -481,6 +600,11 @@ const clearTimers = () => {
 
 const handleRegister = async () => {
   if (!registerFormRef.value) return
+  // 必须同意《用户协议》《隐私政策》后才允许注册
+  if (!agreeTerms.value) {
+    ElMessage.warning('请先阅读并同意《用户协议》和《隐私政策》')
+    return
+  }
   
   try {
     await registerFormRef.value.validate()
@@ -516,6 +640,8 @@ const goToLogin = () => {
 
 onMounted(() => {
   // 用户引导功能已移除
+  // 预加载极验，避免首次点击时未就绪
+  ensureGeetest().catch(() => {})
 })
 
 onUnmounted(() => {
@@ -766,6 +892,25 @@ onUnmounted(() => {
     margin-top: 8px;
   }
 
+  // 桌面端：密码提示左右布局（左：要求，右：强度）
+  @media (min-width: 1024px) {
+    .password-hint {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      column-gap: 16px;
+      align-items: start;
+    }
+    .password-requirements {
+      margin-top: 0;
+    }
+    .password-strength {
+      margin-bottom: 0;
+      justify-content: flex-end;
+      text-align: right;
+      gap: 8px;
+    }
+  }
+
   .requirement-title {
     color: #666;
     font-size: 12px;
@@ -801,6 +946,13 @@ onUnmounted(() => {
     &:hover {
       border-color: #d1d5db;
       box-shadow: 0 6px 25px rgba(17, 24, 39, 0.1);
+    }
+
+    .geetest-box {
+      min-height: 48px;
+      margin-bottom: 12px;
+      position: relative;
+      z-index: 2;
     }
     
     .verification-input-row {
@@ -988,12 +1140,13 @@ onUnmounted(() => {
 }
 
 .social-register {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr; // 5:5 等分
   gap: 12px;
   margin-bottom: 24px;
+  width: 100%;
   
   .social-btn {
-    flex: 1;
     height: 44px;
     min-height: 44px;
     max-height: 44px;
@@ -1228,6 +1381,7 @@ onUnmounted(() => {
 @media (max-width: 1024px) {
   .register-content {
     flex-direction: column;
+    grid-template-columns: 1fr; // 隐藏右侧信息面板后，使用单列消除右侧空白
     gap: 40px;
     padding: 100px 20px 24px; // 适配平板的顶部空间
     scroll-padding-top: 100px;
@@ -1410,6 +1564,18 @@ onUnmounted(() => {
       transform: translateY(-1px);
       box-shadow: 0 6px 16px rgba(102, 126, 234, 0.35);
     }
+  }
+  
+  // 轻柔淡入上移动画（邮箱验证码、密码提示）
+  .fade-up-soft-enter-from,
+  .fade-up-soft-leave-to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  .fade-up-soft-enter-active,
+  .fade-up-soft-leave-active {
+    transition: opacity var(--anim-duration-base, 200ms) var(--anim-ease-decelerate, cubic-bezier(0.2, 0, 0, 1)),
+                transform var(--anim-duration-base, 200ms) var(--anim-ease-decelerate, cubic-bezier(0.2, 0, 0, 1));
   }
   
   .register-divider {
@@ -1625,7 +1791,7 @@ onUnmounted(() => {
           
           .benefit-content {
             h3 {
-              font-size: 14px;
+              font-size: 13px;
             }
             
             p {
@@ -1939,5 +2105,71 @@ onUnmounted(() => {
 .register-form .custom-input :deep(.el-input__prefix .el-icon),
 .register-form .custom-input :deep(.el-input__suffix .el-icon) {
   color: currentColor; // 跟随文本色
+}
+
+/* 动效统一覆盖（使用 MainLayout 提供的全局动效变量） */
+.register-box {
+  animation-duration: var(--anim-duration-slow);
+  animation-timing-function: var(--anim-ease-entrance);
+}
+
+.top-nav .nav-actions .el-button {
+  transition: background var(--anim-duration-fast) var(--anim-ease-standard),
+              color var(--anim-duration-fast) var(--anim-ease-standard),
+              transform var(--anim-duration-fast) var(--anim-ease-standard);
+}
+.top-nav .nav-actions .el-button:active { transform: scale(var(--press-scale)); }
+
+.register-form .custom-input :deep(.el-input__wrapper) {
+  transition: box-shadow var(--anim-duration-base) var(--anim-ease-standard),
+              border-color var(--anim-duration-base) var(--anim-ease-standard);
+}
+
+.register-button {
+  transition: background var(--anim-duration-base) var(--anim-ease-standard),
+              box-shadow var(--anim-duration-base) var(--anim-ease-standard),
+              transform var(--anim-duration-fast) var(--anim-ease-standard);
+}
+.register-button:active { transform: scale(var(--press-scale)); }
+
+.social-register .social-btn {
+  transition: background var(--anim-duration-fast) var(--anim-ease-standard),
+              border-color var(--anim-duration-fast) var(--anim-ease-standard),
+              color var(--anim-duration-fast) var(--anim-ease-standard),
+              transform var(--anim-duration-fast) var(--anim-ease-standard);
+}
+.social-register .social-btn:active { transform: scale(var(--press-scale)); }
+
+/* 降级：尊重用户减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .register-box { animation: none; }
+  .register-button,
+  .social-register .social-btn,
+  .top-nav .nav-actions .el-button,
+  .register-form .custom-input :deep(.el-input__wrapper) {
+    transition: none !important;
+  }
+}
+
+/* 动效变量修正与可见性优化 */
+.register-box { animation-timing-function: var(--anim-ease-decelerate) !important; }
+
+.register-content { content-visibility: auto; contain-intrinsic-size: 900px; }
+
+/* 页面与按钮错峰入场（Register） */
+.top-nav { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+.register-content { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 40ms; }
+.register-box { will-change: opacity, transform; animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 80ms; }
+.info-panel { will-change: opacity, transform; animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 120ms; }
+.social-register .social-btn-wrapper { will-change: opacity, transform; animation: listRise var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+.social-register .social-btn-wrapper:nth-child(1) { animation-delay: 0ms; }
+.social-register .social-btn-wrapper:nth-child(2) { animation-delay: 40ms; }
+
+@keyframes blockFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes cardRise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes listRise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .top-nav, .register-content, .register-box, .info-panel, .social-register .social-btn-wrapper { animation: none !important; }
 }
 </style>

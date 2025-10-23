@@ -7,12 +7,34 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import router from '@/router'
 
 const authStore = useAuthStore()
 
 onMounted(() => {
-  // 初始化时检查登录状态
   authStore.checkAuth()
+
+  // 空闲时预取常用路由 chunk
+  if ('requestIdleCallback' in window) {
+    ;(window as any).requestIdleCallback?.(() => {
+      const toPreload = [
+        () => import('@/views/Files.vue'),
+        () => import('@/views/Dashboard.vue'),
+        () => import('@/views/AdminCenter.vue'),
+        () => import('@/views/SettingsPage.vue')
+      ]
+      toPreload.forEach(loader => loader().catch(() => {}))
+    }, { timeout: 2000 })
+  } else {
+    setTimeout(() => {
+      Promise.allSettled([
+        import('@/views/Files.vue'),
+        import('@/views/Dashboard.vue'),
+        import('@/views/AdminCenter.vue'),
+        import('@/views/SettingsPage.vue')
+      ])
+    }, 2000)
+  }
 })
 </script>
 

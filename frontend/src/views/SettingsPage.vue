@@ -1514,6 +1514,7 @@ import {
   Bell,
   Check,
   Connection,
+  CopyDocument,
   Tools,
   Warning,
   Message,
@@ -2002,10 +2003,10 @@ const handleWechatLoginToggle = (value: boolean) => {
   }
 }
 
-// 获取回调URL
+// 获取回调URL（使用前端路由回调路径）
 const getCallbackUrl = (type: string) => {
   const baseUrl = window.location.origin
-  return `${baseUrl}/api/auth/${type}/callback`
+  return `${baseUrl}/auth/${type}/callback`
 }
 
 // 复制回调URL
@@ -4516,4 +4517,118 @@ onMounted(() => {
     }
   }
 }
+
+/* 动效统一覆盖（Settings） */
+.settings-page {
+  .settings-content { content-visibility: auto; contain-intrinsic-size: 1400px; }
+
+  :deep(.el-button),
+  :deep(.el-input__wrapper),
+  :deep(.el-textarea__inner),
+  :deep(.el-select .el-input__wrapper),
+  :deep(.el-switch),
+  :deep(.el-checkbox),
+  :deep(.el-checkbox__label),
+  :deep(.el-input-number),
+  .sidebar-menu .menu-item,
+  .settings-panel .settings-section .section-header h3,
+  .settings-panel .settings-section .section-header p {
+    transition: background var(--anim-duration-fast) var(--anim-ease-standard),
+                color var(--anim-duration-fast) var(--anim-ease-standard),
+                border-color var(--anim-duration-fast) var(--anim-ease-standard),
+                box-shadow var(--anim-duration-fast) var(--anim-ease-standard),
+                transform var(--anim-duration-fast) var(--anim-ease-standard);
+  }
+
+  .sidebar-menu .menu-item:hover { background: var(--hover-bg); }
+  .sidebar-menu .menu-item:active { transform: scale(var(--press-scale)); }
+
+  :deep(.el-button:active) { transform: scale(var(--press-scale)); }
+
+  /* 表单获得焦点阴影过渡更顺滑 */
+  :deep(.el-input__wrapper.is-focus),
+  :deep(.el-select .el-input__wrapper.is-focus) {
+    box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08) !important;
+  }
+
+  /* 列表/面板 hover 提示 */
+  .settings-panel .settings-section {
+    will-change: transform, box-shadow;
+  }
+}
+
+/* 无障碍：尊重减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .settings-page :deep(*) { transition: none !important; animation: none !important; }
+}
+
+/* 板块进场与错峰动效（Settings） */
+.settings-page {
+  .page-header { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 0ms; }
+  .settings-content { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 40ms; }
+  .desktop-settings-layout { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 60ms; }
+  .desktop-settings-sidebar { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 80ms; }
+  .desktop-settings-content { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 100ms; }
+  .settings-panel { will-change: opacity, transform; animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 120ms; }
+
+  /* 侧栏菜单项：错峰入场 */
+  .sidebar-menu .menu-item { will-change: opacity, transform; animation: listRise var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+  .sidebar-menu .menu-item:nth-child(1) { animation-delay: 0ms; }
+  .sidebar-menu .menu-item:nth-child(2) { animation-delay: 30ms; }
+  .sidebar-menu .menu-item:nth-child(3) { animation-delay: 60ms; }
+  .sidebar-menu .menu-item:nth-child(4) { animation-delay: 90ms; }
+  .sidebar-menu .menu-item:nth-child(5) { animation-delay: 120ms; }
+  .sidebar-menu .menu-item:nth-child(6) { animation-delay: 150ms; }
+
+  /* 每个设置分组：错峰入场 */
+  .settings-section { will-change: opacity, transform; animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+  .settings-section:nth-child(1) { animation-delay: 0ms; }
+  .settings-section:nth-child(2) { animation-delay: 60ms; }
+  .settings-section:nth-child(3) { animation-delay: 100ms; }
+  .settings-section:nth-child(4) { animation-delay: 140ms; }
+
+  /* 表单项：轻量入场，前12项错峰 */
+  .settings-form .el-form-item { will-change: opacity, transform; animation: rowFadeIn var(--anim-duration-fast) var(--anim-ease-decelerate) both; }
+  .settings-form .el-form-item:nth-child(1) { animation-delay: 0ms; }
+  .settings-form .el-form-item:nth-child(2) { animation-delay: 20ms; }
+  .settings-form .el-form-item:nth-child(3) { animation-delay: 40ms; }
+  .settings-form .el-form-item:nth-child(4) { animation-delay: 60ms; }
+  .settings-form .el-form-item:nth-child(5) { animation-delay: 80ms; }
+  .settings-form .el-form-item:nth-child(6) { animation-delay: 100ms; }
+  .settings-form .el-form-item:nth-child(7) { animation-delay: 120ms; }
+  .settings-form .el-form-item:nth-child(8) { animation-delay: 140ms; }
+  .settings-form .el-form-item:nth-child(9) { animation-delay: 160ms; }
+  .settings-form .el-form-item:nth-child(10) { animation-delay: 180ms; }
+  .settings-form .el-form-item:nth-child(11) { animation-delay: 200ms; }
+  .settings-form .el-form-item:nth-child(12) { animation-delay: 220ms; }
+}
+
+@keyframes blockFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes cardRise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes rowFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes listRise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* 无障碍：减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .settings-page :deep(*),
+  .settings-page * { animation: none !important; transition: none !important; }
+}
+
+/* View Transitions（Settings） */
+.settings-page { view-transition-name: vt-settings; }
+.desktop-settings-sidebar { view-transition-name: vt-settings-sidebar; }
+.desktop-settings-content { view-transition-name: vt-settings-content; }
+:global(::view-transition-old(vt-settings-sidebar)) { animation: vtSlideLeftOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
+:global(::view-transition-new(vt-settings-sidebar)) { animation: vtSlideLeftIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+:global(::view-transition-old(vt-settings-content)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
+:global(::view-transition-new(vt-settings-content)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+@keyframes vtSlideLeftOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-6px); } }
+@keyframes vtSlideLeftIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes vtFadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes vtFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* View Transitions（Settings headers） */
+.settings-panel .settings-section .section-header h3 { view-transition-name: vt-setting-section-title; }
+:global(::view-transition-old(vt-setting-section-title)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
+:global(::view-transition-new(vt-setting-section-title)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
 </style>

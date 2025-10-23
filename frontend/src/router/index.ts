@@ -21,6 +21,16 @@ const routes = [
       requiresAuth: false 
     }
   },
+  // 兼容QQ互联后台配置的回调地址 /api/auth/qq/callback
+  {
+    path: '/api/auth/qq/callback',
+    name: 'QQCallbackApiAlias',
+    component: () => import('@/views/QQCallback.vue'),
+    meta: {
+      title: 'QQ登录回调',
+      requiresAuth: false
+    }
+  },
   {
     path: '/register',
     name: 'Register',

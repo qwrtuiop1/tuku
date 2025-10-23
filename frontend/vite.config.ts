@@ -26,7 +26,7 @@ export default defineConfig({
       dts: true
     }),
     Components({
-      resolvers: [ElementPlusResolver()],
+      resolvers: [ElementPlusResolver({ resolveIcons: true })],
       dts: true
     })
   ],
@@ -52,10 +52,14 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ['vue', 'vue-router', 'pinia'],
-          element: ['element-plus']
+          element: ['element-plus'],
+          virtualScroller: ['vue-virtual-scroller']
         }
       }
     }
+  },
+  optimizeDeps: {
+    include: ['vue-virtual-scroller']
   },
   css: {
     preprocessorOptions: {

@@ -87,6 +87,20 @@ const goToLogin = () => {
 </script>
 
 <style scoped>
+/***** 统一入场动效（QQCallback） *****/
+.qq-callback-container { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+.callback-content { will-change: opacity, transform; animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 60ms; }
+.loading-spinner, .error-message, .success-message { will-change: opacity, transform; animation: rowFadeIn var(--anim-duration-fast) var(--anim-ease-decelerate) both; }
+
+@keyframes blockFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes cardRise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes rowFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .qq-callback-container *, .qq-callback-container :deep(*) { animation: none !important; transition: none !important; }
+}
+
+/* 原样式 */
 .qq-callback-container {
   min-height: 100vh;
   display: flex;

@@ -12,10 +12,24 @@ class DatabaseInitService {
   // 执行SQL脚本
   async executeSqlScript(scriptName) {
     try {
-      const scriptPath = path.join(__dirname, '../../database', scriptName);
-      
+      // 兼容打包后 dist 目录与源码目录两种路径
+      const candidates = [
+        // 打包后：services 在 dist/services，数据库脚本在 dist/database
+        path.join(__dirname, '../database', scriptName),
+        // 源码开发：services 在 src/services，数据库脚本在 backend/database
+        path.join(__dirname, '../../database', scriptName)
+      ];
+
+      let scriptPath = null;
+      for (const p of candidates) {
+        if (fs.existsSync(p)) {
+          scriptPath = p;
+          break;
+        }
+      }
+
       // 检查文件是否存在
-      if (!fs.existsSync(scriptPath)) {
+      if (!scriptPath) {
         console.log(`⚠️ SQL脚本文件不存在: ${scriptName}`);
         return false;
       }

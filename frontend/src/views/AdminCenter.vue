@@ -1803,40 +1803,7 @@ const setupSyncScroll = () => {
         // 防止循环滚动的标志
         let isScrolling = false
         
-        // 同步滚动函数
-        const syncScroll = (source: HTMLElement, target: HTMLElement) => {
-          if (isScrolling) return
-          isScrolling = true
-          
-          const scrollLeft = source.scrollLeft
-          
-          // 直接设置目标元素的scrollLeft
-          target.scrollLeft = scrollLeft
-          
-          // 同步固定列的滚动
-          const fixedRightHeader = tableElement.querySelector('.el-table__fixed-right .el-table__fixed-header-wrapper') as HTMLElement
-          const fixedRightBody = tableElement.querySelector('.el-table__fixed-right .el-table__fixed-body-wrapper') as HTMLElement
-          
-          if (fixedRightHeader) {
-            fixedRightHeader.scrollLeft = scrollLeft
-          }
-          if (fixedRightBody) {
-            fixedRightBody.scrollLeft = scrollLeft
-          }
-          
-          // 强制同步所有滚动容器
-          const allScrollContainers = tableElement.querySelectorAll('.el-scrollbar__wrap')
-          allScrollContainers.forEach(container => {
-            if (container !== source) {
-              (container as HTMLElement).scrollLeft = scrollLeft
-            }
-          })
-          
-          // 使用requestAnimationFrame确保滚动完成
-          requestAnimationFrame(() => {
-            isScrolling = false
-          })
-        }
+        // （已移除未使用的同步滚动函数）
         
         // 表头滚动时，同步表体滚动
         headerWrapper.addEventListener('scroll', (e) => {
@@ -2445,7 +2412,7 @@ const handleUserAction = async (command: string, user: User) => {
       break
         
     case 'editStorage':
-        // 兼容菜单项“设置存储”（移动端/部分视图）
+        // 兼容菜单项"设置存储"（移动端/部分视图）
         await manageUserStorage(user)
       break
         
@@ -2533,7 +2500,7 @@ const toggleUserStatus = async (user: User) => {
 const manageUserStorage = async (user: User) => {
   try {
     // 创建自定义对话框
-    const { value: formData } = await ElMessageBox({
+    await ElMessageBox({
       title: '管理用户存储',
       message: `
         <div style="text-align: left;">
@@ -2613,7 +2580,7 @@ const manageUserStorage = async (user: User) => {
               ElMessage.success(`用户存储限制已更新为 ${value} ${unit}`)
               done()
             })
-            .catch((error: any) => {
+            .catch(() => {
               ElMessage.error('更新存储限制失败')
               instance.confirmButtonLoading = false
             })
@@ -2886,8 +2853,8 @@ const clearLogs = async () => {
     await api.delete('/admin/logs')
     logs.value = []
     ElMessage.success('日志已清空')
-  } catch (error) {
-    if (error !== 'cancel') {
+  } catch (e) {
+    if (e !== 'cancel') {
       ElMessage.error('清空日志失败')
     }
   }
@@ -2910,7 +2877,6 @@ const exportLogs = () => {
   
   // 创建CSV内容
   const headers = ['时间', '级别', '来源', '消息', '用户ID'] as const
-  type HeaderKey = '时间' | '级别' | '来源' | '消息' | '用户ID'
   const csvContent = [
     headers.join(','),
     ...logData.map(row => 
@@ -3448,6 +3414,45 @@ onUnmounted(() => {
   padding: 24px; // 统一设置所有方向的内边距
   background: #f5f7fa;
   min-height: 100vh;
+  /* 动效统一覆盖（AdminCenter） */
+  .admin-center-content { content-visibility: auto; contain-intrinsic-size: 1800px; }
+
+  :deep(.el-button),
+  :deep(.el-menu-item),
+  :deep(.el-input__wrapper),
+  :deep(.el-select .el-input__wrapper),
+  :deep(.el-switch),
+  :deep(.el-checkbox),
+  :deep(.el-pagination .btn-prev),
+  :deep(.el-pagination .btn-next),
+  :deep(.el-pagination .el-pager li),
+  .admin-nav-card,
+  .admin-panel-card,
+  .stat-card,
+  .quick-action-btn,
+  .user-card {
+    transition: background var(--anim-duration-base) var(--anim-ease-standard),
+                color var(--anim-duration-fast) var(--anim-ease-standard),
+                border-color var(--anim-duration-fast) var(--anim-ease-standard),
+                box-shadow var(--anim-duration-base) var(--anim-ease-standard),
+                transform var(--anim-duration-fast) var(--anim-ease-standard);
+  }
+
+  :deep(.el-menu-item:hover),
+  .quick-action-btn:hover,
+  .user-card:hover { background: var(--hover-bg); }
+
+  :deep(.el-button:active),
+  :deep(.el-menu-item:active),
+  .quick-action-btn:active,
+  .user-card:active { transform: scale(var(--press-scale)); }
+
+  .stat-card, .user-card { will-change: transform, box-shadow; }
+}
+
+/* 无障碍：尊重减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .admin-center-page :deep(*) { transition: none !important; animation: none !important; }
 }
 
 .page-header {
@@ -3851,6 +3856,7 @@ onUnmounted(() => {
       // 存储管理样式
       .storage-stats {
         margin-bottom: 24px;
+        padding: 0 8px; // 抵消 :gutter 导致的 el-row 负边距，避免右侧裁切
         
         .storage-stat-card {
           .stat-content {
@@ -6741,6 +6747,96 @@ onUnmounted(() => {
     height: 300px;
   }
 }
+
+/* 板块进场与错峰动效（AdminCenter） */
+.admin-center-page {
+  .admin-center-content,
+  .desktop-layout,
+  .admin-nav-card,
+  .admin-panel-card { 
+    will-change: opacity, transform; 
+    animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; 
+  }
+  .admin-nav-card { animation-delay: 0ms; }
+  .admin-panel-card { animation-delay: 80ms; }
+
+  /* 概览统计卡：同级错峰 */
+  .stats-cards .stat-card {
+    will-change: opacity, transform;
+    animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both;
+  }
+  .stats-cards .stat-card:nth-child(1) { animation-delay: 0ms; }
+  .stats-cards .stat-card:nth-child(2) { animation-delay: 40ms; }
+  .stats-cards .stat-card:nth-child(3) { animation-delay: 80ms; }
+
+  /* 快速操作：按钮错峰 */
+  .quick-actions-row .el-col .quick-action-btn {
+    will-change: opacity, transform;
+    animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both;
+  }
+  .quick-actions-row .el-col:nth-child(1) .quick-action-btn { animation-delay: 0ms; }
+  .quick-actions-row .el-col:nth-child(2) .quick-action-btn { animation-delay: 40ms; }
+  .quick-actions-row .el-col:nth-child(3) .quick-action-btn { animation-delay: 80ms; }
+  .quick-actions-row .el-col:nth-child(4) .quick-action-btn { animation-delay: 120ms; }
+
+  /* 移动端用户卡：错峰 */
+  .mobile-user-list .user-card { 
+    will-change: opacity, transform; 
+    animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; 
+  }
+  .mobile-user-list .user-card:nth-child(1) { animation-delay: 0ms; }
+  .mobile-user-list .user-card:nth-child(2) { animation-delay: 20ms; }
+  .mobile-user-list .user-card:nth-child(3) { animation-delay: 40ms; }
+  .mobile-user-list .user-card:nth-child(4) { animation-delay: 60ms; }
+  .mobile-user-list .user-card:nth-child(5) { animation-delay: 80ms; }
+  .mobile-user-list .user-card:nth-child(6) { animation-delay: 100ms; }
+
+  /* 表格行：轻量入场，前12行错峰 */
+  :deep(.el-table__row) {
+    will-change: opacity, transform;
+    animation: rowFadeIn var(--anim-duration-fast) var(--anim-ease-decelerate) both;
+  }
+  :deep(.el-table__row:nth-child(1)) { animation-delay: 0ms; }
+  :deep(.el-table__row:nth-child(2)) { animation-delay: 20ms; }
+  :deep(.el-table__row:nth-child(3)) { animation-delay: 40ms; }
+  :deep(.el-table__row:nth-child(4)) { animation-delay: 60ms; }
+  :deep(.el-table__row:nth-child(5)) { animation-delay: 80ms; }
+  :deep(.el-table__row:nth-child(6)) { animation-delay: 100ms; }
+  :deep(.el-table__row:nth-child(7)) { animation-delay: 120ms; }
+  :deep(.el-table__row:nth-child(8)) { animation-delay: 140ms; }
+  :deep(.el-table__row:nth-child(9)) { animation-delay: 160ms; }
+  :deep(.el-table__row:nth-child(10)) { animation-delay: 180ms; }
+  :deep(.el-table__row:nth-child(11)) { animation-delay: 200ms; }
+  :deep(.el-table__row:nth-child(12)) { animation-delay: 220ms; }
+}
+
+@keyframes blockFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes cardRise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes rowFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* 无障碍：减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .admin-center-page :deep(*),
+  .admin-center-page * { animation: none !important; transition: none !important; }
+}
+
+/* View Transitions（AdminCenter） */
+.admin-center-page { view-transition-name: vt-admin; }
+.admin-nav-card { view-transition-name: vt-admin-nav; }
+.admin-panel-card { view-transition-name: vt-admin-panel; }
+:global(::view-transition-old(vt-admin-nav)) { animation: vtSlideLeftOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
+:global(::view-transition-new(vt-admin-nav)) { animation: vtSlideLeftIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+:global(::view-transition-old(vt-admin-panel)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
+:global(::view-transition-new(vt-admin-panel)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+@keyframes vtSlideLeftOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-6px); } }
+@keyframes vtSlideLeftIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes vtFadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes vtFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* View Transitions（Admin users） */
+.mobile-user-list .user-card { view-transition-name: vt-admin-user-card; }
+:global(::view-transition-old(vt-admin-user-card)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
+:global(::view-transition-new(vt-admin-user-card)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
 </style>
 
 

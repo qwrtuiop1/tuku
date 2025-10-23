@@ -7,6 +7,8 @@
         :src="thumbnailUrl"
         :alt="file.original_name"
         class="thumbnail-image"
+        loading="lazy"
+        decoding="async"
         @load="onImageLoad"
         @error="onImageError"
         @click="$emit('click', file)"
@@ -35,6 +37,8 @@
           :src="thumbnailUrl"
           :alt="file.original_name"
           class="thumbnail-image"
+          loading="lazy"
+          decoding="async"
           @load="onImageLoad"
           @error="onImageError"
         />

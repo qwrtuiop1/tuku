@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
+const geetestService = require('../services/geetestService');
 const { pool } = require('../config/database');
 const { generateToken, authenticateToken } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
@@ -1961,5 +1962,35 @@ router.post('/qq/callback', [
   }
 }));
 
+// 兼容QQ互联回调GET到后端API路径的情况：重定向到前端回调路由
+router.get('/qq/callback', asyncHandler(async (req, res) => {
+  try {
+    const { code = '', state = '' } = req.query || {}
+    const frontendRedirect = new URL(process.env.QQ_REDIRECT_URI || 'https://tukufrontend.vtart.cn/api/auth/qq/callback')
+    // 将 code/state 透传给前端路由
+    if (code) frontendRedirect.searchParams.set('code', code)
+    if (state) frontendRedirect.searchParams.set('state', state)
+    return res.redirect(frontendRedirect.toString())
+  } catch (e) {
+    return res.status(400).json({ success: false, message: '无效的QQ回调请求' })
+  }
+}));
+
 module.exports = router;
+
+// ========== GeeTest v4 二次校验（用于注册/登录时的人机验证） ==========
+router.post('/captcha/validate', asyncHandler(async (req, res) => {
+  try {
+    if (!geetestService.isConfigured()) {
+      return res.status(503).json({ success: false, message: '验证码服务未配置' })
+    }
+    const result = await geetestService.validateSecondary(req.body)
+    if (result.success) {
+      return res.json({ success: true, result: 'success' })
+    }
+    return res.status(400).json({ success: false, result: 'fail', reason: result.reason || 'validate_failed' })
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message || '校验失败' })
+  }
+}));
 

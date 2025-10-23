@@ -292,6 +292,22 @@ onMounted(() => {
     }
   }
 }
+
+/* 板块轻量进场（Maintenance） */
+.maintenance-page {
+  .maintenance-container { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+  .info-card { will-change: opacity, transform; animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 60ms; }
+  .maintenance-actions { will-change: opacity, transform; animation: rowFadeIn var(--anim-duration-fast) var(--anim-ease-decelerate) both; animation-delay: 100ms; }
+}
+
+@keyframes blockFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes cardRise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes rowFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .maintenance-page :deep(*),
+  .maintenance-page * { animation: none !important; transition: none !important; }
+}
 </style>
 
 

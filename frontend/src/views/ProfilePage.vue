@@ -1242,4 +1242,29 @@ onUnmounted(() => {
     margin-right: 4px;
   }
 }
+
+/* 板块进场与错峰动效（ProfilePage） */
+.profile-page {
+  .page-header { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+  .profile-content { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 60ms; }
+  .profile-card { will-change: opacity, transform; animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 0ms; }
+  .details-card { will-change: opacity, transform; animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 80ms; }
+
+  .profile-form .el-form-item { will-change: opacity, transform; animation: rowFadeIn var(--anim-duration-fast) var(--anim-ease-decelerate) both; }
+  .profile-form .el-form-item:nth-child(1) { animation-delay: 0ms; }
+  .profile-form .el-form-item:nth-child(2) { animation-delay: 20ms; }
+  .profile-form .el-form-item:nth-child(3) { animation-delay: 40ms; }
+  .profile-form .el-form-item:nth-child(4) { animation-delay: 60ms; }
+  .profile-form .el-form-item:nth-child(5) { animation-delay: 80ms; }
+  .profile-form .el-form-item:nth-child(6) { animation-delay: 100ms; }
+}
+
+@keyframes blockFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes cardRise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes rowFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-page :deep(*),
+  .profile-page * { animation: none !important; transition: none !important; }
+}
 </style>

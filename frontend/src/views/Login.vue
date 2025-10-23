@@ -166,6 +166,7 @@ import {
   UserFilled, 
   Upload, 
   View, 
+  Platform,
   QuestionFilled,
   InfoFilled,
   StarFilled
@@ -199,11 +200,121 @@ const loginRules: FormRules = {
   ]
 }
 
+// GeeTest v4 人机验证（bind 模式）
+type AnyFn = (...args: any[]) => any
+const geetestScriptUrl = 'https://static.geetest.com/v4/gt4.js'
+const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '7922d406fb215d02770d5a4cd71af066')
+let geetestHandler: any = null
+const geetestReady = ref(false)
+const geetestMaxWaitMs = 12000
+
+const loadScriptOnce = (src: string): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) return resolve()
+    const s = document.createElement('script')
+    s.src = src
+    s.async = true
+    s.onload = () => resolve()
+    s.onerror = () => reject(new Error('geetest script load failed'))
+    document.head.appendChild(s)
+  })
+}
+
+const ensureGeetest = async (): Promise<boolean> => {
+  if (!geetestCaptchaId) return false
+  if (geetestReady.value && geetestHandler) return true
+  await loadScriptOnce(geetestScriptUrl)
+  const initGeetest4: AnyFn | undefined = (window as any).initGeetest4
+  if (!initGeetest4) return false
+  return new Promise<boolean>((resolve) => {
+    try {
+      initGeetest4({
+        captchaId: geetestCaptchaId,
+        product: 'bind',
+        riskType: 'verify',
+        language: 'zho',
+        protocol: 'https://',
+        timeout: 30000
+      }, (handler: any) => {
+        geetestHandler = handler
+        geetestReady.value = !!handler
+        try {
+          if (geetestHandler?.onReady) geetestHandler.onReady(() => console.log('[GeeTest] ready'))
+          if (geetestHandler?.onSuccess) geetestHandler.onSuccess(() => console.log('[GeeTest] success'))
+          if (geetestHandler?.onError) geetestHandler.onError((err: any) => console.log('[GeeTest] error', err))
+          if (geetestHandler?.onClose) geetestHandler.onClose(() => console.log('[GeeTest] close'))
+        } catch {}
+        resolve(geetestReady.value)
+      })
+    } catch (_) {
+      resolve(false)
+    }
+  })
+}
+
+const runHumanVerification = async (): Promise<boolean> => {
+  if (!geetestCaptchaId) return true
+  const ok = await ensureGeetest()
+  if (!ok || !geetestHandler) return false
+  return new Promise<boolean>((resolve) => {
+    let settled = false
+    let popupShown = false
+    try { ElMessage({ type: 'info', message: '正在拉起人机验证...', duration: 1200 }) } catch {}
+    const onSuccess = async () => {
+      try {
+        const validate = geetestHandler.getValidate ? geetestHandler.getValidate() : null
+        if (!validate) return resolve(false)
+        const { lot_number, captcha_output, pass_token, gen_time } = validate
+        const resp = await api.post('/auth/captcha/validate', {
+          lot_number,
+          captcha_output,
+          pass_token,
+          gen_time,
+          sign_token: validate.sign_token,
+          captcha_id: geetestCaptchaId
+        })
+        settled = true
+        resolve(resp.data?.success === true)
+      } catch (e) {
+        settled = true
+        try { ElMessage.error('二次校验失败，请重试') } catch {}
+        resolve(false)
+      }
+    }
+    if (geetestHandler.onSuccess) geetestHandler.onSuccess(onSuccess)
+    if (geetestHandler.onError) geetestHandler.onError(() => { if (!settled) { settled = true; try { ElMessage.error('人机验证出错，请关闭拦截或更换网络后重试') } catch {}; resolve(false) } })
+    if (geetestHandler.onClose) geetestHandler.onClose(() => { if (!settled) { settled = true; try { ElMessage.warning('请先完成人机验证') } catch {}; resolve(false) } })
+    const showIt = () => {
+      popupShown = true
+      if (geetestHandler.showCaptcha) geetestHandler.showCaptcha()
+      else if (geetestHandler.showBox) geetestHandler.showBox()
+      else onSuccess()
+    }
+    try { showIt() } catch {}
+    if (geetestHandler.onReady) geetestHandler.onReady(() => { popupShown = true; showIt() })
+    setTimeout(() => {
+      if (!settled) {
+        settled = true
+        if (!popupShown) {
+          try { ElMessage.error('人机验证超时，请重试或检查拦截设置') } catch {}
+        }
+        resolve(false)
+      }
+    }, geetestMaxWaitMs)
+  })
+}
+
 const handleLogin = async () => {
   if (!loginFormRef.value) return
   
   try {
     await loginFormRef.value.validate()
+    // 人机验证
+    const humanOk = await runHumanVerification()
+    if (!humanOk) {
+      ElMessage.error('请先完成人机验证')
+      return
+    }
     const success = await authStore.login({
       ...loginForm,
       rememberMe: rememberMe.value
@@ -260,7 +371,8 @@ const handleWeChatLogin = () => {
 }
 
 onMounted(() => {
-  // 用户引导功能已移除
+  // 预加载极验，避免首次点击时未就绪
+  ensureGeetest().catch(() => {})
 })
 </script>
 
@@ -1437,5 +1549,71 @@ onMounted(() => {
       }
     }
   }
+}
+
+/* 动效统一覆盖（使用 MainLayout 提供的全局动效变量） */
+.login-box {
+  animation-duration: var(--anim-duration-slow);
+  animation-timing-function: var(--anim-ease-entrance);
+}
+
+.top-nav .nav-actions .el-button {
+  transition: background var(--anim-duration-fast) var(--anim-ease-standard),
+              color var(--anim-duration-fast) var(--anim-ease-standard),
+              transform var(--anim-duration-fast) var(--anim-ease-standard);
+}
+.top-nav .nav-actions .el-button:active { transform: scale(var(--press-scale)); }
+
+.login-form .custom-input :deep(.el-input__wrapper) {
+  transition: box-shadow var(--anim-duration-base) var(--anim-ease-standard),
+              border-color var(--anim-duration-base) var(--anim-ease-standard);
+}
+
+.login-button {
+  transition: background var(--anim-duration-base) var(--anim-ease-standard),
+              box-shadow var(--anim-duration-base) var(--anim-ease-standard),
+              transform var(--anim-duration-fast) var(--anim-ease-standard);
+}
+.login-button:active { transform: scale(var(--press-scale)); }
+
+.social-login .social-btn {
+  transition: background var(--anim-duration-fast) var(--anim-ease-standard),
+              border-color var(--anim-duration-fast) var(--anim-ease-standard),
+              color var(--anim-duration-fast) var(--anim-ease-standard),
+              transform var(--anim-duration-fast) var(--anim-ease-standard);
+}
+.social-login .social-btn:active { transform: scale(var(--press-scale)); }
+
+/* 降级：尊重用户减少动效偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .login-box { animation: none; }
+  .login-button,
+  .social-login .social-btn,
+  .top-nav .nav-actions .el-button,
+  .login-form .custom-input :deep(.el-input__wrapper) {
+    transition: none !important;
+  }
+}
+
+/* 动效变量修正与可见性优化 */
+.login-box { animation-timing-function: var(--anim-ease-decelerate) !important; }
+
+.login-content { content-visibility: auto; contain-intrinsic-size: 800px; }
+
+/* 页面与按钮错峰入场（Login） */
+.top-nav { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+.login-content { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 40ms; }
+.login-box { will-change: opacity, transform; animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 80ms; }
+.info-panel { will-change: opacity, transform; animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 120ms; }
+.social-login .social-btn-wrapper { will-change: opacity, transform; animation: listRise var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+.social-login .social-btn-wrapper:nth-child(1) { animation-delay: 0ms; }
+.social-login .social-btn-wrapper:nth-child(2) { animation-delay: 40ms; }
+
+@keyframes blockFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes cardRise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes listRise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .top-nav, .login-content, .login-box, .info-panel, .social-login .social-btn-wrapper { animation: none !important; }
 }
 </style>
