@@ -1,3 +1,4 @@
+// EPass 通行证绑定/解绑 路由将放置在 router 初始化之后
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
@@ -28,14 +29,16 @@ const pushService = require('../services/notificationPushService');
 // 用户注册
 router.post('/register', checkRegistrationEnabled, [
   body('username')
-    .isLength({ min: 3, max: 20 })
-    .withMessage('用户名长度必须在3-20个字符之间')
-    .matches(/^[a-zA-Z0-9_]+$/)
-    .withMessage('用户名只能包含字母、数字和下划线')
+    .isLength({ min: 2, max: 20 })
+    .withMessage('用户名长度必须在2-20个字符之间')
+    .matches(/^[\u4e00-\u9fa5a-zA-Z0-9_\s]+$/)
+    .withMessage('用户名只能包含中文、字母、数字、下划线和空格')
     .custom((value) => {
-      // 检查用户名是否包含邮箱格式（包含@符号）
       if (value && value.includes('@')) {
         throw new Error('用户名不能使用邮箱格式');
+      }
+      if (value && value.trim().length === 0) {
+        throw new Error('用户名不能只包含空格');
       }
       return true;
     }),
@@ -335,14 +338,16 @@ router.get('/profile', authenticateToken, asyncHandler(async (req, res) => {
 router.put('/profile', authenticateToken, [
   body('username')
     .optional()
-    .isLength({ min: 3, max: 20 })
-    .withMessage('用户名长度必须在3-20个字符之间')
-    .matches(/^[a-zA-Z0-9_]+$/)
-    .withMessage('用户名只能包含字母、数字和下划线')
+    .isLength({ min: 2, max: 20 })
+    .withMessage('用户名长度必须在2-20个字符之间')
+    .matches(/^[\u4e00-\u9fa5a-zA-Z0-9_\s]+$/)
+    .withMessage('用户名只能包含中文、字母、数字、下划线和空格')
     .custom((value) => {
-      // 检查用户名是否包含邮箱格式（包含@符号）
       if (value && value.includes('@')) {
         throw new Error('用户名不能使用邮箱格式');
+      }
+      if (value && value.trim().length === 0) {
+        throw new Error('用户名不能只包含空格');
       }
       return true;
     }),
@@ -373,6 +378,8 @@ router.put('/profile', authenticateToken, [
 
   try {
     const { username, email, nickname, bio, emailCode } = req.body;
+    const hasQqOpenIdField = Object.prototype.hasOwnProperty.call(req.body || {}, 'qq_openid')
+    const hasQqUnionIdField = Object.prototype.hasOwnProperty.call(req.body || {}, 'qq_unionid')
     const userId = req.user.id;
     
     // 获取当前用户信息
@@ -476,6 +483,13 @@ router.put('/profile', authenticateToken, [
       updateValues.push(bio);
     }
     
+    // 支持解绑/设置 qq_openid（允许显式传 null）
+    if (hasQqOpenIdField) {
+      updateFields.push('qq_openid = ?')
+      updateValues.push(req.body.qq_openid || null)
+    }
+    // qq_unionid 的清空在更新后以兜底方式单独执行，避免字段不存在导致报错
+
     if (updateFields.length === 0) {
       return res.status(400).json({ message: '没有需要更新的字段' });
     }
@@ -489,6 +503,14 @@ router.put('/profile', authenticateToken, [
       `UPDATE users SET ${updateFields.join(', ')} WHERE id = ?`,
       updateValues
     );
+
+    // 如果本次是显式解绑 qq_openid，则尝试清空可能存在的 qq_unionid/qq_number/third_party_type（字段不存在则忽略）
+    if (hasQqOpenIdField && req.body.qq_openid === null) {
+      try { await pool.execute('UPDATE users SET qq_unionid = NULL WHERE id = ?', [userId]) } catch {}
+      try { await pool.execute('UPDATE users SET qq_number = NULL WHERE id = ?', [userId]) } catch {}
+      try { await pool.execute('UPDATE users SET third_party_type = NULL WHERE id = ?', [userId]) } catch {}
+      try { await pool.execute('UPDATE users SET third_party_id = NULL WHERE id = ?', [userId]) } catch {}
+    }
     
     // 验证更新是否成功
     if (result.affectedRows === 0) {
@@ -1827,22 +1849,43 @@ router.post('/qq/callback', [
     });
   }
 
-  const { code } = req.body;
+  const { code, state } = req.body;
 
   try {
     // 1. 获取访问令牌
     const tokenData = await qqOAuthService.getAccessToken(code);
     
-    // 2. 获取OpenID
-    const openId = await qqOAuthService.getOpenId(tokenData.accessToken);
+    // 2. 获取OpenID 与 UnionID
+    const { openId, unionId } = await qqOAuthService.getOpenId(tokenData.accessToken);
     
     // 3. 获取用户信息
     const qqUserInfo = await qqOAuthService.getUserInfo(tokenData.accessToken, openId);
     
-    // 4. 查找或创建用户
+    // 4. 如果是绑定流程（state === 'bind'），则将当前登录用户与 openId 绑定
+    if (state === 'bind') {
+      if (!req.headers.authorization) {
+        return res.status(401).json({ success: false, message: '未登录，无法绑定' });
+      }
+      const { authenticateToken } = require('../middleware/auth');
+      // 手动校验token，获取 userId
+      const jwt = require('jsonwebtoken');
+      const raw = req.headers.authorization.replace(/^Bearer\s+/i, '');
+      const decoded = jwt.verify(raw, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback');
+      const userId = decoded.userId;
+
+      // 检查 openId 是否已被其它账号占用
+      const [exists] = await pool.execute('SELECT id FROM users WHERE qq_openid = ? OR qq_unionid = ?', [openId, unionId || null]);
+      if (exists.length > 0) {
+        return res.status(409).json({ success: false, message: '该QQ已绑定其他账号' });
+      }
+      await pool.execute('UPDATE users SET qq_openid = ?, qq_unionid = ?, third_party_type = ? WHERE id = ?', [openId, unionId || null, 'qq', userId]);
+      return res.json({ success: true, message: 'QQ绑定成功' });
+    }
+
+    // 非绑定：查找或创建用户并登录
     let [users] = await pool.execute(
-      'SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, created_at FROM users WHERE qq_openid = ?',
-      [openId]
+      'SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, created_at FROM users WHERE qq_openid = ? OR qq_unionid = ?',
+      [openId, unionId || null]
     );
 
     let user;
@@ -1850,8 +1893,8 @@ router.post('/qq/callback', [
       // 用户已存在，更新登录信息
       user = users[0];
       await pool.execute(
-        'UPDATE users SET last_login = NOW(), login_count = COALESCE(login_count, 0) + 1 WHERE id = ?',
-        [user.id]
+        'UPDATE users SET last_login = NOW(), login_count = COALESCE(login_count, 0) + 1, qq_unionid = COALESCE(qq_unionid, ?) WHERE id = ?',
+        [unionId || null, user.id]
       );
       
       // 记录QQ登录日志
@@ -1866,33 +1909,27 @@ router.post('/qq/callback', [
         ]
       );
     } else {
-      // 创建新用户
-      const username = `qq_${openId.slice(-8)}`; // 生成唯一用户名
-      const email = `${openId}@qq.oauth`; // 虚拟邮箱
-      
-      const [result] = await pool.execute(
-        'INSERT INTO users (username, email, password_hash, role, status, qq_openid, third_party_type, avatar_url, last_login, login_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)',
-        [username, email, '', 'user', 'active', openId, 'qq', qqUserInfo.avatar, 1]
-      );
-      
-      // 获取新创建的用户信息
-      [users] = await pool.execute(
-        'SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, created_at FROM users WHERE id = ?',
-        [result.insertId]
-      );
-      user = users[0];
-      
-      // 为新用户记录首次登录日志
-      await pool.execute(
-        'INSERT INTO user_login_logs (user_id, login_time, ip_address, user_agent, login_method, success) VALUES (?, NOW(), ?, ?, ?, ?)',
-        [
-          user.id,
-          req.ip || req.connection.remoteAddress || 'unknown',
-          req.get('User-Agent') || 'unknown',
-          'qq',
-          true
-        ]
-      );
+      // 不直接创建账号，要求完成“QQ用户注册”
+      const jwt = require('jsonwebtoken');
+      const tempPayload = {
+        typ: 'qq_signup',
+        openId,
+        unionId: unionId || null,
+        nickname: qqUserInfo.nickname || '',
+        avatar: qqUserInfo.avatar || ''
+      };
+      const tempToken = jwt.sign(tempPayload, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback', { expiresIn: '30m' });
+      return res.json({
+        success: true,
+        signup_required: true,
+        tempToken,
+        qq: {
+          openId,
+          unionId: unionId || null,
+          nickname: qqUserInfo.nickname || '',
+          avatar: qqUserInfo.avatar || ''
+        }
+      });
     }
 
     // 5. 生成JWT令牌 - QQ登录默认使用较长的过期时间（30天）
@@ -1962,6 +1999,62 @@ router.post('/qq/callback', [
   }
 }));
 
+// 完成 QQ 首次登录的注册流程
+router.post('/qq/complete-signup', [
+  body('tempToken').notEmpty().withMessage('缺少临时令牌'),
+  body('username').isLength({ min: 2, max: 20 }).matches(/^[\u4e00-\u9fa5a-zA-Z0-9_\s]+$/),
+  body('password').isLength({ min: 6 }).withMessage('密码长度至少6个字符'),
+  body('email').isEmail().withMessage('请输入有效的邮箱地址'),
+  body('emailCode').isLength({ min: 6, max: 6 }).withMessage('验证码必须是6位')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: '参数错误', errors: errors.array() });
+  }
+  const { tempToken, username, password, email, emailCode, acceptAgreements } = req.body;
+  if (!acceptAgreements) {
+    return res.status(400).json({ success: false, message: '请先阅读并同意用户协议与隐私政策' });
+  }
+  // 校验验证码
+  const codeResult = verifyCode(email, emailCode, 'verify_email');
+  if (!codeResult.valid) {
+    return res.status(400).json({ success: false, message: codeResult.message || '邮箱验证码无效' });
+  }
+  // 解析临时令牌
+  const jwt = require('jsonwebtoken');
+  let payload;
+  try {
+    payload = jwt.verify(tempToken, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback');
+    if (payload.typ !== 'qq_signup') throw new Error('invalid token');
+  } catch (e) {
+    return res.status(400).json({ success: false, message: '临时令牌无效或已过期' });
+  }
+  const { openId, unionId, nickname, avatar } = payload;
+  // 唯一性校验
+  const [u1] = await pool.execute('SELECT id FROM users WHERE username = ?', [username]);
+  if (u1.length > 0) return res.status(400).json({ success: false, message: '用户名已存在' });
+  const [u2] = await pool.execute('SELECT id FROM users WHERE email = ?', [email]);
+  if (u2.length > 0) return res.status(400).json({ success: false, message: '邮箱已被使用' });
+  const [u3] = await pool.execute('SELECT id FROM users WHERE qq_openid = ? OR qq_unionid = ?', [openId, unionId || null]);
+  if (u3.length > 0) return res.status(409).json({ success: false, message: '该QQ已绑定其他账号' });
+  // 创建用户
+  const bcrypt = require('bcryptjs');
+  const passwordHash = await bcrypt.hash(password, 10);
+  const [result] = await pool.execute(
+    'INSERT INTO users (username, email, password_hash, role, status, qq_openid, qq_unionid, third_party_type, avatar_url, last_login, login_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())',
+    [username, email, passwordHash, 'user', 'active', openId, unionId || null, 'qq', avatar || '', 1]
+  );
+  const userId = result.insertId;
+  // 登录日志
+  await pool.execute(
+    'INSERT INTO user_login_logs (user_id, login_time, ip_address, user_agent, login_method, success) VALUES (?, NOW(), ?, ?, ?, ?)',
+    [userId, req.ip || req.connection.remoteAddress || 'unknown', req.get('User-Agent') || 'unknown', 'qq', true]
+  );
+  // 签发登录 token
+  const token = generateToken(userId, '30d');
+  res.json({ success: true, message: '注册并登录成功', token });
+}));
+
 // 兼容QQ互联回调GET到后端API路径的情况：重定向到前端回调路由
 router.get('/qq/callback', asyncHandler(async (req, res) => {
   try {
@@ -1978,10 +2071,76 @@ router.get('/qq/callback', asyncHandler(async (req, res) => {
 
 module.exports = router;
 
+// ===== 在 router 初始化并导出后，再追加EPass与绑定状态路由 =====
+router.post('/epass/bind', authenticateToken, asyncHandler(async (req, res) => {
+  const { epassId } = req.body || {}
+  if (!epassId) return res.status(400).json({ success: false, message: '缺少epassId' })
+  const [exists] = await pool.execute('SELECT id FROM users WHERE epass_id = ?', [epassId])
+  if (exists.length > 0) {
+    return res.status(409).json({ success: false, message: '该通行证已绑定其他账号' })
+  }
+  await pool.execute('UPDATE users SET epass_id = ? WHERE id = ?', [epassId, req.user.id])
+  return res.json({ success: true, message: 'EPass绑定成功' })
+}))
+
+router.post('/epass/unbind', authenticateToken, asyncHandler(async (req, res) => {
+  await pool.execute('UPDATE users SET epass_id = NULL WHERE id = ?', [req.user.id])
+  return res.json({ success: true, message: 'EPass已解绑' })
+}))
+
+router.get('/bindings', authenticateToken, asyncHandler(async (req, res) => {
+  let rows
+  try {
+    ;[rows] = await pool.execute('SELECT qq_openid, qq_unionid, nickname, avatar_url, epass_id, qq_number FROM users WHERE id = ?', [req.user.id])
+  } catch (e) {
+    ;[rows] = await pool.execute('SELECT qq_openid, qq_unionid, nickname, avatar_url, epass_id FROM users WHERE id = ?', [req.user.id])
+  }
+  const row = rows[0] || {}
+  return res.json({ success: true, bindings: {
+    qq: !!row.qq_openid,
+    qqOpenId: row.qq_openid || null,
+    qqUnionId: row.qq_unionid || null,
+    qqNickname: row.nickname || '',
+    qqAvatar: row.avatar_url || '',
+    qqNumber: row.qq_number || null,
+    epass: !!row.epass_id,
+    epassId: row.epass_id || null
+  }})
+}))
+
+// 设置或更新 QQ 号（管理员或本人均可）
+router.post('/qq/set-number', authenticateToken, [
+  body('qqNumber').isString().isLength({ min: 5, max: 20 }).withMessage('QQ号长度需在5-20位之间')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: '参数错误', errors: errors.array() })
+  }
+  const { qqNumber } = req.body
+  const userId = req.user.id
+  // 确保列存在（容错处理）
+  try { await pool.execute("ALTER TABLE users ADD COLUMN qq_number VARCHAR(20) NULL UNIQUE COMMENT 'QQ号'") } catch (e) { /* 已存在忽略 */ }
+  // 更新
+  try {
+    await pool.execute('UPDATE users SET qq_number = ? WHERE id = ?', [qqNumber, userId])
+    return res.json({ success: true, message: 'QQ号已更新' })
+  } catch (e) {
+    // 唯一键冲突
+    if (e && e.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ success: false, message: '该QQ号已被其他账号使用' })
+    }
+    return res.status(500).json({ success: false, message: '更新失败' })
+  }
+}))
+
 // ========== GeeTest v4 二次校验（用于注册/登录时的人机验证） ==========
 router.post('/captcha/validate', asyncHandler(async (req, res) => {
   try {
     if (!geetestService.isConfigured()) {
+      // 允许在未配置时通过离线放行（仅用于测试/紧急场景）
+      if (geetestService.isOfflineAllowed()) {
+        return res.json({ success: true, result: 'success', reason: 'offline_no_config' })
+      }
       return res.status(503).json({ success: false, message: '验证码服务未配置' })
     }
     const result = await geetestService.validateSecondary(req.body)

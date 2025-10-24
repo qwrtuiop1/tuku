@@ -59,6 +59,12 @@
             <span>仪表盘</span>
           </el-menu-item>
           
+          <!-- 管理员也显示个人设置（在管理中心之上） -->
+          <el-menu-item v-if="authStore.isAdmin" index="/user-center">
+            <el-icon><User /></el-icon>
+            <span>个人设置</span>
+          </el-menu-item>
+          
           <!-- 管理员专用菜单 -->
           <el-menu-item v-if="authStore.isAdmin" index="/admin">
             <el-icon><Setting /></el-icon>
@@ -84,7 +90,7 @@
           </div>
         </div>
         
-        <el-dropdown @command="handleUserCommand" placement="top-end">
+        <el-dropdown @command="handleUserCommand" placement="top-end" popper-class="user-menu-popper">
           <el-button type="text" class="user-menu-btn" :class="{ collapsed: sidebarCollapsed }">
             <el-icon v-if="isMobile" class="tri-icon">
               <svg viewBox="0 0 1024 1024" aria-hidden="true">
@@ -98,10 +104,6 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="profile">
-                <el-icon><User /></el-icon>
-                个人资料
-              </el-dropdown-item>
               <el-dropdown-item v-if="authStore.isAdmin" command="settings">
                 <el-icon><Setting /></el-icon>
                 设置
@@ -179,7 +181,7 @@
           </div>
           
           <!-- 桌面端用户头像和菜单 -->
-          <el-dropdown v-if="!isMobile" @command="handleUserCommand" placement="bottom-end">
+          <el-dropdown v-if="!isMobile" @command="handleUserCommand" placement="bottom-end" popper-class="user-menu-popper">
             <div class="desktop-user-info">
               <el-avatar :size="32" :src="authStore.user?.avatar_url">
                 {{ authStore.user?.username?.charAt(0).toUpperCase() }}
@@ -201,18 +203,11 @@
             </div>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="profile">
-                  <el-icon><User /></el-icon>
-                  个人资料
-                </el-dropdown-item>
                 <el-dropdown-item v-if="authStore.isAdmin" command="settings">
                   <el-icon><Setting /></el-icon>
                   设置
                 </el-dropdown-item>
-                <el-dropdown-item v-if="authStore.isAdmin" command="notifications">
-                  <el-icon><Bell /></el-icon>
-                  通知
-                </el-dropdown-item>
+                
                 <el-dropdown-item divided command="logout">
                   <el-icon><SwitchButton /></el-icon>
                   退出登录
@@ -226,6 +221,7 @@
             v-if="isMobile" 
             @command="handleUserCommand" 
             placement="bottom-end"
+            popper-class="user-menu-popper"
             :visible="mobileUserMenuVisible"
             @visible-change="handleMobileUserMenuVisibleChange"
           >
@@ -236,18 +232,11 @@
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="profile">
-                  <el-icon><User /></el-icon>
-                  个人资料
-                </el-dropdown-item>
                 <el-dropdown-item v-if="authStore.isAdmin" command="settings">
                   <el-icon><Setting /></el-icon>
                   设置
                 </el-dropdown-item>
-                <el-dropdown-item v-if="authStore.isAdmin" command="notifications">
-                  <el-icon><Bell /></el-icon>
-                  通知
-                </el-dropdown-item>
+                
                 <el-dropdown-item divided command="logout">
                   <el-icon><SwitchButton /></el-icon>
                   退出登录
@@ -413,14 +402,7 @@
           <span class="nav-text">管理</span>
         </div>
         
-        <div 
-          class="nav-item" 
-          :class="{ active: $route.path === '/profile' }"
-          @click="$router.push('/profile')"
-        >
-          <el-icon class="nav-icon"><User /></el-icon>
-          <span class="nav-text">我的</span>
-        </div>
+        
       </div>
     </div>
   </div>
@@ -508,7 +490,6 @@ const breadcrumbs = computed(() => {
     '/': { name: '文件管理', path: '/' },
     '/dashboard': { name: '仪表盘', path: '/dashboard' },
     '/admin': { name: '管理控制台', path: '/admin' },
-    '/profile': { name: '个人资料', path: '/profile' },
     '/settings': { name: '系统设置', path: '/settings' },
     '/user-center': { name: '个人设置', path: '/user-center' }
   }
@@ -555,9 +536,6 @@ const handleUserCommand = async (command: string) => {
   mobileUserMenuVisible.value = false
   
   switch (command) {
-    case 'profile':
-      router.push('/profile')
-      break
     case 'settings':
       if (authStore.isAdmin) {
         router.push('/settings')
@@ -602,6 +580,7 @@ const handleMobileUserMenuVisibleChange = (visible: boolean) => {
 const handleTouchStart = (e: TouchEvent) => {
   if (!isMobile.value) return
   
+  if (!e.touches || e.touches.length === 0) return
   touchStartX.value = e.touches[0].clientX
   touchStartY.value = e.touches[0].clientY
   isDragging.value = false
@@ -610,6 +589,7 @@ const handleTouchStart = (e: TouchEvent) => {
 const handleTouchMove = (e: TouchEvent) => {
   if (!isMobile.value) return
   
+  if (!e.touches || e.touches.length === 0) return
   const touchX = e.touches[0].clientX
   const touchY = e.touches[0].clientY
   const deltaX = touchX - touchStartX.value
@@ -625,6 +605,7 @@ const handleTouchMove = (e: TouchEvent) => {
 const handleTouchEnd = (e: TouchEvent) => {
   if (!isMobile.value || !isDragging.value) return
   
+  if (!e.changedTouches || e.changedTouches.length === 0) return
   const touchX = e.changedTouches[0].clientX
   const deltaX = touchX - touchStartX.value
   
@@ -1091,6 +1072,26 @@ onUnmounted(() => {
   :deep(.top-header) { view-transition-name: vt-header; }
   :deep(.sidebar) { view-transition-name: vt-sidebar; }
   :deep(.page-content) { view-transition-name: vt-content; }
+}
+
+// 用户菜单黑白灰风格
+:deep(.user-menu-popper) {
+  .el-dropdown-menu {
+    padding: 6px;
+    border-radius: 10px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+  }
+  .el-dropdown-menu__item {
+    color: #111827;
+    border-radius: 8px;
+    transition: background 0.2s ease;
+    &:hover { background: #f5f5f5; color: #111827; }
+    &.is-disabled { color: #9ca3af; }
+  }
+  .el-dropdown-menu__item--divided { margin-top: 6px; border-top: 1px solid #eee; }
+  .el-icon { color: #6b7280; }
 }
 
 // 移动端遮罩层

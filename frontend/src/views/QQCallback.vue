@@ -48,9 +48,31 @@ onMounted(async () => {
     }
     
     // 发送授权码到后端
-    const response = await api.post('/auth/qq/callback', { code })
+    // 如果 state=bind，则走绑定流程
+    const payload: any = { code }
+    if (state) payload.state = state
+    const response = await api.post('/auth/qq/callback', payload)
     
     if (response.data.success) {
+      // 首次登录需补注册
+      if (response.data.signup_required) {
+        const { tempToken, qq } = response.data
+        const params = new URLSearchParams()
+        params.set('token', tempToken)
+        if (qq?.nickname) params.set('nickname', qq.nickname)
+        if (qq?.avatar) params.set('avatar', qq.avatar)
+        router.push(`/auth/qq/signup?${params.toString()}`)
+        return
+      }
+      // 标记需要刷新绑定状态
+      try { sessionStorage.setItem('bindingsRefresh', '1') } catch {}
+      // 绑定流程仅提示成功并回到设置页
+      if (state === 'bind') {
+        success.value = true
+        ElMessage.success('QQ绑定成功，正在返回...')
+        setTimeout(() => { router.push('/user-center') }, 1000)
+        return
+      }
       // 登录成功，保存用户信息
       const { token, user, settings } = response.data
       

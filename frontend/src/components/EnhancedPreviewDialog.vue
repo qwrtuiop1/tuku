@@ -3,6 +3,7 @@
     v-model="visible"
     :title="dialogTitle"
     width="90%"
+    :append-to-body="true"
     :close-on-click-modal="true"
     :show-close="true"
     class="enhanced-preview-dialog"
@@ -39,6 +40,7 @@
     <div class="preview-content">
       <FilePreview 
         v-if="currentFile"
+        :key="currentFile?.id || currentIndex"
         :file="currentFile"
         @file-deleted="handleFileDeleted"
         @close="handleClose"

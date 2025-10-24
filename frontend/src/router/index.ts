@@ -32,6 +32,15 @@ const routes = [
     }
   },
   {
+    path: '/auth/qq/signup',
+    name: 'QQSignup',
+    component: () => import('@/views/QQSignup.vue'),
+    meta: {
+      title: 'QQ用户注册',
+      requiresAuth: false
+    }
+  },
+  {
     path: '/register',
     name: 'Register',
     component: () => import('@/views/Register.vue'),
@@ -113,15 +122,7 @@ const routes = [
           requiresAuth: true 
         }
       },
-      {
-        path: '/profile',
-        name: 'Profile',
-        component: () => import('@/views/ProfilePage.vue'),
-        meta: { 
-          title: '个人资料',
-          requiresAuth: true 
-        }
-      },
+      
       {
         path: '/settings',
         name: 'Settings',

@@ -1,10 +1,15 @@
-const pool = require('../config/database');
+const { pool } = require('../config/database');
 const fs = require('fs');
 const path = require('path');
 
 class DatabaseInitService {
   constructor() {
     this.initScripts = [
+      // 第三方登录/绑定所需字段
+      'add_third_party_login.sql',
+      'add_qq_unionid.sql',
+      'add_epass_id.sql',
+      // 其他初始化修复
       'fix_notification_frequency.sql'
     ];
   }
@@ -181,6 +186,31 @@ class DatabaseInitService {
 
     // 执行初始化脚本
     await this.checkAndExecuteInitScripts();
+
+    // 额外兜底：强制确保 users 表包含第三方绑定相关列与索引
+    try {
+      const [cols] = await pool.execute('DESCRIBE users');
+      const colNames = cols.map(c => c.Field);
+      const ensureCol = async (sql) => { try { await pool.execute(sql); } catch (e) { /* 可能已存在或不支持IF NOT EXISTS，忽略 */ } };
+      const ensureIdx = async (sql) => { try { await pool.execute(sql); } catch (e) { /* 可能已存在或列缺失，忽略 */ } };
+
+      if (!colNames.includes('qq_openid')) await ensureCol(`ALTER TABLE users ADD COLUMN qq_openid VARCHAR(64) NULL COMMENT 'QQ OpenID'`);
+      if (!colNames.includes('wechat_openid')) await ensureCol(`ALTER TABLE users ADD COLUMN wechat_openid VARCHAR(64) NULL COMMENT '微信OpenID'`);
+      if (!colNames.includes('third_party_type')) await ensureCol(`ALTER TABLE users ADD COLUMN third_party_type ENUM('qq','wechat','local') DEFAULT 'local' COMMENT '登录类型'`);
+      if (!colNames.includes('third_party_id')) await ensureCol(`ALTER TABLE users ADD COLUMN third_party_id VARCHAR(64) NULL COMMENT '第三方平台用户ID'`);
+      if (!colNames.includes('avatar_url')) await ensureCol(`ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500) NULL COMMENT '头像URL'`);
+      if (!colNames.includes('qq_unionid')) await ensureCol(`ALTER TABLE users ADD COLUMN qq_unionid VARCHAR(128) NULL COMMENT 'QQ UnionID'`);
+      if (!colNames.includes('epass_id')) await ensureCol(`ALTER TABLE users ADD COLUMN epass_id VARCHAR(128) NULL COMMENT 'EPass通行证ID'`);
+
+      // 尝试创建索引（忽略已存在或列不存在错误）
+      await ensureIdx(`CREATE INDEX idx_users_qq_openid ON users(qq_openid)`);
+      await ensureIdx(`CREATE INDEX idx_users_wechat_openid ON users(wechat_openid)`);
+      await ensureIdx(`CREATE INDEX idx_users_third_party ON users(third_party_type, third_party_id)`);
+      await ensureIdx(`CREATE UNIQUE INDEX uk_users_qq_unionid ON users(qq_unionid)`);
+      await ensureIdx(`CREATE UNIQUE INDEX uk_users_epass_id ON users(epass_id)`);
+    } catch (e) {
+      console.error('❌ 兜底检查 users 表结构失败:', e.message);
+    }
     
     console.log('✅ 数据库初始化完成');
     return true;

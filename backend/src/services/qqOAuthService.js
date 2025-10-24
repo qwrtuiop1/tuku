@@ -52,22 +52,30 @@ class QQOAuthService {
     }
   }
 
-  // 通过访问令牌获取OpenID
+  // 通过访问令牌获取OpenID（QQ返回JSONP: callback( {"client_id":"...","openid":"..."} ); ）
   async getOpenId(accessToken) {
     try {
       const response = await axios.get(`${this.baseUrl}/oauth2.0/me`, {
-        params: {
-          access_token: accessToken
-        }
+        params: { access_token: accessToken, unionid: 1 },
+        responseType: 'text'
       });
 
-      const data = this.parseUrlEncodedResponse(response.data);
-      
-      if (data.error) {
-        throw new Error(`获取OpenID失败: ${data.error_description || data.error}`);
+      const text = typeof response.data === 'string' ? response.data : String(response.data || '')
+
+      // 优先解析 JSONP 格式
+      const jsonpMatch = text.match(/callback\s*\(\s*(\{[\s\S]*?\})\s*\)\s*;?/)
+      if (jsonpMatch) {
+        const obj = JSON.parse(jsonpMatch[1])
+        if (obj.error) throw new Error(obj.error_description || obj.error)
+        return { openId: obj.openid, unionId: obj.unionid }
       }
 
-      return data.openid;
+      // 兼容极少数返回URL编码形式
+      const data = this.parseUrlEncodedResponse(text)
+      if (data.error) throw new Error(data.error_description || data.error)
+      if (data.openid) return { openId: data.openid, unionId: data.unionid }
+
+      throw new Error('未能解析QQ OpenID响应')
     } catch (error) {
       console.error('获取QQ OpenID失败:', error);
       throw new Error('获取用户信息失败');

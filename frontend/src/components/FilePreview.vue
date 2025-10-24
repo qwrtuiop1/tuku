@@ -102,7 +102,7 @@ import {
 } from '@element-plus/icons-vue'
 import { formatFileSize, formatTime, getCachedImageUrl, downloadFile as downloadFileUtil, copyToClipboard } from '@/utils/helpers'
 import { useFilesStore } from '@/stores/files'
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import ImageViewer from './ImageViewer.vue'
 import VideoPlayer from './VideoPlayer.vue'
 
@@ -402,6 +402,23 @@ onUnmounted(() => {
     videoElement.value.src = ''
   }
 })
+
+// 监听文件变化，重置并重新加载
+watch(
+  () => props.file,
+  (newFile) => {
+    loading.value = true
+    hasError.value = false
+    retryCount.value = 0
+    previewImageUrl.value = ''
+    isZoomed.value = false
+    if (newFile.file_type === 'image') {
+      initializePreviewUrl()
+    } else {
+      loading.value = false
+    }
+  }
+)
 </script>
 
 <style lang="scss" scoped>

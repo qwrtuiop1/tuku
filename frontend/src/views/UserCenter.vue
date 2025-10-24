@@ -40,7 +40,7 @@
                     :show-file-list="false"
                     :before-upload="beforeAvatarUpload"
                     :on-success="handleAvatarSuccess"
-                    :on-error="handleAvatarError"
+                    :on-error="handleUploadError"
                     accept="image/*"
                   >
                     <el-button type="primary" size="small" circle>
@@ -69,7 +69,7 @@
               <el-button 
                 type="text" 
                 size="small" 
-                @click="refreshStorageInfo"
+                @click="() => refreshStorageInfo()"
                 :loading="refreshingStorage"
               >
                 <el-icon><Refresh /></el-icon>
@@ -335,6 +335,53 @@
                     </el-form-item>
                   </el-form>
                 </div>
+
+                <div class="security-section">
+                  <h4>第三方绑定</h4>
+                  <el-card class="binding-card">
+                    <div class="binding-row">
+                      <div class="binding-info">
+                        <img src="/logo.png" alt="QQ" class="binding-icon" />
+                        <div class="binding-text">
+                          <div class="binding-name">QQ 账号</div>
+                          <div class="binding-status">
+                            <template v-if="bindings.qq">
+                              <span>已绑定</span>
+                              <span v-if="bindings.qqNumber" class="binding-id">（QQ号: {{ bindings.qqNumber }}）</span>
+                            </template>
+                            <template v-else>未绑定</template>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="binding-actions">
+                        <el-button v-if="!bindings.qq" type="primary" @click="bindQQ">去绑定</el-button>
+                        <template v-else>
+                          <el-button v-if="!bindings.qqNumber" @click="setQqNumber">设置QQ号</el-button>
+                          <el-button type="danger" @click="unbindQQ">解绑</el-button>
+                        </template>
+                      </div>
+                    </div>
+
+                    <el-divider />
+
+                    <div class="binding-row">
+                      <div class="binding-info">
+                        <el-icon><Link /></el-icon>
+                        <div class="binding-text">
+                          <div class="binding-name">E时代通行证</div>
+                          <div class="binding-status">{{ bindings.epass ? '已绑定' : '未绑定' }}</div>
+                        </div>
+                      </div>
+                      <div class="binding-actions">
+                        <template v-if="!bindings.epass">
+                          <el-input v-model="epassId" placeholder="输入通行证ID" style="width: 220px; margin-right: 8px;" />
+                          <el-button type="primary" @click="bindEPass" :disabled="!epassId">绑定</el-button>
+                        </template>
+                        <el-button v-else type="danger" @click="unbindEPass">解绑</el-button>
+                      </div>
+                    </div>
+                  </el-card>
+                </div>
               </el-tab-pane>
 
               <!-- 偏好设置 -->
@@ -497,7 +544,8 @@ import {
   Delete,
   Warning,
   InfoFilled,
-  SuccessFilled
+  SuccessFilled,
+  Link
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { formatFileSize, formatPercentage } from '@/utils/helpers'
@@ -1403,6 +1451,11 @@ const handleAvatarError = (_event: Event) => {
   ElMessage.warning('头像加载失败，将显示默认头像')
 }
 
+// 上传错误回调签名（Element Plus Upload）
+const handleUploadError = (_error: Error) => {
+  ElMessage.error('头像上传失败')
+}
+
 // 格式化日期（默认北京时间）
 const formatDate = (dateString: string | null | undefined): string => {
   if (!dateString) return '暂无数据'
@@ -1536,6 +1589,8 @@ onMounted(async () => {
     // 检查存储警告
     checkStorageWarning()
     
+    // 加载绑定状态
+    loadBindings()
   } catch (error) {
     ElMessage.error('页面加载失败，请刷新重试')
   }
@@ -1548,6 +1603,121 @@ onUnmounted(() => {
   // 清理验证码倒计时
   clearCountdown()
 })
+
+const bindings = reactive({
+  qq: false,
+  qqOpenId: null as string | null,
+  qqUnionId: null as string | null,
+  qqNickname: '' as string,
+  qqAvatar: '' as string,
+  qqNumber: null as string | null,
+  epass: false,
+  epassId: null as string | null
+})
+const epassId = ref('')
+
+const loadBindings = async () => {
+  try {
+    const res = await api.get('/auth/bindings')
+    if (res.data?.success) {
+      const b = res.data.bindings || {}
+      bindings.qq = !!b.qq
+      bindings.qqOpenId = b.qqOpenId || null
+      bindings.qqUnionId = b.qqUnionId || null
+      bindings.qqNickname = b.qqNickname || ''
+      bindings.qqAvatar = b.qqAvatar || ''
+      bindings.qqNumber = b.qqNumber || null
+      bindings.epass = !!b.epass
+      bindings.epassId = b.epassId || null
+    }
+  } catch {}
+}
+
+const bindQQ = async () => {
+  try {
+    // 请求后端获取 QQ 授权URL，带上 state=bind
+    const res = await api.get('/auth/qq/auth', { params: { state: 'bind' } })
+    const url = res.data?.authUrl
+    if (url) {
+      window.location.href = url
+    } else {
+      ElMessage.error('无法获取QQ授权地址')
+    }
+  } catch (e) {
+    ElMessage.error('获取QQ授权失败')
+  }
+}
+
+const unbindQQ = async () => {
+  try {
+    const { value } = await ElMessageBox.confirm('确定要解绑QQ吗？', '确认', { type: 'warning' }).catch(() => ({ value: false })) as any
+    if (value === false) return
+  } catch {}
+  try {
+    // 直接清空 qq_openid
+    await api.put('/auth/profile', { qq_openid: null })
+    ElMessage.success('已解绑QQ')
+    loadBindings()
+  } catch {
+    ElMessage.error('解绑失败')
+  }
+}
+
+const setQqNumber = async () => {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入您的QQ号', '设置QQ号', {
+      inputPattern: /^\d{5,20}$/,
+      inputErrorMessage: 'QQ号应为5-20位数字',
+      confirmButtonText: '确定',
+      cancelButtonText: '取消'
+    }) as any
+    if (!value) return
+    const resp = await api.post('/auth/qq/set-number', { qqNumber: value })
+    if (resp?.data?.success) {
+      ElMessage.success('QQ号已更新')
+      loadBindings()
+    } else {
+      ElMessage.error(resp?.data?.message || '更新失败')
+    }
+  } catch (e: any) {
+    if (e === 'cancel') return
+    ElMessage.error(e?.response?.data?.message || '更新失败')
+  }
+}
+
+const bindEPass = async () => {
+  if (!epassId.value) return
+  try {
+    const res = await api.post('/auth/epass/bind', { epassId: epassId.value })
+    if (res.data?.success) {
+      ElMessage.success('EPass绑定成功')
+      epassId.value = ''
+      loadBindings()
+    } else {
+      ElMessage.error(res.data?.message || '绑定失败')
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '绑定失败')
+  }
+}
+
+const unbindEPass = async () => {
+  try {
+    const { value } = await ElMessageBox.confirm('确定要解绑EPass吗？', '确认', { type: 'warning' }).catch(() => ({ value: false })) as any
+    if (value === false) return
+  } catch {}
+  try {
+    const res = await api.post('/auth/epass/unbind')
+    if (res.data?.success) {
+      ElMessage.success('已解绑EPass')
+      loadBindings()
+    } else {
+      ElMessage.error(res.data?.message || '解绑失败')
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '解绑失败')
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -4309,6 +4479,21 @@ onUnmounted(() => {
   .user-center-page :deep(*),
   .user-center-page * { animation: none !important; transition: none !important; }
 }
+
+.binding-card {
+  margin-top: 12px;
+}
+.binding-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.binding-info { display: flex; align-items: center; gap: 12px; }
+.binding-icon { width: 28px; height: 28px; border-radius: 6px; }
+.binding-text { display: flex; flex-direction: column; }
+.binding-name { font-weight: 600; }
+.binding-status { color: #909399; font-size: 12px; }
+.binding-actions { display: flex; align-items: center; }
 </style>
 
 

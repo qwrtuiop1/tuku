@@ -23,11 +23,11 @@ export default defineConfig({
           ]
         }
       ],
-      dts: true
+      dts: resolve(__dirname, 'src/typings/auto-imports.d.ts')
     }),
     Components({
       resolvers: [ElementPlusResolver({ resolveIcons: true })],
-      dts: true
+      dts: resolve(__dirname, 'src/typings/components.d.ts')
     })
   ],
   resolve: {
@@ -46,7 +46,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: false,
+    sourcemap: true,
     rollupOptions: {
       external: [],
       output: {

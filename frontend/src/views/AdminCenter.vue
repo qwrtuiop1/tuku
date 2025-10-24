@@ -331,7 +331,7 @@
                 >
                   <div class="user-card-header">
                     <div class="user-info">
-                      <el-avatar :size="40" :src="user.avatar_url">
+                      <el-avatar :size="40" :src="user.avatar_url" @error="() => onAvatarError(user)">
                         {{ user.username?.charAt(0).toUpperCase() }}
                       </el-avatar>
                       <div class="user-details">
@@ -438,10 +438,10 @@
                 <el-table-column prop="username" label="用户名" width="140">
                   <template #default="{ row }">
                     <div class="user-info">
-                      <el-avatar :size="32" :src="row.avatar_url">
+                      <el-avatar :size="32" :src="row.avatar_url" @error="() => onAvatarError(row)">
                         {{ row.username?.charAt(0).toUpperCase() }}
                       </el-avatar>
-                      <span class="username-text">{{ row.username || '未知用户' }}</span>
+                      <span class="username-text clickable" @click="openUserDetail(row)">{{ row.username || '未知用户' }}</span>
                     </div>
                   </template>
                 </el-table-column>
@@ -535,6 +535,109 @@
               </el-table>
             </div>
 
+  <!-- 用户详情弹窗 -->
+  <el-dialog
+    v-model="showUserDetailDialog"
+    :width="isMobile ? '95%' : '720px'"
+    :append-to-body="true"
+    :destroy-on-close="true"
+    class="user-detail-dialog"
+  >
+    <template #header>
+      <div class="detail-header">
+        <div class="avatar-wrap">
+          <el-avatar :size="48" :src="detailUser?.avatar_url" @error="() => onAvatarError(detailUser)">
+            {{ detailUser?.username?.charAt(0).toUpperCase() }}
+          </el-avatar>
+        </div>
+        <div class="title-wrap">
+          <div class="name">{{ detailUser?.username || '未知用户' }}</div>
+          <div class="sub">{{ detailUser?.email || '未设置邮箱' }}</div>
+        </div>
+      </div>
+    </template>
+
+    <div class="detail-content">
+      <div class="grid">
+        <div class="item span-2">
+          <div class="label">密码</div>
+          <div class="value" style="display:flex; align-items:center; gap:8px;">
+            <template v-if="!viewPwdState.viewing">
+              <span>••••••••</span>
+              <el-button link type="primary" @click="onViewPwdClick" :disabled="!detailUser">查看</el-button>
+            </template>
+            <template v-else>
+              <el-input v-model="viewPwdState.code" placeholder="输入邮箱验证码" style="width: 160px;" size="small" />
+              <el-button :loading="viewPwdState.sending" size="small" @click="sendViewPwdCode" :disabled="!detailUser">{{ viewPwdState.sent ? '重新发送' : '发送验证码' }}</el-button>
+              <el-button type="primary" size="small" :loading="viewPwdState.verifying" @click="verifyAndShowPwd">验证并显示</el-button>
+              <el-button link size="small" @click="cancelViewPwd">取消查看</el-button>
+            </template>
+          </div>
+          <div v-if="viewPwdState.maskedHash" class="value" style="margin-top:6px; color:#999;">哈希摘要：{{ viewPwdState.maskedHash }}</div>
+        </div>
+        <div class="item">
+          <div class="label">角色</div>
+          <div class="value">
+            <el-tag :type="detailUser?.role === 'admin' ? 'danger' : 'info'">
+              {{ detailUser?.role === 'admin' ? '管理员' : '用户' }}
+            </el-tag>
+          </div>
+        </div>
+        <div class="item">
+          <div class="label">状态</div>
+          <div class="value">
+            <el-tag :type="getStatusTagType(detailUser?.status || 'active')">
+              {{ getStatusText(detailUser?.status || 'active') }}
+            </el-tag>
+          </div>
+        </div>
+        <div class="item">
+          <div class="label">最近登录</div>
+          <div class="value">{{ detailUser?.last_login ? formatTimestamp(detailUser?.last_login) : '—' }}</div>
+        </div>
+        <div class="item">
+          <div class="label">登录次数</div>
+          <div class="value">{{ detailUser?.login_count ?? 0 }}</div>
+        </div>
+        <div class="item span-2">
+          <div class="label">存储</div>
+          <div class="value storage">
+            <el-progress :percentage="Math.round(((detailUser?.used_storage || 0) / (detailUser?.storage_limit || 1)) * 100)" :stroke-width="8" :show-text="false" />
+            <span class="storage-text">{{ formatFileSize(detailUser?.used_storage || 0) }} / {{ formatFileSize(detailUser?.storage_limit || 0) }}</span>
+          </div>
+        </div>
+        <div class="item">
+          <div class="label">注册时间</div>
+          <div class="value">{{ formatTimestamp(detailUser?.created_at || '') }}</div>
+        </div>
+        <div class="item span-2" v-if="detailUser?.qq_openid || detailUser?.qq_unionid || detailUser?.epass_id">
+          <div class="label">第三方绑定</div>
+          <div class="value">
+            <div v-if="detailUser?.qq_openid || detailUser?.qq_unionid">QQ：
+              <el-tag size="small" style="margin-left: 6px;">OpenID: {{ detailUser?.qq_openid || '—' }}</el-tag>
+              <el-tag size="small" style="margin-left: 6px;">UnionID: {{ detailUser?.qq_unionid || '—' }}</el-tag>
+            </div>
+            <div v-if="detailUser?.epass_id" style="margin-top: 6px;">EPass：
+              <el-tag size="small" style="margin-left: 6px;">{{ detailUser?.epass_id }}</el-tag>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <template #footer>
+      <div class="detail-actions">
+        <el-button @click="() => resetUserPassword(detailUser!)" :disabled="!detailUser">重置密码</el-button>
+        <el-button @click="() => toggleUserStatus(detailUser!)" :disabled="!detailUser">
+          {{ detailUser?.status === 'active' ? '禁用用户' : '启用用户' }}
+        </el-button>
+        <el-button @click="() => toggleUserRole(detailUser!)" :disabled="!detailUser">
+          {{ detailUser?.role === 'admin' ? '取消管理员' : '设为管理员' }}
+        </el-button>
+        <el-button type="primary" @click="showUserDetailDialog = false">关闭</el-button>
+      </div>
+    </template>
+  </el-dialog>
 
             <!-- 系统日志 -->
             <div v-if="activeSection === 'logs'" class="admin-section">
@@ -1694,6 +1797,11 @@ interface User {
   used_storage: number
   storage_limit: number
   created_at: string
+  last_login?: string
+  login_count?: number
+  qq_openid?: string
+  qq_unionid?: string
+  epass_id?: string
 }
 
 interface LogEntry {
@@ -1726,6 +1834,12 @@ const showCleanupDialog = ref(false)
 
 // 移动端检测
 const isMobile = ref(false)
+
+// 头像兜底：失败时回退到首字母，并保持圆形
+const onAvatarError = (u?: any) => {
+  try { if (u && typeof u === 'object') u.avatar_url = '' } catch {}
+  return false
+}
 
 // 移动端标签页配置
 const mobileTabs = ref([
@@ -1962,6 +2076,97 @@ const storageStats = reactive({
 
 // 用户数据
 const users = ref<User[]>([])
+const detailUser = ref<User | null>(null)
+const showUserDetailDialog = ref(false)
+const detailLoading = ref(false)
+
+// GeeTest v4（bind 模式）
+const geetestScriptUrl = 'https://static.geetest.com/v4/gt4.js'
+const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '7922d406fb215d02770d5a4cd71af066')
+const geetestReady = ref(false)
+let geetestHandler: any = null
+const geetestMaxWaitMs = 12000
+
+const loadScriptOnce = (src: string) => new Promise<void>((resolve, reject) => {
+  const exists = Array.from(document.scripts).some(s => s.src === src)
+  if (exists) return resolve()
+  const s = document.createElement('script')
+  s.src = src
+  s.async = true
+  s.onload = () => resolve()
+  s.onerror = () => reject(new Error('geetest script load failed'))
+  document.head.appendChild(s)
+})
+
+const ensureGeetest = async (): Promise<boolean> => {
+  if (!geetestCaptchaId) return false
+  if (geetestReady.value && geetestHandler) return true
+  await loadScriptOnce(geetestScriptUrl)
+  const initGeetest4: any = (window as any).initGeetest4
+  if (!initGeetest4) return false
+  return await new Promise<boolean>((resolve) => {
+    try {
+      initGeetest4({
+        captchaId: geetestCaptchaId,
+        product: 'bind',
+        language: 'zho',
+        mask: { outside: true, bgColor: '#0000004d' },
+        timeout: 15000
+      }, (handler: any) => {
+        geetestHandler = handler
+        geetestReady.value = !!handler
+        try {
+          if (geetestHandler?.onReady) geetestHandler.onReady(() => {})
+          if (geetestHandler?.onError) geetestHandler.onError(() => {})
+          if (geetestHandler?.onClose) geetestHandler.onClose(() => {})
+        } catch {}
+        resolve(geetestReady.value)
+      })
+    } catch {
+      resolve(false)
+    }
+  })
+}
+
+const verifyHuman = async (): Promise<boolean> => {
+  // 若未配置，直接放行（后端可通过 GEETEST_OFFLINE_ALLOW 控制）
+  if (!geetestCaptchaId) return true
+  const ok = await ensureGeetest()
+  if (!ok || !geetestHandler) return false
+  return await new Promise<boolean>((resolve) => {
+    let settled = false
+    const onSuccess = async () => {
+      if (settled) return
+      settled = true
+      try {
+        const validate = geetestHandler.getValidate ? geetestHandler.getValidate() : null
+        if (!validate) { ElMessage.error('请完成人机验证'); return resolve(false) }
+        const { lot_number, captcha_output, pass_token, gen_time } = validate
+        const resp = await api.post('/auth/captcha/validate', {
+          lot_number, captcha_output, pass_token, gen_time, captcha_id: geetestCaptchaId
+        })
+        if (resp?.data?.success || resp?.data?.result === 'success') return resolve(true)
+        ElMessage.error(resp?.data?.message || '人机验证失败')
+        resolve(false)
+      } catch (e: any) {
+        ElMessage.error('人机验证服务异常，请稍后重试')
+        resolve(false)
+      }
+    }
+    try {
+      if (geetestHandler.onSuccess) geetestHandler.onSuccess(onSuccess)
+      if (geetestHandler.onError) geetestHandler.onError(() => { if (!settled) { settled = true; ElMessage.error('人机验证出错'); resolve(false) } })
+      if (geetestHandler.onClose) geetestHandler.onClose(() => { if (!settled) { settled = true; ElMessage.warning('请先完成人机验证'); resolve(false) } })
+      // 显示验证弹窗
+      if (geetestHandler.showCaptcha) geetestHandler.showCaptcha()
+      else if (geetestHandler.showBox) geetestHandler.showBox()
+      // 超时兜底
+      setTimeout(() => { if (!settled) { settled = true; ElMessage.warning('验证超时，请重试'); resolve(false) } }, geetestMaxWaitMs)
+    } catch {
+      resolve(false)
+    }
+  })
+}
 
 // 日志数据
 const logs = ref<LogEntry[]>([])
@@ -2129,6 +2334,103 @@ const refreshAllData = async () => {
   } finally {
     refreshing.value = false
   }
+}
+const openUserDetail = async (user: User) => {
+  // 人机验证
+  const passed = await verifyHuman()
+  if (!passed) return
+  detailUser.value = { ...user }
+  showUserDetailDialog.value = true
+  // 拉取更完整的信息（last_login、login_count等）
+  try {
+    detailLoading.value = true
+    const res = await api.get(`/admin/users/${user.id}`)
+    const u = res.data?.data || res.data
+    if (u) {
+      detailUser.value = {
+        id: u.id,
+        username: u.username,
+        email: u.email,
+        role: u.role,
+        status: u.status,
+        avatar_url: u.avatar_url,
+        used_storage: u.used_storage ?? user.used_storage,
+        storage_limit: u.storage_limit ?? user.storage_limit,
+        created_at: u.created_at ?? user.created_at,
+        last_login: u.last_login ?? user.last_login,
+        login_count: u.login_count ?? user.login_count
+      }
+    }
+  } catch (e) {
+    // 忽略错误，使用列表已有数据
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+// 查看密码交互状态
+const viewPwdState = reactive({
+  viewing: false,
+  sending: false,
+  verifying: false,
+  sent: false,
+  code: '',
+  maskedHash: ''
+})
+
+const onViewPwdClick = async () => {
+  const passed = await verifyHuman()
+  if (!passed) return
+  viewPwdState.viewing = true
+}
+
+const sendViewPwdCode = async () => {
+  if (!detailUser.value) return
+  try {
+    viewPwdState.sending = true
+    const resp = await api.post(`/admin/users/${detailUser.value.id}/view-password/send-code`)
+    if (resp?.data?.success !== false) {
+      viewPwdState.sent = true
+      ElMessage.success('验证码已发送到用户邮箱')
+    } else {
+      ElMessage.error(resp?.data?.message || '发送验证码失败')
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '发送验证码失败')
+  } finally {
+    viewPwdState.sending = false
+  }
+}
+
+const verifyAndShowPwd = async () => {
+  if (!detailUser.value) return
+  if (!viewPwdState.code || viewPwdState.code.length !== 6) {
+    ElMessage.warning('请输入6位验证码')
+    return
+  }
+  try {
+    viewPwdState.verifying = true
+    const resp = await api.post(`/admin/users/${detailUser.value.id}/view-password/verify`, { code: viewPwdState.code })
+    if (resp?.data?.success) {
+      viewPwdState.maskedHash = resp.data.passwordMaskedHash || ''
+      ElMessage.success('验证通过，已显示密码哈希摘要')
+    } else {
+      ElMessage.error(resp?.data?.message || '验证失败')
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '验证失败')
+  } finally {
+    viewPwdState.verifying = false
+  }
+}
+
+const cancelViewPwd = () => {
+  viewPwdState.viewing = false
+  viewPwdState.sending = false
+  viewPwdState.verifying = false
+  viewPwdState.sent = false
+  viewPwdState.code = ''
+  viewPwdState.maskedHash = ''
 }
 
 // 获取系统统计数据
@@ -3092,6 +3394,56 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+.user-detail-dialog {
+  :deep(.el-dialog) {
+    border-radius: 14px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+  }
+  :deep(.el-dialog__header) {
+    border-bottom: 1px solid #eee;
+  }
+  .detail-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    .title-wrap {
+      display: flex; flex-direction: column;
+      .name { font-weight: 700; font-size: 16px; color: #111827; }
+      .sub { font-size: 12px; color: #6b7280; }
+    }
+  }
+  .detail-content { padding-top: 8px; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .item {
+    background: #fafafa;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px;
+    .label { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
+    .value { font-size: 14px; color: #111827; display: flex; align-items: center; gap: 8px; }
+    &.span-2 { grid-column: span 2; }
+    .storage-text { font-size: 12px; color: #6b7280; }
+  }
+  .detail-actions { display: flex; justify-content: flex-end; }
+}
+
+.username-text.clickable { cursor: pointer; color: #111827; transition: color .2s; }
+.username-text.clickable:hover { color: #000; }
+
+@media (max-width: 1024px) {
+  .user-detail-dialog .grid { grid-template-columns: 1fr; }
+  .user-detail-dialog .item.span-2 { grid-column: span 1; }
+}
+
+@media (max-width: 480px) {
+  .user-detail-dialog :deep(.el-dialog) { width: 95% !important; }
+}
 // 全局按钮样式覆盖 - 确保所有按钮使用灰白黑三色
 :deep(.el-button--primary) {
   background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;

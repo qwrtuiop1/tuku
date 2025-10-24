@@ -956,6 +956,7 @@ const handleLongPress = (item: any) => {
 }
 
 const handleTouchStart = (event: TouchEvent) => {
+  if (!event.touches || event.touches.length === 0) return
   touchStartX.value = event.touches[0].clientX
   touchStartY.value = event.touches[0].clientY
   touchStartTime.value = Date.now()
@@ -1009,6 +1010,7 @@ const handleTouchStart = (event: TouchEvent) => {
 // 触摸移动检测
 const handleTouchMove = (event: TouchEvent) => {
   if (event.touches.length > 0) {
+    if (!event.touches || event.touches.length === 0) return
     const touchCurrentX = event.touches[0].clientX
     const touchCurrentY = event.touches[0].clientY
     
@@ -1070,6 +1072,7 @@ const handleTouchEnd = (event: TouchEvent, item: any) => {
     longPressTimer.value = null
   }
   
+  if (!event.changedTouches || event.changedTouches.length === 0) return
   const touchEndX = event.changedTouches[0].clientX
   const touchEndY = event.changedTouches[0].clientY
   const touchEndTime = Date.now()
@@ -1119,11 +1122,13 @@ const swipeStartX = ref(0)
 const swipeStartY = ref(0)
 
 const handleSwipeStart = (event: TouchEvent) => {
+  if (!event.touches || event.touches.length === 0) return
   swipeStartX.value = event.touches[0].clientX
   swipeStartY.value = event.touches[0].clientY
 }
 
 const handleSwipeEnd = (event: TouchEvent) => {
+  if (!event.changedTouches || event.changedTouches.length === 0) return
   const swipeEndX = event.changedTouches[0].clientX
   const swipeEndY = event.changedTouches[0].clientY
   
@@ -1165,6 +1170,7 @@ const lastScale = ref(1)
 
 const handlePinchStart = (event: TouchEvent) => {
   if (event.touches.length === 2) {
+    if (!event.touches || event.touches.length === 0) return
     const touch1 = event.touches[0]
     const touch2 = event.touches[1]
     lastDistance.value = Math.sqrt(
@@ -1177,6 +1183,7 @@ const handlePinchStart = (event: TouchEvent) => {
 
 const handlePinchMove = (event: TouchEvent) => {
   if (event.touches.length === 2) {
+    if (!event.touches || event.touches.length === 0) return
     const touch1 = event.touches[0]
     const touch2 = event.touches[1]
     const currentDistance = Math.sqrt(

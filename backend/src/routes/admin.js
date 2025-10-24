@@ -5,6 +5,8 @@ const { pool } = require('../config/database');
 const { requireAdmin, authenticateToken } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { validatePasswordComplexity, getPasswordRequirements } = require('../utils/passwordValidator');
+const { createVerificationCode, verifyCode, checkRateLimit } = require('../services/verificationService');
+const { sendEmailVerificationCode } = require('../services/emailService');
 
 const router = express.Router();
 
@@ -146,7 +148,7 @@ router.get('/users', asyncHandler(async (req, res) => {
 
   // 使用安全的字段查询
   let query = `
-    SELECT id, username, email, role, status, storage_limit, used_storage, created_at 
+    SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, created_at 
     FROM users 
     WHERE 1=1
   `;
@@ -208,6 +210,70 @@ router.get('/users', asyncHandler(async (req, res) => {
     }
   });
 }));
+
+// 获取用户详情
+router.get('/users/:id', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await pool.execute(
+      'SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, nickname, bio, last_login, login_count, created_at, qq_openid, qq_unionid, epass_id FROM users WHERE id = ?',
+      [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ message: '用户不存在' });
+    }
+    return res.json({ data: rows[0] });
+  } catch (error) {
+    console.log('🔧 获取用户详情查询回退:', error.message);
+    const [rows] = await pool.execute(
+      'SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, created_at FROM users WHERE id = ?',
+      [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ message: '用户不存在' });
+    }
+    return res.json({ data: rows[0] });
+  }
+}));
+
+// 管理员：发送查看用户敏感信息的邮箱验证码（先做人机验证）
+router.post('/users/:id/view-password/send-code', asyncHandler(async (req, res) => {
+  const { id } = req.params
+  // 仅管理员已由上方中间件保证
+  const [rows] = await pool.execute('SELECT id, email, username FROM users WHERE id = ?', [id])
+  if (rows.length === 0) return res.status(404).json({ message: '用户不存在' })
+  const email = rows[0].email
+  if (!email) return res.status(400).json({ message: '该用户未设置邮箱，无法发送验证码' })
+
+  const rate = checkRateLimit(email, 'admin_view_sensitive')
+  if (!rate.allowed) {
+    return res.status(429).json({ message: `发送过于频繁，请 ${rate.remainingTime}s 后再试` })
+  }
+  const code = createVerificationCode(email, 'admin_view_sensitive', rows[0].id)
+  try {
+    const r = await sendEmailVerificationCode(email, code, 'admin_view_sensitive')
+    if (r?.success) return res.json({ success: true, message: '验证码已发送至用户邮箱' })
+    return res.status(500).json({ message: '发送验证码失败，请稍后重试' })
+  } catch (e) {
+    return res.status(500).json({ message: '发送验证码失败，请稍后重试' })
+  }
+}))
+
+// 管理员：校验验证码并返回用户密码摘要（不返回明文）
+router.post('/users/:id/view-password/verify', asyncHandler(async (req, res) => {
+  const { id } = req.params
+  const { code } = req.body || {}
+  if (!code) return res.status(400).json({ message: '缺少验证码' })
+  const [rows] = await pool.execute('SELECT id, email, username, password_hash FROM users WHERE id = ?', [id])
+  if (rows.length === 0) return res.status(404).json({ message: '用户不存在' })
+  const user = rows[0]
+  const result = verifyCode(user.email, code, 'admin_view_sensitive', { userId: user.id, username: user.username })
+  if (!result.valid) return res.status(400).json({ message: result.message || '验证码无效' })
+  // 仅返回密码哈希的掩码摘要，避免泄露明文
+  const hash = user.password_hash || ''
+  const masked = hash ? `${hash.slice(0, 8)}****${hash.slice(-6)}` : ''
+  return res.json({ success: true, passwordMaskedHash: masked })
+}))
 
 // 设置用户存储容量
 router.put('/users/:id/storage', [

@@ -3,11 +3,10 @@
 @use './responsive.scss' as *;
 @use './mobile-dialogs.scss' as *;
 
-// 浏览器兼容性修复
-@supports not (forced-color-adjust: none) {
-  // 修复Edge浏览器的高对比度警告
+// Edge 旧版高对比度兼容（使用标准属性优先）
+@media (forced-colors: active) {
   * {
-    -ms-high-contrast-adjust: none;
+    forced-color-adjust: none;
   }
 }
 
