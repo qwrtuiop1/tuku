@@ -208,6 +208,7 @@ class DatabaseInitService {
       await ensureIdx(`CREATE INDEX idx_users_third_party ON users(third_party_type, third_party_id)`);
       await ensureIdx(`CREATE UNIQUE INDEX uk_users_qq_unionid ON users(qq_unionid)`);
       await ensureIdx(`CREATE UNIQUE INDEX uk_users_epass_id ON users(epass_id)`);
+      await ensureIdx(`CREATE UNIQUE INDEX uk_users_email ON users(email)`);
     } catch (e) {
       console.error('❌ 兜底检查 users 表结构失败:', e.message);
     }

@@ -364,6 +364,45 @@
 
                     <el-divider />
 
+            <!-- 邮箱绑定 -->
+            <div class="binding-row">
+              <div class="binding-info">
+                <el-icon><Message /></el-icon>
+                <div class="binding-text">
+                  <div class="binding-name">邮箱</div>
+                  <div class="binding-status">
+                    <template v-if="bindings.email">
+                      <span>已绑定</span>
+                      <span class="binding-id">（{{ bindings.email }}）</span>
+                    </template>
+                    <template v-else>未绑定</template>
+                  </div>
+                </div>
+              </div>
+              <div class="binding-actions">
+                <template v-if="!bindings.email">
+                  <div class="row-inline email-bind-row">
+                    <el-input v-model="emailBindForm.email" placeholder="输入邮箱" style="width: 220px;" class="email-input" />
+                    <el-input v-model="emailBindForm.code" placeholder="输入验证码" maxlength="6" style="width: 160px;" class="code-input" />
+                    <el-button
+                      class="send-code-btn"
+                      :loading="emailBindForm.sending"
+                      :disabled="emailBindForm.sending || !emailBindForm.email || emailCodeCooldown > 0"
+                      @click="sendBindEmailCode"
+                    >
+                      {{ emailCodeCooldown > 0 ? `${emailCodeCooldown}s后重发` : '发送验证码' }}
+                    </el-button>
+                    <el-button class="bind-btn" type="primary" :loading="emailBindForm.binding" @click="bindEmail">绑定邮箱</el-button>
+                  </div>
+                </template>
+                <template v-else>
+                  <el-button type="danger" @click="unbindEmail">解绑邮箱</el-button>
+                </template>
+              </div>
+            </div>
+
+            <el-divider />
+
                     <div class="binding-row">
                       <div class="binding-info">
                         <el-icon><Link /></el-icon>
@@ -550,6 +589,8 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { formatFileSize, formatPercentage } from '@/utils/helpers'
 import api from '@/utils/api'
+import { useEmailCode } from '@/composables/useEmailCode'
+import { Message } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 
 const authStore = useAuthStore()
@@ -1602,6 +1643,7 @@ onUnmounted(() => {
   
   // 清理验证码倒计时
   clearCountdown()
+  clearEmailCodeCooldown()
 })
 
 const bindings = reactive({
@@ -1612,9 +1654,12 @@ const bindings = reactive({
   qqAvatar: '' as string,
   qqNumber: null as string | null,
   epass: false,
-  epassId: null as string | null
+  epassId: null as string | null,
+  email: null as string | null
 })
 const epassId = ref('')
+const emailBindForm = reactive({ email: '', code: '', sending: false, binding: false })
+const { emailCodeCooldown, startEmailCodeCooldown, clearEmailCodeCooldown, sendEmailCodeWithHuman } = useEmailCode({ defaultCooldownSeconds: 60, runHuman: runHumanVerification })
 
 const loadBindings = async () => {
   try {
@@ -1627,8 +1672,10 @@ const loadBindings = async () => {
       bindings.qqNickname = b.qqNickname || ''
       bindings.qqAvatar = b.qqAvatar || ''
       bindings.qqNumber = b.qqNumber || null
+      bindings.email = b.email || null
       bindings.epass = !!b.epass
       bindings.epassId = b.epassId || null
+      bindings.email = b.email || null
     }
   } catch {}
 }
@@ -1660,6 +1707,47 @@ const unbindQQ = async () => {
     loadBindings()
   } catch {
     ElMessage.error('解绑失败')
+  }
+}
+
+const sendBindEmailCode = async () => {
+  if (!emailBindForm.email) { ElMessage.warning('请先输入邮箱'); return }
+  try {
+    emailBindForm.sending = true
+    await sendEmailCodeWithHuman(emailBindForm.email, 'change_email')
+  } finally { emailBindForm.sending = false }
+}
+
+const bindEmail = async () => {
+  if (!emailBindForm.email || !emailBindForm.code) { ElMessage.warning('请填写邮箱和验证码'); return }
+  try {
+    emailBindForm.binding = true
+    // 复用 /auth/profile 更新邮箱（需要验证码）
+    const resp = await api.put('/auth/profile', { email: emailBindForm.email, emailCode: emailBindForm.code })
+    if (resp.data?.message) {
+      ElMessage.success('邮箱绑定成功')
+      emailBindForm.email = ''
+      emailBindForm.code = ''
+      loadBindings()
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '绑定失败')
+  } finally { emailBindForm.binding = false }
+}
+
+const unbindEmail = async () => {
+  try {
+    const ok = await ElMessageBox.confirm('确定要解绑邮箱吗？', '确认', { type: 'warning' }).catch(() => false)
+    if (!ok) return
+    const resp = await api.post('/auth/email/unbind')
+    if (resp.data?.success) {
+      ElMessage.success('邮箱已解绑')
+      loadBindings()
+    } else {
+      ElMessage.error(resp.data?.message || '解绑失败')
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '解绑失败')
   }
 }
 

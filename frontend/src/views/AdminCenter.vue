@@ -6163,22 +6163,28 @@ onUnmounted(() => {
             align-items: center !important;
             gap: 8px !important;
             justify-content: center !important;
+            min-width: 0 !important;
             
             .el-avatar {
-              width: 24px !important;
-              height: 24px !important;
+              width: 32px !important;
+              height: 32px !important;
               font-size: 10px !important;
-              flex-shrink: 0 !important;
+              flex: 0 0 32px !important;
+              min-width: 32px !important;
+              min-height: 32px !important;
               box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+              border-radius: 50% !important;
+              overflow: hidden !important;
             }
+            .el-avatar :deep(img) { width: 100% !important; height: 100% !important; border-radius: 50% !important; object-fit: cover !important; display: block !important; }
             
             .username-text {
               font-size: 11px !important;
-              max-width: 100px !important;
+              max-width: 120px !important;
               overflow: hidden !important;
               text-overflow: ellipsis !important;
               white-space: nowrap !important;
-              flex: 1 !important;
+              flex: 1 1 auto !important;
               font-weight: 500 !important;
               color: #2c3e50 !important;
             }

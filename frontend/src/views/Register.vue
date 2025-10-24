@@ -250,6 +250,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import api from '@/utils/api'
 import { isValidEmail, isValidUsername } from '@/utils/helpers'
+import { useEmailCode } from '@/composables/useEmailCode'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -279,9 +280,8 @@ const passwordStrength = reactive({
 // 邮箱验证码相关
 const emailCode = ref('')
 const showEmailCodeInput = ref(false)
-const emailCodeCooldown = ref(0)
+const { emailCodeCooldown, startEmailCodeCooldown, sendEmailCodeWithHuman } = useEmailCode({ defaultCooldownSeconds: 60, runHuman: runHumanVerification })
 const codeExpireTime = ref(0)
-const emailCodeTimer = ref<NodeJS.Timeout | null>(null)
 const codeExpireTimer = ref<NodeJS.Timeout | null>(null)
 
 // GeeTest v4 人机验证
@@ -519,37 +519,12 @@ const sendEmailCode = async () => {
     return
   }
 
-  try {
-    // 人机验证
-    const humanOk = await runHumanVerification()
-    if (!humanOk) {
-      ElMessage.error('请先完成人机验证')
-      return
-    }
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://tukubackend.vtart.cn'
-    const response = await fetch(`${baseUrl}/api/auth/send-email-code`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        email: registerForm.email,
-        type: 'verify_email'
-      })
-    })
-
-    const data = await response.json()
-
-    if (data.success) {
-      ElMessage.success('验证码已发送到您的邮箱')
-      showEmailCodeInput.value = true
-      startEmailCodeCooldown()
-      startCodeExpireTimer()
-    } else {
-      ElMessage.error(data.message || '发送验证码失败')
-    }
-  } catch (error: any) {
-    ElMessage.error('发送验证码失败，请稍后重试')
+  const ok = await sendEmailCodeWithHuman(registerForm.email, 'verify_email')
+  if (ok) {
+    ElMessage.success('验证码已发送到您的邮箱')
+    showEmailCodeInput.value = true
+    startEmailCodeCooldown(60)
+    startCodeExpireTimer()
   }
 }
 
@@ -562,21 +537,10 @@ const resendEmailCode = async () => {
   await sendEmailCode()
 }
 
-// 开始验证码冷却倒计时
-const startEmailCodeCooldown = () => {
-  emailCodeCooldown.value = 60
-  emailCodeTimer.value = setInterval(() => {
-    emailCodeCooldown.value--
-    if (emailCodeCooldown.value <= 0) {
-      clearInterval(emailCodeTimer.value!)
-      emailCodeTimer.value = null
-    }
-  }, 1000)
-}
-
 // 开始验证码过期倒计时
 const startCodeExpireTimer = () => {
   codeExpireTime.value = 300 // 5分钟
+  if (codeExpireTimer.value) { clearInterval(codeExpireTimer.value); codeExpireTimer.value = null }
   codeExpireTimer.value = setInterval(() => {
     codeExpireTime.value--
     if (codeExpireTime.value <= 0) {
@@ -588,10 +552,6 @@ const startCodeExpireTimer = () => {
 
 // 清理定时器
 const clearTimers = () => {
-  if (emailCodeTimer.value) {
-    clearInterval(emailCodeTimer.value)
-    emailCodeTimer.value = null
-  }
   if (codeExpireTimer.value) {
     clearInterval(codeExpireTimer.value)
     codeExpireTimer.value = null

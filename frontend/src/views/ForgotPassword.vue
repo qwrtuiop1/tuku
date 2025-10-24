@@ -197,6 +197,7 @@
                   size="large"
                   class="step-button"
                   :loading="loading"
+                  :disabled="!canSubmitNewPassword"
                   @click="handlePasswordSubmit"
                 >
                   <el-icon v-if="!loading"><Check /></el-icon>
@@ -241,7 +242,10 @@
               <el-icon class="instruction-icon"><Lock /></el-icon>
               <div class="instruction-content">
                 <h3>密码安全</h3>
-                <p>新密码不能与原密码相同，长度至少6位</p>
+                <p>
+                  新密码不能与原密码相同；
+                  {{ passwordHintsStep1 }}
+                </p>
               </div>
             </div>
           </div>
@@ -311,6 +315,20 @@ const passwordForm = reactive({
 // 邮箱验证码相关
 const emailCodeCooldown = ref(0)
 const emailCodeTimer = ref<number | null>(null)
+
+// 密码要求
+const passwordRequirements = ref<string>('')
+const resetToken = ref<string>('')
+const passwordPolicy = ref<{ minLength: number; complexity: string } | null>(null)
+const passwordHintsStep1 = computed(() => {
+  if (!passwordPolicy.value) return '长度至少 6 位'
+  const parts: string[] = []
+  parts.push(`长度至少 ${passwordPolicy.value.minLength || 6} 位`)
+  if (passwordPolicy.value.complexity === 'medium') parts.push('需包含字母和数字')
+  if (passwordPolicy.value.complexity === 'high') parts.push('需包含大小写字母、数字和符号')
+  return parts.join('；')
+})
+const passwordHintsStep2 = passwordHintsStep1
 
 // 验证规则
 const validateEmail = (rule: any, value: string, callback: Function) => {
@@ -546,23 +564,22 @@ const startEmailCodeCooldown = () => {
 // 步骤2: 处理身份验证
 const handleVerifySubmit = async () => {
   if (!verifyFormRef.value) return
-  
   try {
     await verifyFormRef.value.validate()
     loading.value = true
-    
-    // 验证用户名和邮箱是否匹配，以及验证码是否正确
     const response = await api.post('/auth/verify-forgot-password', {
       username: verifyForm.username,
       email: emailForm.email,
       emailCode: verifyForm.emailCode
     })
-    
     if (response.data.valid) {
+      resetToken.value = response.data.resetToken || ''
+      passwordRequirements.value = response.data.passwordRequirements || ''
+      passwordPolicy.value = response.data.passwordPolicy || null
       currentStep.value = 3
       ElMessage.success('身份验证成功，请设置新密码')
     } else {
-      ElMessage.error('用户名、邮箱或验证码不正确')
+      ElMessage.error(response.data.message || '用户名、邮箱或验证码不正确')
     }
   } catch (error: any) {
     const errorMessage = error.response?.data?.message || '身份验证失败'
@@ -575,45 +592,31 @@ const handleVerifySubmit = async () => {
 // 步骤3: 处理密码重置
 const handlePasswordSubmit = async () => {
   if (!passwordFormRef.value) return
-  
   try {
     await passwordFormRef.value.validate()
     loading.value = true
-    
-    // 检查新密码是否与原密码相同
     const checkResponse = await api.post('/auth/check-password-same', {
       username: verifyForm.username,
       email: emailForm.email,
       newPassword: passwordForm.newPassword
     })
-    
     if (checkResponse.data.isSame) {
       ElMessage.error('新密码不能与原密码相同，请重新设置')
       return
     }
-    
-    // 重置密码
-    const resetResponse = await api.post('/auth/reset-password-new', {
+    const payload: any = {
       username: verifyForm.username,
       email: emailForm.email,
-      emailCode: verifyForm.emailCode,
       newPassword: passwordForm.newPassword
-    })
-    
+    }
+    if (resetToken.value) payload.resetToken = resetToken.value
+    // 兼容旧流程：无 resetToken 再带验证码
+    if (!resetToken.value) payload.emailCode = verifyForm.emailCode
+    const resetResponse = await api.post('/auth/reset-password-new', payload)
     if (resetResponse.data.success) {
-      ElMessage.success({
-        message: '密码重置成功！2秒后自动跳转到登录页面',
-        duration: 2000,
-        showClose: false
-      })
-      
-      // 清理定时器
+      ElMessage.success({ message: '密码重置成功！2秒后自动跳转到登录页面', duration: 2000, showClose: false })
       clearTimers()
-      
-      // 2秒后跳转到登录页面
-      setTimeout(() => {
-        router.push('/login')
-      }, 2000)
+      setTimeout(() => { router.push('/login') }, 2000)
     }
   } catch (error: any) {
     const errorMessage = error.response?.data?.message || '密码重置失败'
@@ -622,6 +625,19 @@ const handlePasswordSubmit = async () => {
     loading.value = false
   }
 }
+
+const canSubmitNewPassword = computed(() => {
+  if (!passwordPolicy.value) return passwordForm.newPassword?.length >= 6 && passwordForm.newPassword === passwordForm.confirmPassword
+  const min = passwordPolicy.value.minLength || 6
+  const okLen = (passwordForm.newPassword || '').length >= min
+  const complexity = passwordPolicy.value.complexity || 'low'
+  const pwd = passwordForm.newPassword || ''
+  let okComplex = true
+  if (complexity === 'medium') okComplex = /[a-zA-Z]/.test(pwd) && /[0-9]/.test(pwd)
+  if (complexity === 'high') okComplex = /[a-z]/.test(pwd) && /[A-Z]/.test(pwd) && /[0-9]/.test(pwd) && /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd)
+  const same = pwd === passwordForm.confirmPassword
+  return okLen && okComplex && same
+})
 
 // 上一步
 const prevStep = () => {
@@ -646,6 +662,13 @@ onMounted(() => {
   // 页面初始化
   // 预加载极验，避免首次点击时未就绪
   ensureGeetest().catch(() => {})
+  // 拉取密码策略，供步骤1/2展示动态密码要求
+  api.get('/auth/password-policy').then((res: any) => {
+    if (res?.data?.success) {
+      passwordRequirements.value = res.data.passwordRequirements || ''
+      passwordPolicy.value = res.data.passwordPolicy || null
+    }
+  }).catch(() => {})
 })
 
 onUnmounted(() => {

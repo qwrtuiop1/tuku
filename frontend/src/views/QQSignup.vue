@@ -103,6 +103,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
+import { useEmailCode } from '@/composables/useEmailCode'
 import { Picture, Upload, View, Platform } from '@element-plus/icons-vue'
 
 const formRef = ref()
@@ -127,23 +128,7 @@ const rules = {
   agree: [ { validator: (_: any, v: boolean, cb: any) => { !v ? cb(new Error('请先同意协议')) : cb() }, trigger: 'change' } ]
 }
 
-const sending = ref(false)
-const submitting = ref(false)
-const tempToken = ref('')
-const qq = ref({ nickname: '', avatar: '' })
-
-onMounted(() => {
-  const url = new URL(window.location.href)
-  tempToken.value = url.searchParams.get('token') || ''
-  qq.value.nickname = url.searchParams.get('nickname') || ''
-  qq.value.avatar = url.searchParams.get('avatar') || ''
-})
-
-const useQQNickname = () => {
-  if (qq.value.nickname) form.value.username = qq.value.nickname
-}
-
-// GeeTest v4（bind 模式）集成
+// GeeTest v4（bind 模式）集成 - 提前定义，供组合函数使用
 const geetestScriptUrl = 'https://static.geetest.com/v4/gt4.js'
 const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '7922d406fb215d02770d5a4cd71af066')
 let geetestHandler: any = null
@@ -178,9 +163,7 @@ const ensureGeetest = async (): Promise<boolean> => {
       }, (handler: any) => {
         geetestHandler = handler
         geetestReady.value = !!handler
-        try {
-          geetestHandler?.onReady?.(() => {})
-        } catch {}
+        try { geetestHandler?.onReady?.(() => {}) } catch {}
         resolve(geetestReady.value)
       })
     } catch {
@@ -226,16 +209,29 @@ const verifyHuman = async (): Promise<boolean> => {
   })
 }
 
+const sending = ref(false)
+const { emailCodeCooldown, startEmailCodeCooldown, sendEmailCodeWithHuman } = useEmailCode({ defaultCooldownSeconds: 60, runHuman: verifyHuman })
+const submitting = ref(false)
+const tempToken = ref('')
+const qq = ref({ nickname: '', avatar: '' })
+
+onMounted(() => {
+  const url = new URL(window.location.href)
+  tempToken.value = url.searchParams.get('token') || ''
+  qq.value.nickname = url.searchParams.get('nickname') || ''
+  qq.value.avatar = url.searchParams.get('avatar') || ''
+})
+
+const useQQNickname = () => {
+  if (qq.value.nickname) form.value.username = qq.value.nickname
+}
+
 const sendCode = async () => {
   if (!form.value.email) { ElMessage.warning('请先填写邮箱'); return }
-  if (!(await verifyHuman())) { return }
   try {
     sending.value = true
-    const res = await api.post('/auth/send-verification-code', { email: form.value.email, type: 'verify_email' })
-    if (res.data?.success) ElMessage.success('验证码已发送')
-    else ElMessage.error(res.data?.message || '发送失败')
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '发送失败')
+    const ok = await sendEmailCodeWithHuman(form.value.email, 'verify_email')
+    if (ok) startEmailCodeCooldown(60)
   } finally { sending.value = false }
 }
 
@@ -279,7 +275,7 @@ const openPrivacy = () => { window.open('/privacy', '_blank') }
 .logo-text { font-weight:600; letter-spacing:0.5px; }
 
 .login-content { display:flex; align-items:center; justify-content:center; gap:24px; max-width:1200px; width:100%; margin: 24px auto; padding: 0 16px; min-height: calc(100vh - 120px); }
-.login-box { width: clamp(420px, 40%, 620px); flex: 0 0 auto; background:#111317; border:1px solid #1f232b; border-radius:16px; padding:24px; color:#e5e7eb; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+.login-box { width: clamp(420px, 40%, 620px); flex: 0 0 auto; background: rgba(17,19,23,0.98); border:1px solid #272b34; border-radius:16px; padding:24px; color:#e5e7eb; box-shadow: 0 14px 38px rgba(0,0,0,0.35); }
 .form-inner { width: 100%; max-width: 520px; margin: 0 auto; }
 .form-inner :deep(.el-form-item__content) { width: 100%; }
 .form-inner :deep(.el-input),
@@ -318,8 +314,10 @@ const openPrivacy = () => { window.open('/privacy', '_blank') }
 }
 .send-code-btn:focus,
 .use-qq-btn:focus { outline: none; }
-.agreement-checkbox { color:#9ca3af; }
-.terms-link { padding:0 2px; }
+.agreement-checkbox { color:#9ca3af; padding: 0; margin: 0; line-height: 1.2; font-size: 13px; }
+.agreement-checkbox :deep(.el-checkbox__input) { margin-right: 6px; }
+.agreement-checkbox :deep(.el-checkbox__label) { padding-left: 0; }
+.terms-link { padding:0; margin: 0 2px; }
 
 .bg-decoration { position:fixed; inset:0; pointer-events:none; }
 .floating-shape { position:absolute; width:220px; height:220px; border-radius:50%; filter: blur(40px); opacity:0.15; animation: float 10s ease-in-out infinite; }
@@ -350,6 +348,8 @@ const openPrivacy = () => { window.open('/privacy', '_blank') }
   .qq-profile .title { font-size: 18px; }
   .qq-profile .sub { font-size: 12px; }
   .row-inline { gap: 6px; }
+  .agreement-checkbox { font-size: 12px; }
+  .terms-link { margin: 0 1px; }
   .send-code-btn, .use-qq-btn { flex-basis: 120px; height: 34px; font-size: 13px; }
   .floating-shape { width: 150px; height: 150px; filter: blur(32px); opacity: 0.12; }
 }
@@ -358,6 +358,8 @@ const openPrivacy = () => { window.open('/privacy', '_blank') }
   .form-inner { max-width: 100%; }
   .send-code-btn, .use-qq-btn { flex-basis: 112px; height: 32px; font-size: 12px; padding: 0 10px; }
   .row-inline { gap: 6px; }
+  .agreement-checkbox { font-size: 12px; line-height: 1.15; }
+  .agreement-checkbox :deep(.el-checkbox__input) { margin-right: 4px; }
   .logo-text { display: none; }
   .floating-shape { display: none; }
 }

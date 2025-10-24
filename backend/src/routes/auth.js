@@ -974,9 +974,32 @@ router.post('/verify-forgot-password', [
       }
     }
 
+    // 生成短期 resetToken，用于第三步跳过验证码
+    const jwt = require('jsonwebtoken');
+    const resetToken = jwt.sign(
+      { typ: 'reset_pw', username, email },
+      process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback',
+      { expiresIn: '10m' }
+    )
+
+    // 返回当前密码规则，供前端展示
+    const [settingsRows] = await pool.execute(
+      'SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?, ?)',
+      ['min_password_length', 'password_complexity']
+    );
+    const settings = {};
+    settingsRows.forEach(row => { settings[row.setting_key] = row.setting_value });
+
+    // 计算密码策略
+    const minLength = parseInt(settings.min_password_length) || 6
+    const complexity = settings.password_complexity || 'low'
+
     res.json({
       valid: true,
-      message: '身份验证成功'
+      message: '身份验证成功',
+      resetToken,
+      passwordRequirements: getPasswordRequirements(settings),
+      passwordPolicy: { minLength, complexity }
     });
   } catch (error) {
     console.error('身份验证失败:', error);
@@ -1028,8 +1051,8 @@ router.post('/check-password-same', [
 router.post('/reset-password-new', [
   body('username').notEmpty().withMessage('用户名不能为空'),
   body('email').isEmail().withMessage('请输入有效的邮箱地址'),
-  body('emailCode').isLength({ min: 6, max: 6 }).withMessage('验证码必须是6位'),
-  body('newPassword').isLength({ min: 6 }).withMessage('密码长度至少6个字符')
+  body('newPassword').isLength({ min: 6 }).withMessage('密码长度至少6个字符'),
+  body('resetToken').optional().isString()
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -1039,10 +1062,10 @@ router.post('/reset-password-new', [
     });
   }
 
-  const { username, email, emailCode, newPassword } = req.body;
+  const { username, email, emailCode, newPassword, resetToken } = req.body;
 
   try {
-    // 再次验证身份和验证码
+    // 再次验证身份，验证码仅当没有 resetToken 时才需要
     const [users] = await pool.execute(
       'SELECT id, password_hash FROM users WHERE username = ? AND email = ?',
       [username, email]
@@ -1052,20 +1075,30 @@ router.post('/reset-password-new', [
       return res.status(404).json({ message: '用户不存在' });
     }
 
-    // 验证邮箱验证码
-    const codeResult = verifyCode(email, emailCode, 'forgot_password', {
-      ipAddress: req.ip || req.connection.remoteAddress,
-      userAgent: req.get('User-Agent'),
-      username: username,
-      email: email
-    });
-
-    if (!codeResult.valid) {
-      return res.status(400).json({ message: codeResult.message || '验证码无效或已过期' });
+    let tokenOk = false
+    let codeResult = null
+    if (resetToken) {
+      try {
+        const jwt = require('jsonwebtoken')
+        const payload = jwt.verify(resetToken, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback')
+        tokenOk = (payload?.typ === 'reset_pw' && payload?.username === username && payload?.email === email)
+      } catch (e) { tokenOk = false }
+    }
+    if (!tokenOk) {
+      // 回退到验证码校验（兼容旧前端）
+      codeResult = verifyCode(email, emailCode, 'forgot_password', {
+        ipAddress: req.ip || req.connection.remoteAddress,
+        userAgent: req.get('User-Agent'),
+        username: username,
+        email: email
+      });
+      if (!codeResult.valid) {
+        return res.status(400).json({ message: codeResult.message || '验证码无效或已过期' });
+      }
     }
     
     // 如果验证码所有权验证需要数据库验证
-    if (codeResult.ownershipVerified && codeResult.requiresDbVerification) {
+    if (codeResult && codeResult.ownershipVerified && codeResult.requiresDbVerification) {
       // 验证用户名和邮箱是否匹配
       const [users] = await pool.execute(
         'SELECT id FROM users WHERE username = ? AND email = ?',
@@ -2091,11 +2124,18 @@ router.post('/epass/unbind', authenticateToken, asyncHandler(async (req, res) =>
 router.get('/bindings', authenticateToken, asyncHandler(async (req, res) => {
   let rows
   try {
-    ;[rows] = await pool.execute('SELECT qq_openid, qq_unionid, nickname, avatar_url, epass_id, qq_number FROM users WHERE id = ?', [req.user.id])
+    ;[rows] = await pool.execute('SELECT qq_openid, qq_unionid, nickname, avatar_url, epass_id, qq_number, email FROM users WHERE id = ?', [req.user.id])
   } catch (e) {
-    ;[rows] = await pool.execute('SELECT qq_openid, qq_unionid, nickname, avatar_url, epass_id FROM users WHERE id = ?', [req.user.id])
+    ;[rows] = await pool.execute('SELECT qq_openid, qq_unionid, nickname, avatar_url, epass_id, email FROM users WHERE id = ?', [req.user.id])
   }
   const row = rows[0] || {}
+  // 归一化占位邮箱：unbound_*@unbind.local 视为未绑定
+  let normalizedEmail = row.email || null
+  try {
+    if (typeof normalizedEmail === 'string' && /@unbind\.local$/i.test(normalizedEmail)) {
+      normalizedEmail = null
+    }
+  } catch {}
   return res.json({ success: true, bindings: {
     qq: !!row.qq_openid,
     qqOpenId: row.qq_openid || null,
@@ -2104,7 +2144,8 @@ router.get('/bindings', authenticateToken, asyncHandler(async (req, res) => {
     qqAvatar: row.avatar_url || '',
     qqNumber: row.qq_number || null,
     epass: !!row.epass_id,
-    epassId: row.epass_id || null
+    epassId: row.epass_id || null,
+    email: normalizedEmail
   }})
 }))
 
@@ -2133,6 +2174,26 @@ router.post('/qq/set-number', authenticateToken, [
   }
 }))
 
+// 解绑邮箱（将 email 置为 NULL）
+router.post('/email/unbind', authenticateToken, asyncHandler(async (req, res) => {
+  try {
+    await pool.execute('UPDATE users SET email = NULL WHERE id = ?', [req.user.id])
+    return res.json({ success: true, message: '邮箱已解绑' })
+  } catch (e) {
+    // 如果列不允许为 NULL，则回退为占位邮箱（确保唯一）
+    if (e && (e.code === 'ER_BAD_NULL_ERROR' || e.errno === 1048)) {
+      try {
+        const placeholder = `unbound_${req.user.id}_${Date.now()}@unbind.local`
+        await pool.execute('UPDATE users SET email = ? WHERE id = ?', [placeholder, req.user.id])
+        return res.json({ success: true, message: '邮箱已解绑' })
+      } catch (e2) {
+        return res.status(500).json({ success: false, message: '解绑失败' })
+      }
+    }
+    return res.status(500).json({ success: false, message: '解绑失败' })
+  }
+}))
+
 // ========== GeeTest v4 二次校验（用于注册/登录时的人机验证） ==========
 router.post('/captcha/validate', asyncHandler(async (req, res) => {
   try {
@@ -2150,6 +2211,27 @@ router.post('/captcha/validate', asyncHandler(async (req, res) => {
     return res.status(400).json({ success: false, result: 'fail', reason: result.reason || 'validate_failed' })
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message || '校验失败' })
+  }
+}));
+
+// 获取当前密码策略（供前端展示动态密码安全要求）
+router.get('/password-policy', asyncHandler(async (req, res) => {
+  try {
+    const [settingsRows] = await pool.execute(
+      'SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?, ?)',
+      ['min_password_length', 'password_complexity']
+    );
+    const settings = {};
+    settingsRows.forEach(row => { settings[row.setting_key] = row.setting_value });
+    const minLength = parseInt(settings.min_password_length) || 6;
+    const complexity = settings.password_complexity || 'low';
+    return res.json({
+      success: true,
+      passwordRequirements: getPasswordRequirements(settings),
+      passwordPolicy: { minLength, complexity }
+    });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: '获取密码策略失败' });
   }
 }));
 
