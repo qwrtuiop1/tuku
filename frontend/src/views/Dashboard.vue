@@ -726,20 +726,17 @@ onMounted(() => {
   padding: 0; // 移除内边距，由MainLayout统一控制
   background: #f9fafb;
   min-height: 100vh;
-  view-transition-name: vt-dashboard;
 }
 
 .welcome-section {
-  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
-  border: 1px solid #e5e7eb;
+  background: linear-gradient(135deg, #374151 0%, #111827 100%);
   border-radius: 24px;
   padding: 48px;
-  color: #111827;
-  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.08);
+  color: white;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
   position: relative;
   overflow: hidden;
-  backdrop-filter: blur(8px);
-  view-transition-name: vt-dashboard-welcome;
+  backdrop-filter: blur(20px);
   
   &::before {
     content: '';
@@ -749,18 +746,19 @@ onMounted(() => {
     right: 0;
     bottom: 0;
     background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="75" cy="75" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="50" cy="10" r="0.5" fill="rgba(255,255,255,0.1)"/><circle cx="10" cy="60" r="0.5" fill="rgba(255,255,255,0.1)"/><circle cx="90" cy="40" r="0.5" fill="rgba(255,255,255,0.1)"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
-    opacity: 0.12;
+    opacity: 0.4;
   }
   
   &::after {
     content: '';
     position: absolute;
-    top: -40%;
-    right: -15%;
-    width: 260px;
-    height: 260px;
-    background: radial-gradient(circle, rgba(17, 24, 39, 0.06) 0%, transparent 70%);
+    top: -50%;
+    right: -20%;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
     border-radius: 50%;
+    animation: float 6s ease-in-out infinite;
   }
   
   // 主要内容区域：左右布局 - 桌面端优化
@@ -822,8 +820,8 @@ onMounted(() => {
       flex-shrink: 0; // 防止头像被压缩
       
       :deep(.el-avatar) {
-        border: 2px solid #e5e7eb;
-        box-shadow: 0 6px 16px rgba(17, 24, 39, 0.08);
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
         transition: all 0.3s ease;
         
         // 桌面端大屏幕头像
@@ -848,8 +846,8 @@ onMounted(() => {
         }
         
         &:hover {
-          transform: scale(1.03);
-          box-shadow: 0 10px 24px rgba(17, 24, 39, 0.12);
+          transform: scale(1.05);
+          box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
         }
       }
     }
@@ -862,8 +860,11 @@ onMounted(() => {
         font-size: 42px;
         font-weight: 900;
         margin-bottom: 12px;
-        color: #111827;
-        letter-spacing: 0.3px;
+        text-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        background: linear-gradient(45deg, #ffffff, #f9fafb);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
         line-height: 1.2;
         word-break: break-word; // 长用户名换行
         
@@ -888,9 +889,10 @@ onMounted(() => {
       
       .welcome-subtitle {
         font-size: 20px;
+        opacity: 0.95;
         margin: 0;
         font-weight: 500;
-        color: #374151;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         line-height: 1.4;
         word-break: break-word; // 长文本换行
         
@@ -952,10 +954,7 @@ onMounted(() => {
       font-weight: 700;
       padding: 0 !important; // 重置padding，使用flex布局控制间距
       margin: 0 !important; // 重置margin
-      background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
-      border: 1px solid #e5e7eb;
-      color: #111827;
-      box-shadow: 0 10px 24px rgba(17, 24, 39, 0.08);
+      box-shadow: none;
       transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
       overflow: hidden;
@@ -1131,52 +1130,29 @@ onMounted(() => {
         left: 100%;
       }
       
-      &.primary {
-        background: linear-gradient(135deg, #374151 0%, #111827 100%);
-        color: #ffffff;
-        border-color: #111827;
-        box-shadow: 0 14px 32px rgba(17, 24, 39, 0.18);
-
-        &:hover {
-          background: linear-gradient(135deg, #4b5563 0%, #1f2937 100%);
-          border-color: #1f2937;
-          transform: translateY(-1px);
-          box-shadow: 0 16px 36px rgba(17, 24, 39, 0.22);
+        &.primary {
+          background: transparent;
+          color: #ffffff !important;
+          border: none !important;
+          &:hover { background: rgba(255,255,255,0.08); transform: none; }
         }
-        
-        &:active {
-          transform: translateY(0);
-          box-shadow: 0 8px 20px rgba(17, 24, 39, 0.16);
-        }
-      }
       
-      &:not(.primary) {
-        background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
-        color: #111827;
-        border: 1px solid #e5e7eb;
-        
-        &:hover {
-          background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-          border-color: #d1d5db;
-          transform: translateY(-1px);
-          box-shadow: 0 12px 28px rgba(17, 24, 39, 0.1);
+        &:not(.primary) {
+          background: transparent;
+          color: #ffffff !important;
+          border: none !important;
+          &:hover { background: rgba(255,255,255,0.08); transform: none; box-shadow: none; }
         }
-      }
       
-      &.admin-btn {
-        background: linear-gradient(135deg, #374151 0%, #111827 100%);
-        color: #ffffff;
-        border-color: #111827;
-        
-        &:hover {
-          background: linear-gradient(135deg, #4b5563 0%, #1f2937 100%);
-          transform: translateY(-1px);
+        &.admin-btn {
+          background: transparent;
+          color: #ffffff !important;
+          border: none !important;
+          &:hover { background: rgba(255,255,255,0.08); transform: none; }
         }
-      }
       
       // 统一图标样式 - 桌面端优化
       .el-icon {
-        color: currentColor;
         font-size: 24px !important;
         flex-shrink: 0;
         display: flex !important;
@@ -1246,7 +1222,7 @@ onMounted(() => {
   .welcome-stats {
     display: flex;
     justify-content: center;
-    gap: 24px;
+    gap: 48px;
     position: relative;
     z-index: 1;
     margin-top: 8px;
@@ -1273,14 +1249,14 @@ onMounted(() => {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 8px;
-      padding: 18px 20px;
-      background: #ffffff;
-      border-radius: 14px;
-      border: 1px solid #e5e7eb;
-      box-shadow: 0 8px 20px rgba(17, 24, 39, 0.06);
+      gap: 10px;
+      padding: 24px 28px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 18px;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
       transition: all 0.3s ease;
-      min-width: 140px;
+      min-width: 160px;
       
       // 桌面端大屏幕统计项
       @media (min-width: 1440px) {
@@ -1307,15 +1283,20 @@ onMounted(() => {
       }
       
       &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 12px 28px rgba(17, 24, 39, 0.1);
-        border-color: #d1d5db;
+        background: rgba(255, 255, 255, 0.15);
+        transform: translateY(-3px);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+        border-color: rgba(255, 255, 255, 0.3);
       }
       
       .stat-value {
-        font-size: 26px;
+        font-size: 32px;
         font-weight: 800;
-        color: #111827;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        background: linear-gradient(45deg, #ffffff, #f9fafb);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
         
         // 桌面端大屏幕数值
         @media (min-width: 1440px) {
@@ -1334,10 +1315,11 @@ onMounted(() => {
       }
       
       .stat-label {
-        font-size: 13px;
-        color: #6b7280;
+        font-size: 15px;
+        opacity: 0.9;
         font-weight: 600;
-        letter-spacing: 0.3px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
         text-align: center;
         
         // 桌面端大屏幕标签
@@ -1490,7 +1472,6 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 24px;
-  view-transition-name: vt-dashboard-stats;
 }
 
 .stat-card {
@@ -3059,103 +3040,4 @@ onMounted(() => {
     }
   }
 }
-
-/* 动效统一覆盖（使用全局变量） */
-.action-btn,
-.stat-card {
-  transition: background var(--anim-duration-base) var(--anim-ease-standard),
-              box-shadow var(--anim-duration-base) var(--anim-ease-standard),
-              transform var(--anim-duration-fast) var(--anim-ease-standard),
-              border-color var(--anim-duration-fast) var(--anim-ease-standard);
-  will-change: transform, box-shadow;
-}
-.action-btn:active, .stat-card:active { transform: scale(var(--press-scale)); }
-
-.card-header .header-actions :deep(.el-button) {
-  transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-              color var(--anim-duration-fast) var(--anim-ease-standard),
-              transform var(--anim-duration-fast) var(--anim-ease-standard);
-}
-.card-header .header-actions :deep(.el-button:active) { transform: scale(var(--press-scale)); }
-
-/* 降级：尊重用户减少动效偏好 */
-@media (prefers-reduced-motion: reduce) {
-  .action-btn,
-  .stat-card,
-  .card-header .header-actions :deep(.el-button) { transition: none !important; }
-}
-
-/* 板块进场与统一动效（Dashboard） */
-.dashboard {
-  .welcome-section,
-  .stats-grid,
-  .main-content,
-  .quick-actions {
-    will-change: opacity, transform;
-    animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both;
-  }
-  .welcome-section { animation-delay: 0ms; }
-  .stats-grid { animation-delay: 60ms; }
-  .main-content { animation-delay: 100ms; }
-  .quick-actions { animation-delay: 140ms; }
-}
-
-@keyframes blockFadeUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes cardRise {
-  from { opacity: 0; transform: translateY(10px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-/* 统计卡：同级错峰、悬停微动保持统一 */
-.stats-grid {
-  .stat-card { 
-    will-change: opacity, transform;
-    animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both;
-    transition: background var(--anim-duration-base) var(--anim-ease-standard),
-                box-shadow var(--anim-duration-base) var(--anim-ease-standard),
-                transform var(--anim-duration-fast) var(--anim-ease-standard);
-  }
-  .stat-card:nth-child(1) { animation-delay: 0ms; }
-  .stat-card:nth-child(2) { animation-delay: 40ms; }
-  .stat-card:nth-child(3) { animation-delay: 80ms; }
-  .stat-card:nth-child(4) { animation-delay: 120ms; }
-}
-
-/* 趋势图条：自下而上淡入 */
-.trend-section .trend-card .chart-bars .chart-bar {
-  will-change: transform, opacity;
-  animation: barGrow var(--anim-duration-base) var(--anim-ease-decelerate) both;
-}
-@keyframes barGrow { from { opacity: 0; transform: scaleY(0.7); } to { opacity: 1; transform: scaleY(1); } }
-
-/* 无障碍：减少动效偏好 */
-@media (prefers-reduced-motion: reduce) {
-  .dashboard :deep(*),
-  .dashboard * { animation: none !important; transition: none !important; }
-}
-
-/* View Transitions（Dashboard） */
-.dashboard { view-transition-name: vt-dashboard; }
-.welcome-section { view-transition-name: vt-dashboard-welcome; }
-.stats-grid { view-transition-name: vt-dashboard-stats; }
-:global(::view-transition-old(vt-dashboard-welcome)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-dashboard-welcome)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-:global(::view-transition-old(vt-dashboard-stats)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-dashboard-stats)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-@keyframes vtFadeOut { from { opacity: 1; } to { opacity: 0; } }
-@keyframes vtFadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-/* View Transitions（Dashboard Stats Numbers） */
-.stats-grid {
-  .stat-card .stat-number { view-transition-name: vt-dash-number; }
-  .stat-card .stat-label { view-transition-name: vt-dash-label; }
-}
-:global(::view-transition-old(vt-dash-number)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-dash-number)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-:global(::view-transition-old(vt-dash-label)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-dash-label)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
 </style>

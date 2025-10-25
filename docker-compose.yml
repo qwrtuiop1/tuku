@@ -16,6 +16,9 @@ services:
       JWT_EXPIRES_IN: 7d
       PORT: 3000
       UPLOAD_PATH: /app/storage
+      GEETEST_CAPTCHA_ID: 30d77075542cc161d6518051a937b9a0
+      GEETEST_CAPTCHA_KEY: adf04d6e0ab935085653526be97a92e6
+      GEETEST_OFFLINE_ALLOW: "false"
     volumes:
       - backend_storage:/app/storage
     networks:

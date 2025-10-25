@@ -218,7 +218,7 @@
                           <el-select v-model="userFilter.status" placeholder="选择状态" clearable style="width: 100%">
                             <el-option label="全部" value="" />
                             <el-option label="正常" value="active" />
-                            <el-option label="已禁用" value="disabled" />
+                            <el-option label="已禁用" value="inactive" />
                           </el-select>
                         </el-form-item>
                       </el-col>
@@ -269,7 +269,44 @@
                     <el-select v-model="userFilter.status" placeholder="选择状态" clearable style="width: 120px">
                       <el-option label="全部" value="" />
                       <el-option label="正常" value="active" />
-                      <el-option label="已禁用" value="disabled" />
+                      <el-option label="已禁用" value="inactive" />
+                    </el-select>
+                  </el-form-item>
+                  
+                  <el-form-item label="注册时间">
+                    <el-date-picker
+                      v-model="userFilter.createdRange"
+                      type="daterange"
+                      range-separator="至"
+                      start-placeholder="开始日期"
+                      end-placeholder="结束日期"
+                      value-format="YYYY-MM-DD HH:mm:ss"
+                    />
+                  </el-form-item>
+                  
+                  <el-form-item label="最后登录">
+                    <el-date-picker
+                      v-model="userFilter.lastLoginRange"
+                      type="daterange"
+                      range-separator="至"
+                      start-placeholder="开始日期"
+                      end-placeholder="结束日期"
+                      value-format="YYYY-MM-DD HH:mm:ss"
+                    />
+                  </el-form-item>
+                  
+                  <el-form-item label="排序">
+                    <el-select v-model="userFilter.sortBy" placeholder="字段" style="width: 140px">
+                      <el-option label="注册时间" value="created_at" />
+                      <el-option label="最后登录" value="last_login" />
+                      <el-option label="已用存储" value="used_storage" />
+                      <el-option label="用户名" value="username" />
+                      <el-option label="邮箱" value="email" />
+                      <el-option label="登录次数" value="login_count" />
+                    </el-select>
+                    <el-select v-model="userFilter.sortOrder" placeholder="顺序" style="width: 120px; margin-left: 8px">
+                      <el-option label="降序" value="desc" />
+                      <el-option label="升序" value="asc" />
                     </el-select>
                   </el-form-item>
                   
@@ -328,10 +365,11 @@
                   :key="user.id" 
                   class="user-card"
                   v-loading="refreshing"
+                  @click="handleUserCardClick(user, $event)"
                 >
                   <div class="user-card-header">
                     <div class="user-info">
-                      <el-avatar :size="40" :src="user.avatar_url" @error="() => onAvatarError(user)">
+                      <el-avatar :size="40" :src="user.avatar_url">
                         {{ user.username?.charAt(0).toUpperCase() }}
                       </el-avatar>
                       <div class="user-details">
@@ -377,9 +415,8 @@
                   
                   <div class="user-card-actions">
                     <el-checkbox 
-                      v-model="selectedUsers" 
-                      :value="user"
-                      @change="handleUserSelectionChange"
+                      :model-value="selectedUsers.includes(user)"
+                      @change="(val: any) => handleUserSelectionChange(!!val, user)"
                     >
                       选择
                     </el-checkbox>
@@ -429,19 +466,21 @@
                 v-else
                 :data="users"
                 style="width: 100%; table-layout: fixed;"
-                @selection-change="handleUserSelectionChange"
+                @selection-change="handleTableSelectionChange"
+                @row-click="handleTableRowClick"
                 v-loading="refreshing"
                 empty-text="暂无用户数据"
-                :row-key="(row: User) => row.id"
+                row-key="id"
+                class="user-table"
               >
                 <el-table-column type="selection" width="55" />
                 <el-table-column prop="username" label="用户名" width="140">
                   <template #default="{ row }">
                     <div class="user-info">
-                      <el-avatar :size="32" :src="row.avatar_url" @error="() => onAvatarError(row)">
+                      <el-avatar :size="32" :src="row.avatar_url">
                         {{ row.username?.charAt(0).toUpperCase() }}
                       </el-avatar>
-                      <span class="username-text clickable" @click="openUserDetail(row)">{{ row.username || '未知用户' }}</span>
+                      <span class="username-text">{{ row.username || '未知用户' }}</span>
                     </div>
                   </template>
                 </el-table-column>
@@ -534,111 +573,6 @@
                 </el-table-column>
               </el-table>
             </div>
-
-  <!-- 用户详情弹窗 -->
-  <el-dialog
-    v-model="showUserDetailDialog"
-    :width="isMobile ? '95%' : '720px'"
-    :append-to-body="true"
-    :destroy-on-close="true"
-    class="user-detail-dialog"
-  >
-    <template #header>
-      <div class="detail-header">
-        <div class="avatar-wrap">
-          <el-avatar :size="48" :src="detailUser?.avatar_url" @error="() => onAvatarError(detailUser)">
-            {{ detailUser?.username?.charAt(0).toUpperCase() }}
-          </el-avatar>
-        </div>
-        <div class="title-wrap">
-          <div class="name">{{ detailUser?.username || '未知用户' }}</div>
-          <div class="sub">{{ detailUser?.email || '未设置邮箱' }}</div>
-        </div>
-      </div>
-    </template>
-
-    <div class="detail-content">
-      <div class="grid">
-        <div class="item span-2">
-          <div class="label">密码</div>
-          <div class="value" style="display:flex; align-items:center; gap:8px;">
-            <template v-if="!viewPwdState.viewing">
-              <span>••••••••</span>
-              <el-button link type="primary" @click="onViewPwdClick" :disabled="!detailUser">查看</el-button>
-            </template>
-            <template v-else>
-              <el-input v-model="viewPwdState.code" placeholder="输入邮箱验证码" style="width: 160px;" size="small" />
-              <el-button :loading="viewPwdState.sending" size="small" @click="sendViewPwdCode" :disabled="!detailUser">{{ viewPwdState.sent ? '重新发送' : '发送验证码' }}</el-button>
-              <el-button type="primary" size="small" :loading="viewPwdState.verifying" @click="verifyAndShowPwd">验证并显示</el-button>
-              <el-button link size="small" @click="cancelViewPwd">取消查看</el-button>
-            </template>
-          </div>
-          <div v-if="viewPwdState.maskedHash" class="value" style="margin-top:6px; color:#999;">哈希摘要：{{ viewPwdState.maskedHash }}</div>
-        </div>
-        <div class="item">
-          <div class="label">角色</div>
-          <div class="value">
-            <el-tag :type="detailUser?.role === 'admin' ? 'danger' : 'info'">
-              {{ detailUser?.role === 'admin' ? '管理员' : '用户' }}
-            </el-tag>
-          </div>
-        </div>
-        <div class="item">
-          <div class="label">状态</div>
-          <div class="value">
-            <el-tag :type="getStatusTagType(detailUser?.status || 'active')">
-              {{ getStatusText(detailUser?.status || 'active') }}
-            </el-tag>
-          </div>
-        </div>
-        <div class="item">
-          <div class="label">最近登录</div>
-          <div class="value">{{ detailUser?.last_login ? formatTimestamp(detailUser?.last_login) : '—' }}</div>
-        </div>
-        <div class="item">
-          <div class="label">登录次数</div>
-          <div class="value">{{ detailUser?.login_count ?? 0 }}</div>
-        </div>
-        <div class="item span-2">
-          <div class="label">存储</div>
-          <div class="value storage">
-            <el-progress :percentage="Math.round(((detailUser?.used_storage || 0) / (detailUser?.storage_limit || 1)) * 100)" :stroke-width="8" :show-text="false" />
-            <span class="storage-text">{{ formatFileSize(detailUser?.used_storage || 0) }} / {{ formatFileSize(detailUser?.storage_limit || 0) }}</span>
-          </div>
-        </div>
-        <div class="item">
-          <div class="label">注册时间</div>
-          <div class="value">{{ formatTimestamp(detailUser?.created_at || '') }}</div>
-        </div>
-        <div class="item span-2" v-if="detailUser?.qq_openid || detailUser?.qq_unionid || detailUser?.epass_id">
-          <div class="label">第三方绑定</div>
-          <div class="value">
-            <div v-if="detailUser?.qq_openid || detailUser?.qq_unionid">QQ：
-              <el-tag size="small" style="margin-left: 6px;">OpenID: {{ detailUser?.qq_openid || '—' }}</el-tag>
-              <el-tag size="small" style="margin-left: 6px;">UnionID: {{ detailUser?.qq_unionid || '—' }}</el-tag>
-            </div>
-            <div v-if="detailUser?.epass_id" style="margin-top: 6px;">EPass：
-              <el-tag size="small" style="margin-left: 6px;">{{ detailUser?.epass_id }}</el-tag>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <template #footer>
-      <div class="detail-actions">
-        <el-button @click="() => resetUserPassword(detailUser!)" :disabled="!detailUser">重置密码</el-button>
-        <el-button @click="() => toggleUserStatus(detailUser!)" :disabled="!detailUser">
-          {{ detailUser?.status === 'active' ? '禁用用户' : '启用用户' }}
-        </el-button>
-        <el-button @click="() => toggleUserRole(detailUser!)" :disabled="!detailUser">
-          {{ detailUser?.role === 'admin' ? '取消管理员' : '设为管理员' }}
-        </el-button>
-        <el-button type="primary" @click="showUserDetailDialog = false">关闭</el-button>
-      </div>
-    </template>
-  </el-dialog>
-
             <!-- 系统日志 -->
             <div v-if="activeSection === 'logs'" class="admin-section">
               <div class="section-header">
@@ -833,7 +767,6 @@
                 </div>
               </el-card>
             </div>
-
             <!-- 系统设置 -->
             <div v-if="activeSection === 'settings'" class="admin-section">
               <div class="section-header">
@@ -863,6 +796,56 @@
                   <div class="form-description">显示在页面标题和登录页面的系统名称</div>
                 </el-form-item>
                 
+                <!-- 安全设置 -->
+                <el-divider content-position="left">
+                  <el-icon><Key /></el-icon>
+                  安全设置
+                </el-divider>
+                <el-form-item label="最小密码长度">
+                  <el-input-number v-model="systemSettings.minPasswordLength" :min="4" :max="64" />
+                </el-form-item>
+                <el-form-item label="密码复杂度">
+                  <el-select v-model="systemSettings.passwordComplexity" style="width: 200px">
+                    <el-option label="低" value="low" />
+                    <el-option label="中" value="medium" />
+                    <el-option label="高" value="high" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="登录锁定">
+                  <el-switch v-model="systemSettings.enableLoginLock" active-text="启用" inactive-text="关闭" />
+                </el-form-item>
+                <el-form-item label="最大失败次数">
+                  <el-input-number v-model="systemSettings.maxLoginAttempts" :min="3" :max="20" />
+                </el-form-item>
+                <el-form-item label="锁定时长(分钟)">
+                  <el-input-number v-model="systemSettings.lockoutDuration" :min="1" :max="1440" />
+                </el-form-item>
+                <el-form-item label="会话超时(分钟)">
+                  <el-input-number v-model="systemSettings.sessionTimeout" :min="5" :max="1440" />
+                </el-form-item>
+                <el-form-item label="双因素认证">
+                  <el-switch v-model="systemSettings.enableTwoFactor" active-text="启用" inactive-text="关闭" />
+                </el-form-item>
+
+                <!-- 存储设置 -->
+                <el-divider content-position="left">
+                  <el-icon><Folder /></el-icon>
+                  存储设置
+                </el-divider>
+                <el-form-item label="单用户存储上限(MB)">
+                  <el-input-number v-model="systemSettings.maxStoragePerUser" :min="0" :max="1048576" />
+                  <div class="form-description">0 表示不限制</div>
+                </el-form-item>
+
+                <!-- 文档类型 -->
+                <el-divider content-position="left">
+                  <el-icon><Document /></el-icon>
+                  文档类型
+                </el-divider>
+                <el-form-item label="允许的文档扩展名">
+                  <el-input v-model="systemSettings.allowedDocumentTypesCsv" placeholder="例如: pdf,docx,xlsx" />
+                  <div class="form-description">多个扩展名用英文逗号分隔</div>
+                </el-form-item>
                 <!-- 用户管理设置 -->
                 <el-divider content-position="left">
                   <el-icon><User /></el-icon>
@@ -1082,7 +1065,6 @@
           </el-card>
         </el-col>
       </el-row>
-
       <!-- 移动端内容区域 -->
       <div v-if="isMobile" class="mobile-content">
         <el-card class="mobile-panel-card">
@@ -1263,6 +1245,7 @@
                 :key="user.id" 
                 class="user-card"
                 v-loading="refreshing"
+                @click="handleUserCardClick(user, $event)"
               >
                 <div class="user-card-header">
                   <div class="user-info">
@@ -1312,9 +1295,8 @@
                 
                 <div class="user-card-actions">
                   <el-checkbox 
-                    v-model="selectedUsers" 
-                    :value="user"
-                    @change="handleUserSelectionChange"
+                    :model-value="selectedUsers.includes(user)"
+                    @change="(val: any) => handleUserSelectionChange(!!val, user)"
                   >
                     选择
                   </el-checkbox>
@@ -1573,7 +1555,6 @@
               </el-row>
             </div>
           </div>
-
           <!-- 系统设置 -->
           <div v-if="activeSection === 'settings'" class="admin-section">
             <div class="section-header">
@@ -1751,6 +1732,256 @@
         <el-button type="primary" @click="createUser" :loading="creatingUser">创建</el-button>
       </template>
     </el-dialog>
+
+    <!-- 用户统计对话框 -->
+    <el-dialog
+      v-model="showUserStatsDialog"
+      :title="`用户统计 - ${selectedUserStats?.username || ''}`"
+      :width="isMobile ? '92%' : '640px'"
+      :close-on-click-modal="true"
+      :class="{ 'mobile-dialog': isMobile, 'grayscale-dialog': true }"
+      @close="closeUserStatsDialog"
+    >
+      <div v-loading="loadingUserStats" class="user-stats-content grayscale">
+        <div v-if="userStats" class="stats-grid">
+          <!-- 移动端：用户头像和基本信息 -->
+          <div v-if="isMobile" class="mobile-user-header">
+            <div class="user-avatar-section">
+              <el-avatar :size="60" :src="selectedUserStats?.avatar_url">
+                {{ selectedUserStats?.username?.charAt(0).toUpperCase() }}
+              </el-avatar>
+              <div class="user-basic-info">
+                <h3>{{ selectedUserStats?.username }}</h3>
+                <p>{{ selectedUserStats?.email }}</p>
+                <div class="user-tags">
+                  <el-tag :type="selectedUserStats?.role === 'admin' ? 'danger' : 'primary'" size="small">
+                    {{ selectedUserStats?.role === 'admin' ? '管理员' : '用户' }}
+                  </el-tag>
+                  <el-tag :type="getStatusTagType(selectedUserStats?.status || '')" size="small">
+                    {{ getStatusText(selectedUserStats?.status || '') }}
+                  </el-tag>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 桌面端：基本信息 -->
+          <div v-if="!isMobile" class="stats-section">
+            <h4>基本信息</h4>
+            <div class="stats-item">
+              <span class="label">用户名：</span>
+              <span class="value">{{ selectedUserStats?.username }}</span>
+            </div>
+            <div class="stats-item">
+              <span class="label">邮箱：</span>
+              <span class="value">{{ selectedUserStats?.email }}</span>
+            </div>
+            <div class="stats-item password-item">
+              <span class="label">密码：</span>
+              <div class="password-display">
+                <span class="password-value">{{ showPassword ? (userStats.password || '未设置') : '******' }}</span>
+                <el-button 
+                  type="primary" 
+                  size="small" 
+                  @click="resetSelectedUserPassword"
+                  class="password-toggle-btn"
+                  :disabled="!passwordVerifiedOk"
+                >
+                  重置密码
+                </el-button>
+              </div>
+              <!-- 验证码输入区域 -->
+              <div v-if="passwordVerificationSent && !passwordVerificationExpired" class="password-verification">
+                <div class="verification-input">
+                  <el-input
+                    v-model="passwordVerificationCode"
+                    placeholder="请输入验证码"
+                    size="small"
+                    maxlength="6"
+                    style="width: 120px; margin-right: 8px;"
+                  />
+                  <el-button 
+                    type="success" 
+                    size="small" 
+                    @click="verifyPasswordCode"
+                    :disabled="passwordVerificationCode.length !== 6"
+                  >
+                    验证
+                  </el-button>
+                </div>
+                <div class="verification-actions">
+                  <el-button 
+                    type="primary" 
+                    size="small" 
+                    @click="sendPasswordVerificationCode"
+                    :loading="sendingVerificationCode"
+                  >
+                    发送验证码
+                  </el-button>
+                </div>
+                <div class="verification-timer">
+                  <span class="timer-text">验证码有效期：{{ getVerificationTimeLeft() }}</span>
+                </div>
+              </div>
+            </div>
+            <div class="stats-item">
+              <span class="label">角色：</span>
+              <span class="value">{{ selectedUserStats?.role === 'admin' ? '管理员' : '用户' }}</span>
+            </div>
+            <div class="stats-item">
+              <span class="label">状态：</span>
+              <span class="value">{{ getStatusText(selectedUserStats?.status || '') }}</span>
+            </div>
+            <div class="stats-item">
+              <span class="label">注册时间：</span>
+              <span class="value">{{ selectedUserStats?.created_at ? new Date(selectedUserStats.created_at).toLocaleString() : '未知' }}</span>
+            </div>
+          </div>
+
+          <!-- 移动端：详细信息卡片 -->
+          <div v-if="isMobile" class="mobile-info-cards">
+            <!-- 账户信息卡片 -->
+            <div class="mobile-info-card">
+              <div class="card-header">
+                <el-icon><Key /></el-icon>
+                <span>账户信息</span>
+              </div>
+              <div class="card-content">
+                <div class="info-item">
+                  <span class="info-label">用户名</span>
+                  <span class="info-value">{{ selectedUserStats?.username }}</span>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">邮箱</span>
+                  <span class="info-value">{{ selectedUserStats?.email }}</span>
+                </div>
+                <div class="info-item password-item">
+                  <span class="info-label">密码</span>
+                  <div class="password-display">
+                    <span class="password-value">{{ showPassword ? (userStats.password || '未设置') : '******' }}</span>
+                    <el-button 
+                      type="primary" 
+                      size="small" 
+                      @click="resetSelectedUserPassword"
+                      class="password-toggle-btn"
+                      :disabled="!passwordVerifiedOk"
+                    >
+                      重置密码
+                    </el-button>
+                  </div>
+                </div>
+                <!-- 验证码输入区域 - 移到密码显示区域下面 -->
+                <div v-if="passwordVerificationSent && !passwordVerificationExpired" class="password-verification">
+                  <div class="verification-input">
+                    <el-input
+                      v-model="passwordVerificationCode"
+                      placeholder="请输入验证码"
+                      size="small"
+                      maxlength="6"
+                    />
+                    <el-button 
+                      type="success" 
+                      size="small" 
+                      @click="verifyPasswordCode"
+                      :disabled="passwordVerificationCode.length !== 6"
+                    >
+                      验证
+                    </el-button>
+                  </div>
+                  <div class="verification-actions">
+                    <el-button 
+                      type="primary" 
+                      size="small" 
+                      @click="sendPasswordVerificationCode"
+                      :loading="sendingVerificationCode"
+                    >
+                      发送验证码
+                    </el-button>
+                  </div>
+                  <div class="verification-timer">
+                    <span class="timer-text">验证码有效期：{{ getVerificationTimeLeft() }}</span>
+                  </div>
+                </div>
+                <div class="info-item">
+                  <span class="info-label">注册时间</span>
+                  <span class="info-value">{{ selectedUserStats?.created_at ? new Date(selectedUserStats.created_at).toLocaleDateString() : '未知' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 存储信息卡片 -->
+            <div class="mobile-info-card">
+              <div class="card-header">
+                <el-icon><FolderOpened /></el-icon>
+                <span>存储信息</span>
+              </div>
+              <div class="card-content">
+                <div class="storage-progress">
+                  <div class="progress-info">
+                    <span class="progress-label">存储使用率</span>
+                    <span class="progress-percent">{{ userStats.storage_limit > 0 ? Math.round((userStats.used_storage / userStats.storage_limit) * 100) : 0 }}%</span>
+                  </div>
+                  <el-progress 
+                    :percentage="userStats.storage_limit > 0 ? Math.round((userStats.used_storage / userStats.storage_limit) * 100) : 0"
+                    :color="userStats.storage_limit > 0 && (userStats.used_storage / userStats.storage_limit) > 0.8 ? '#f56c6c' : '#409eff'"
+                    :stroke-width="8"
+                  />
+                </div>
+                <div class="storage-details">
+                  <div class="storage-item">
+                    <span class="storage-label">已使用</span>
+                    <span class="storage-value">{{ formatFileSize(userStats.used_storage || 0) }}</span>
+                  </div>
+                  <div class="storage-item">
+                    <span class="storage-label">总容量</span>
+                    <span class="storage-value">{{ formatFileSize(userStats.storage_limit || 0) }}</span>
+                  </div>
+                  <div class="storage-item">
+                    <span class="storage-label">文件数</span>
+                    <span class="storage-value">{{ userStats.file_count || 0 }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 桌面端：存储统计 -->
+          <div v-if="!isMobile" class="stats-section">
+            <h4>存储统计</h4>
+            <div class="stats-item">
+              <span class="label">已使用：</span>
+              <span class="value">{{ formatFileSize(userStats.used_storage || 0) }}</span>
+            </div>
+            <div class="stats-item">
+              <span class="label">存储限制：</span>
+              <span class="value">{{ formatFileSize(userStats.storage_limit || 0) }}</span>
+            </div>
+            <div class="stats-item">
+              <span class="label">使用率：</span>
+              <span class="value">{{ userStats.storage_limit > 0 ? Math.round((userStats.used_storage / userStats.storage_limit) * 100) : 0 }}%</span>
+            </div>
+            <div class="stats-item">
+              <span class="label">文件数量：</span>
+              <span class="value">{{ userStats.file_count || 0 }}</span>
+            </div>
+          </div>
+
+        </div>
+        
+        <div v-else-if="!loadingUserStats" class="no-stats">
+          <el-icon class="no-data-icon"><DataAnalysis /></el-icon>
+          <p>暂无统计数据</p>
+        </div>
+      </div>
+      
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="closeUserStatsDialog">关闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    
   </div>
 </template>
 
@@ -1781,10 +2012,150 @@ import {
   Star,
   Upload,
   Tools,
-  View
+  View,
+  Calendar
 } from '@element-plus/icons-vue'
 import { formatFileSize } from '@/utils/helpers'
 import api from '@/utils/api'
+
+// GeeTest v4 人机验证集成
+const geetestScriptUrl = 'https://static.geetest.com/v4/gt4.js'
+const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '7922d406fb215d02770d5a4cd71af066')
+let geetestHandler: any = null
+const geetestReady = ref(false)
+const geetestMaxWaitMs = 12000
+
+const loadScriptOnce = (src: string) => new Promise<void>((resolve, reject) => {
+  const exists = Array.from(document.scripts).some(s => s.src === src)
+  if (exists) return resolve()
+  const s = document.createElement('script')
+  s.src = src
+  s.async = true
+  s.onload = () => resolve()
+  s.onerror = () => reject(new Error('geetest script load failed'))
+  document.head.appendChild(s)
+})
+
+const ensureGeetest = async (): Promise<boolean> => {
+  if (!geetestCaptchaId) return false
+  if (geetestReady.value && geetestHandler) return true
+  await loadScriptOnce(geetestScriptUrl)
+  const initGeetest4: any = (window as any).initGeetest4
+  if (!initGeetest4) return false
+  return await new Promise<boolean>((resolve) => {
+    try {
+      initGeetest4({
+        captchaId: geetestCaptchaId,
+        product: 'bind',
+        language: 'zho',
+        mask: { outside: true, bgColor: '#0000004d' },
+        timeout: 15000
+      }, (handler: any) => {
+        geetestHandler = handler
+        geetestReady.value = !!handler
+        try { geetestHandler?.onReady?.(() => {}) } catch {}
+        resolve(geetestReady.value)
+      })
+    } catch {
+      resolve(false)
+    }
+  })
+}
+
+const showCaptcha = async (): Promise<boolean> => {
+  if (!geetestCaptchaId) return true
+  const ok = await ensureGeetest()
+  if (!ok || !geetestHandler) return false
+  return await new Promise<boolean>((resolve) => {
+    let settled = false
+    const cleanup = () => {
+      if (settled) return
+      settled = true
+      // 确保关闭验证框和遮罩
+      try {
+        if (geetestHandler?.close) geetestHandler.close()
+        if (geetestHandler?.hide) geetestHandler.hide()
+      } catch (e) {
+        console.warn('关闭GeeTest验证框时出错:', e)
+      }
+    }
+    
+    const onSuccess = async () => {
+      if (settled) return
+      settled = true
+      try {
+        const validate = geetestHandler.getValidate ? geetestHandler.getValidate() : null
+        if (!validate) { 
+          ElMessage.error('请完成人机验证')
+          cleanup()
+          return resolve(false) 
+        }
+        
+        const { lot_number, captcha_output, pass_token, gen_time } = validate
+        
+        if (!lot_number || !captcha_output || !pass_token || !gen_time) {
+          ElMessage.error('验证码参数不完整，请重新验证')
+          cleanup()
+          return resolve(false)
+        }
+        
+        const resp = await api.post('/auth/captcha/validate', {
+          lot_number, captcha_output, pass_token, gen_time, captcha_id: geetestCaptchaId
+        })
+        
+        if (resp?.data?.success || resp?.data?.result === 'success') {
+          cleanup()
+          return resolve(true)
+        }
+        ElMessage.error(resp?.data?.message || resp?.data?.reason || '人机验证失败')
+        cleanup()
+        resolve(false)
+      } catch (e: any) {
+        console.error('验证码验证异常:', e)
+        ElMessage.error('人机验证服务异常，请稍后重试')
+        cleanup()
+        resolve(false)
+      }
+    }
+    
+    const onError = () => {
+      if (settled) return
+      settled = true
+      ElMessage.error('人机验证出错')
+      cleanup()
+      resolve(false)
+    }
+    
+    const onClose = () => {
+      if (settled) return
+      settled = true
+      ElMessage.warning('请先完成人机验证')
+      cleanup()
+      resolve(false)
+    }
+    
+    try {
+      geetestHandler?.onSuccess?.(onSuccess)
+      geetestHandler?.onError?.(onError)
+      geetestHandler?.onClose?.(onClose)
+      
+      if (geetestHandler.showCaptcha) geetestHandler.showCaptcha()
+      else if (geetestHandler.showBox) geetestHandler.showBox()
+      
+      setTimeout(() => {
+        if (!settled) {
+          settled = true
+          ElMessage.warning('验证超时，请重试')
+          cleanup()
+          resolve(false)
+        }
+      }, geetestMaxWaitMs)
+    } catch {
+      cleanup()
+      resolve(false)
+    }
+  })
+}
 
 // 类型定义
 interface User {
@@ -1797,11 +2168,6 @@ interface User {
   used_storage: number
   storage_limit: number
   created_at: string
-  last_login?: string
-  login_count?: number
-  qq_openid?: string
-  qq_unionid?: string
-  epass_id?: string
 }
 
 interface LogEntry {
@@ -1832,22 +2198,29 @@ const userFormRef = ref<FormInstance>()
 const openMenus = ref<Set<number>>(new Set()) // 跟踪打开的菜单
 const showCleanupDialog = ref(false)
 
+// 用户统计相关
+const showUserStatsDialog = ref(false)
+const selectedUserStats = ref<User | null>(null)
+const userStats = ref<any>(null)
+const loadingUserStats = ref(false)
+const showPassword = ref(false)
+const passwordVerificationCode = ref('')
+const passwordVerificationSent = ref(false)
+const passwordVerificationExpired = ref(false)
+const passwordVerifiedOk = ref(false)
+const passwordVerificationExpiry = ref<Date | null>(null)
+const sendingVerificationCode = ref(false)
+
 // 移动端检测
 const isMobile = ref(false)
 
-// 头像兜底：失败时回退到首字母，并保持圆形
-const onAvatarError = (u?: any) => {
-  try { if (u && typeof u === 'object') u.avatar_url = '' } catch {}
-  return false
-}
-
-// 移动端标签页配置
+// 移动端标签页配置（使用组件引用，避免字符串名称在移动端未注册导致不渲染）
 const mobileTabs = ref([
-  { key: 'overview', label: '概览', icon: 'DataBoard' },
-  { key: 'users', label: '用户', icon: 'UserFilled' },
-  { key: 'logs', label: '日志', icon: 'Document' },
-  { key: 'storage', label: '存储', icon: 'Folder' },
-  { key: 'settings', label: '设置', icon: 'Setting' }
+  { key: 'overview', label: '概览', icon: DataBoard },
+  { key: 'users', label: '用户', icon: UserFilled },
+  { key: 'logs', label: '日志', icon: Document },
+  { key: 'storage', label: '存储', icon: Folder },
+  { key: 'settings', label: '设置', icon: Setting }
 ])
 
 // 系统统计数据
@@ -1856,7 +2229,6 @@ const systemStats = reactive({
   totalFiles: 0,
   totalStorage: 0
 })
-
 // 表格宽度调整
 const adjustTableWidth = () => {
   nextTick(() => {
@@ -1887,7 +2259,6 @@ const adjustTableWidth = () => {
     })
   })
 }
-
 // 同步滚动功能
 const setupSyncScroll = () => {
   nextTick(() => {
@@ -1917,7 +2288,40 @@ const setupSyncScroll = () => {
         // 防止循环滚动的标志
         let isScrolling = false
         
-        // （已移除未使用的同步滚动函数）
+        // 同步滚动函数
+        const syncScroll = (source: HTMLElement, target: HTMLElement) => {
+          if (isScrolling) return
+          isScrolling = true
+          
+          const scrollLeft = source.scrollLeft
+          
+          // 直接设置目标元素的scrollLeft
+          target.scrollLeft = scrollLeft
+          
+          // 同步固定列的滚动
+          const fixedRightHeader = tableElement.querySelector('.el-table__fixed-right .el-table__fixed-header-wrapper') as HTMLElement
+          const fixedRightBody = tableElement.querySelector('.el-table__fixed-right .el-table__fixed-body-wrapper') as HTMLElement
+          
+          if (fixedRightHeader) {
+            fixedRightHeader.scrollLeft = scrollLeft
+          }
+          if (fixedRightBody) {
+            fixedRightBody.scrollLeft = scrollLeft
+          }
+          
+          // 强制同步所有滚动容器
+          const allScrollContainers = tableElement.querySelectorAll('.el-scrollbar__wrap')
+          allScrollContainers.forEach(container => {
+            if (container !== source) {
+              (container as HTMLElement).scrollLeft = scrollLeft
+            }
+          })
+          
+          // 使用requestAnimationFrame确保滚动完成
+          requestAnimationFrame(() => {
+            isScrolling = false
+          })
+        }
         
         // 表头滚动时，同步表体滚动
         headerWrapper.addEventListener('scroll', (e) => {
@@ -2076,97 +2480,6 @@ const storageStats = reactive({
 
 // 用户数据
 const users = ref<User[]>([])
-const detailUser = ref<User | null>(null)
-const showUserDetailDialog = ref(false)
-const detailLoading = ref(false)
-
-// GeeTest v4（bind 模式）
-const geetestScriptUrl = 'https://static.geetest.com/v4/gt4.js'
-const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '7922d406fb215d02770d5a4cd71af066')
-const geetestReady = ref(false)
-let geetestHandler: any = null
-const geetestMaxWaitMs = 12000
-
-const loadScriptOnce = (src: string) => new Promise<void>((resolve, reject) => {
-  const exists = Array.from(document.scripts).some(s => s.src === src)
-  if (exists) return resolve()
-  const s = document.createElement('script')
-  s.src = src
-  s.async = true
-  s.onload = () => resolve()
-  s.onerror = () => reject(new Error('geetest script load failed'))
-  document.head.appendChild(s)
-})
-
-const ensureGeetest = async (): Promise<boolean> => {
-  if (!geetestCaptchaId) return false
-  if (geetestReady.value && geetestHandler) return true
-  await loadScriptOnce(geetestScriptUrl)
-  const initGeetest4: any = (window as any).initGeetest4
-  if (!initGeetest4) return false
-  return await new Promise<boolean>((resolve) => {
-    try {
-      initGeetest4({
-        captchaId: geetestCaptchaId,
-        product: 'bind',
-        language: 'zho',
-        mask: { outside: true, bgColor: '#0000004d' },
-        timeout: 15000
-      }, (handler: any) => {
-        geetestHandler = handler
-        geetestReady.value = !!handler
-        try {
-          if (geetestHandler?.onReady) geetestHandler.onReady(() => {})
-          if (geetestHandler?.onError) geetestHandler.onError(() => {})
-          if (geetestHandler?.onClose) geetestHandler.onClose(() => {})
-        } catch {}
-        resolve(geetestReady.value)
-      })
-    } catch {
-      resolve(false)
-    }
-  })
-}
-
-const verifyHuman = async (): Promise<boolean> => {
-  // 若未配置，直接放行（后端可通过 GEETEST_OFFLINE_ALLOW 控制）
-  if (!geetestCaptchaId) return true
-  const ok = await ensureGeetest()
-  if (!ok || !geetestHandler) return false
-  return await new Promise<boolean>((resolve) => {
-    let settled = false
-    const onSuccess = async () => {
-      if (settled) return
-      settled = true
-      try {
-        const validate = geetestHandler.getValidate ? geetestHandler.getValidate() : null
-        if (!validate) { ElMessage.error('请完成人机验证'); return resolve(false) }
-        const { lot_number, captcha_output, pass_token, gen_time } = validate
-        const resp = await api.post('/auth/captcha/validate', {
-          lot_number, captcha_output, pass_token, gen_time, captcha_id: geetestCaptchaId
-        })
-        if (resp?.data?.success || resp?.data?.result === 'success') return resolve(true)
-        ElMessage.error(resp?.data?.message || '人机验证失败')
-        resolve(false)
-      } catch (e: any) {
-        ElMessage.error('人机验证服务异常，请稍后重试')
-        resolve(false)
-      }
-    }
-    try {
-      if (geetestHandler.onSuccess) geetestHandler.onSuccess(onSuccess)
-      if (geetestHandler.onError) geetestHandler.onError(() => { if (!settled) { settled = true; ElMessage.error('人机验证出错'); resolve(false) } })
-      if (geetestHandler.onClose) geetestHandler.onClose(() => { if (!settled) { settled = true; ElMessage.warning('请先完成人机验证'); resolve(false) } })
-      // 显示验证弹窗
-      if (geetestHandler.showCaptcha) geetestHandler.showCaptcha()
-      else if (geetestHandler.showBox) geetestHandler.showBox()
-      // 超时兜底
-      setTimeout(() => { if (!settled) { settled = true; ElMessage.warning('验证超时，请重试'); resolve(false) } }, geetestMaxWaitMs)
-    } catch {
-      resolve(false)
-    }
-  })
-}
 
 // 日志数据
 const logs = ref<LogEntry[]>([])
@@ -2181,7 +2494,11 @@ const logFilter = reactive({
 const userFilter = reactive({
   search: '',
   role: '',
-  status: ''
+  status: '',
+  createdRange: [],
+  lastLoginRange: [],
+  sortBy: 'created_at',
+  sortOrder: 'desc'
 })
 
 // 系统设置
@@ -2193,7 +2510,10 @@ const systemSettings = reactive({
   maxUploadFiles: 10,
   allowedImageTypes: ['jpg', 'png', 'gif', 'webp'],
   allowedVideoTypes: ['mp4', 'webm', 'mov'],
+  allowedDocumentTypes: ['pdf', 'docx', 'xlsx'],
+  allowedDocumentTypesCsv: 'pdf,docx,xlsx',
   thumbnailSize: 300,
+  maxStoragePerUser: 0,
   autoCleanLogs: false,
   // 外观设置
   themeMode: 'auto', // auto, light, dark
@@ -2202,8 +2522,21 @@ const systemSettings = reactive({
   enableAnimation: true,
   logoUrl: '',
   faviconUrl: '',
-  customCss: ''
+  customCss: '',
+  // 安全设置
+  minPasswordLength: 6,
+  passwordComplexity: 'low', // low, medium, high
+  enableLoginLock: false,
+  maxLoginAttempts: 5,
+  lockoutDuration: 15,
+  sessionTimeout: 60,
+  enableTwoFactor: false,
+  // 通知设置
+  enableMaintenanceNotification: false
 })
+
+// 记录上次获取的维护模式，保存前做确认
+const prevMaintenanceMode = ref(false)
 
 // 预定义颜色
 const predefineColors = [
@@ -2335,102 +2668,38 @@ const refreshAllData = async () => {
     refreshing.value = false
   }
 }
-const openUserDetail = async (user: User) => {
-  // 人机验证
-  const passed = await verifyHuman()
-  if (!passed) return
-  detailUser.value = { ...user }
-  showUserDetailDialog.value = true
-  // 拉取更完整的信息（last_login、login_count等）
+
+// 将部分全局设置立即应用到前端
+const applyFrontendSettings = () => {
   try {
-    detailLoading.value = true
-    const res = await api.get(`/admin/users/${user.id}`)
-    const u = res.data?.data || res.data
-    if (u) {
-      detailUser.value = {
-        id: u.id,
-        username: u.username,
-        email: u.email,
-        role: u.role,
-        status: u.status,
-        avatar_url: u.avatar_url,
-        used_storage: u.used_storage ?? user.used_storage,
-        storage_limit: u.storage_limit ?? user.storage_limit,
-        created_at: u.created_at ?? user.created_at,
-        last_login: u.last_login ?? user.last_login,
-        login_count: u.login_count ?? user.login_count
+    // 主题模式
+    const html = document.documentElement
+    html.setAttribute('data-theme', systemSettings.themeMode)
+    // 主色
+    document.documentElement.style.setProperty('--primary-color', systemSettings.primaryColor)
+    // 侧边栏宽度（可由布局自适应使用）
+    document.documentElement.style.setProperty('--sidebar-width', `${systemSettings.sidebarWidth}px`)
+    // favicon
+    if (systemSettings.faviconUrl) {
+      let link = document.querySelector("link[rel='icon']") as HTMLLinkElement | null
+      if (!link) {
+        link = document.createElement('link')
+        link.rel = 'icon'
+        document.head.appendChild(link)
       }
+      link.href = systemSettings.faviconUrl
     }
-  } catch (e) {
-    // 忽略错误，使用列表已有数据
-  } finally {
-    detailLoading.value = false
-  }
-}
-
-// 查看密码交互状态
-const viewPwdState = reactive({
-  viewing: false,
-  sending: false,
-  verifying: false,
-  sent: false,
-  code: '',
-  maskedHash: ''
-})
-
-const onViewPwdClick = async () => {
-  const passed = await verifyHuman()
-  if (!passed) return
-  viewPwdState.viewing = true
-}
-
-const sendViewPwdCode = async () => {
-  if (!detailUser.value) return
-  try {
-    viewPwdState.sending = true
-    const resp = await api.post(`/admin/users/${detailUser.value.id}/view-password/send-code`)
-    if (resp?.data?.success !== false) {
-      viewPwdState.sent = true
-      ElMessage.success('验证码已发送到用户邮箱')
-    } else {
-      ElMessage.error(resp?.data?.message || '发送验证码失败')
+    // 自定义CSS
+    let styleEl = document.getElementById('custom-css') as HTMLStyleElement | null
+    if (!styleEl) {
+      styleEl = document.createElement('style')
+      styleEl.id = 'custom-css'
+      document.head.appendChild(styleEl)
     }
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '发送验证码失败')
-  } finally {
-    viewPwdState.sending = false
+    styleEl.textContent = systemSettings.customCss || ''
+  } catch {
+    // 忽略前端应用错误，避免影响主流程
   }
-}
-
-const verifyAndShowPwd = async () => {
-  if (!detailUser.value) return
-  if (!viewPwdState.code || viewPwdState.code.length !== 6) {
-    ElMessage.warning('请输入6位验证码')
-    return
-  }
-  try {
-    viewPwdState.verifying = true
-    const resp = await api.post(`/admin/users/${detailUser.value.id}/view-password/verify`, { code: viewPwdState.code })
-    if (resp?.data?.success) {
-      viewPwdState.maskedHash = resp.data.passwordMaskedHash || ''
-      ElMessage.success('验证通过，已显示密码哈希摘要')
-    } else {
-      ElMessage.error(resp?.data?.message || '验证失败')
-    }
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '验证失败')
-  } finally {
-    viewPwdState.verifying = false
-  }
-}
-
-const cancelViewPwd = () => {
-  viewPwdState.viewing = false
-  viewPwdState.sending = false
-  viewPwdState.verifying = false
-  viewPwdState.sent = false
-  viewPwdState.code = ''
-  viewPwdState.maskedHash = ''
 }
 
 // 获取系统统计数据
@@ -2518,7 +2787,11 @@ const fetchSystemSettings = async () => {
     systemSettings.maxUploadFiles = parseInt(settings.max_upload_files?.value) || 10
     systemSettings.allowedImageTypes = settings.allowed_image_types?.value?.split(',') || ['jpg', 'png', 'gif', 'webp']
     systemSettings.allowedVideoTypes = settings.allowed_video_types?.value?.split(',') || ['mp4', 'webm', 'mov']
+    systemSettings.allowedDocumentTypes = settings.allowed_document_types?.value?.split(',') || ['pdf', 'docx', 'xlsx']
+    systemSettings.allowedDocumentTypesCsv = settings.allowed_document_types?.value || 'pdf,docx,xlsx'
     systemSettings.thumbnailSize = parseInt(settings.thumbnail_size?.value) || 300
+    const maxStorageBytes = parseInt(settings.max_storage_per_user?.value)
+    systemSettings.maxStoragePerUser = isNaN(maxStorageBytes) ? 0 : Math.round(maxStorageBytes / (1024 * 1024))
     systemSettings.autoCleanLogs = settings.auto_clean_logs?.value === 'true'
     
     // 更新外观设置
@@ -2529,6 +2802,21 @@ const fetchSystemSettings = async () => {
     systemSettings.logoUrl = settings.logo_url?.value || ''
     systemSettings.faviconUrl = settings.favicon_url?.value || ''
     systemSettings.customCss = settings.custom_css?.value || ''
+
+    // 安全设置
+    systemSettings.minPasswordLength = parseInt(settings.min_password_length?.value) || 6
+    systemSettings.passwordComplexity = settings.password_complexity?.value || 'low'
+    systemSettings.enableLoginLock = settings.enable_login_lock?.value === 'true'
+    systemSettings.maxLoginAttempts = parseInt(settings.max_login_attempts?.value) || 5
+    systemSettings.lockoutDuration = parseInt(settings.lockout_duration?.value) || 15
+    systemSettings.sessionTimeout = parseInt(settings.session_timeout?.value) || 60
+    systemSettings.enableTwoFactor = settings.enable_two_factor?.value === 'true'
+
+    // 通知设置
+    systemSettings.enableMaintenanceNotification = settings.enable_maintenance_notification?.value === 'true'
+
+    // 记录维护模式的原值
+    prevMaintenanceMode.value = systemSettings.maintenanceMode
   } catch (error: any) {
     ElMessage.error('获取系统设置失败')
     throw error
@@ -2624,7 +2912,20 @@ const exportStorageReport = () => {
 }
 
 
-const handleUserSelectionChange = (selection: User[]) => {
+const handleUserSelectionChange = (checked: any, user: User) => {
+  if (checked) {
+    if (!selectedUsers.value.includes(user)) {
+      selectedUsers.value.push(user)
+    }
+  } else {
+    const index = selectedUsers.value.findIndex(u => u.id === user.id)
+    if (index !== -1) {
+      selectedUsers.value.splice(index, 1)
+    }
+  }
+}
+
+const handleTableSelectionChange = (selection: User[]) => {
   selectedUsers.value = selection
 }
 
@@ -2664,12 +2965,32 @@ const closeAllMenus = () => {
 onMounted(() => {
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement
-    // 如果点击的不是下拉菜单相关元素，关闭所有菜单
-    if (!target.closest('.el-dropdown') && !target.closest('.el-dropdown-menu')) {
+    // 如果点击的不是下拉菜单相关元素，且不是对话框相关元素，关闭所有菜单
+    if (!target.closest('.el-dropdown') && 
+        !target.closest('.el-dropdown-menu') && 
+        !target.closest('.el-dialog') &&
+        !target.closest('.el-overlay')) {
       closeAllMenus()
     }
   })
 })
+// 处理用户卡片点击事件
+const handleUserCardClick = async (user: User, evt?: MouseEvent) => {
+  try {
+    // 显示人机验证
+    const captchaResult = await showCaptcha()
+    if (!captchaResult) {
+      ElMessage.warning('人机验证失败')
+      return
+    }
+    
+    // 直接显示对话框（保留查看统计）
+    await showUserStats(user)
+  } catch (error: any) {
+    console.error('用户卡片点击处理失败:', error)
+    ElMessage.error('操作失败，请重试')
+  }
+}
 
 const handleUserAction = async (command: string, user: User) => {
   // 执行操作后关闭菜单
@@ -2713,17 +3034,8 @@ const handleUserAction = async (command: string, user: User) => {
         await toggleUserStatus(user)
       break
         
-    case 'editStorage':
-        // 兼容菜单项"设置存储"（移动端/部分视图）
-        await manageUserStorage(user)
-      break
-        
     case 'manageStorage':
         await manageUserStorage(user)
-      break
-        
-    case 'viewStats':
-        await viewUserStats(user)
       break
         
     case 'resetPassword':
@@ -2732,6 +3044,14 @@ const handleUserAction = async (command: string, user: User) => {
         
     case 'forceLogout':
         await forceUserLogout(user)
+      break
+        
+    case 'viewStats':
+        await showUserStats(user)
+      break
+        
+    case 'editStorage':
+        await manageUserStorage(user)
       break
         
     case 'delete':
@@ -2760,6 +3080,11 @@ const handleUserAction = async (command: string, user: User) => {
   }
 }
 
+// 表格行点击（Element Plus会传 row, column, event）
+const handleTableRowClick = async (row: User, _column: any, event: MouseEvent) => {
+  await handleUserCardClick(row, event)
+}
+
 // 切换用户角色
 const toggleUserRole = async (user: User) => {
   try {
@@ -2778,7 +3103,6 @@ const toggleUserRole = async (user: User) => {
     throw error
   }
 }
-
 // 切换用户状态
 const toggleUserStatus = async (user: User) => {
   try {
@@ -2798,11 +3122,304 @@ const toggleUserStatus = async (user: User) => {
   }
 }
 
+// 切换密码显示
+const togglePasswordVisibility = async () => {
+  if (!showPassword.value) {
+    // 如果当前没有显示密码，需要先进行验证
+    if (!passwordVerificationSent.value || passwordVerificationExpired.value) {
+      // 显示验证码输入框
+      passwordVerificationSent.value = true
+      passwordVerificationExpired.value = false
+      passwordVerificationExpiry.value = new Date(Date.now() + 5 * 60 * 1000) // 5分钟有效期
+      passwordVerificationCode.value = ''
+    } else {
+      // 验证验证码
+      await verifyPasswordCode()
+    }
+  } else {
+    // 隐藏密码
+    showPassword.value = false
+  }
+}
+
+// 发送密码查看验证码
+const sendPasswordVerificationCode = async () => {
+  if (!selectedUserStats.value) return
+  
+  try {
+    sendingVerificationCode.value = true
+    
+    // 先进行人机验证
+    const captchaResult = await showCaptcha()
+    if (!captchaResult) {
+      ElMessage.warning('人机验证失败')
+      return
+    }
+    
+    // 发送验证码到用户邮箱
+    const response = await api.post(`/admin/users/${selectedUserStats.value.id}/view-password/send-code`)
+    
+    if (response.data.success) {
+      passwordVerificationExpiry.value = new Date(Date.now() + 5 * 60 * 1000) // 5分钟有效期
+      passwordVerificationCode.value = ''
+      ElMessage.success('验证码已发送到用户邮箱')
+    } else {
+      ElMessage.error(response.data.message || '发送验证码失败')
+    }
+  } catch (error: any) {
+    console.error('发送密码验证码失败:', error)
+    ElMessage.error('发送验证码失败，请重试')
+  } finally {
+    sendingVerificationCode.value = false
+  }
+}
+
+// 验证密码查看验证码
+const verifyPasswordCode = async () => {
+  if (!selectedUserStats.value || passwordVerificationCode.value.length !== 6) return
+  
+  try {
+    // 验证验证码
+    const response = await api.post(`/admin/users/${selectedUserStats.value.id}/view-password/verify`, {
+      code: passwordVerificationCode.value
+    })
+    
+    if (response.data.success) {
+      // 验证成功
+      userStats.value.password = response.data.passwordMaskedHash || '****'
+      showPassword.value = true
+      passwordVerifiedOk.value = true
+      passwordVerificationSent.value = false
+      passwordVerificationExpired.value = false
+      passwordVerificationCode.value = ''
+      ElMessage.success('验证成功')
+    } else {
+      ElMessage.error(response.data.message || '验证码错误或已过期')
+    }
+  } catch (error: any) {
+    console.error('验证密码验证码失败:', error)
+    ElMessage.error('验证失败，请重试')
+  }
+}
+
+// 已移除获取用户实时明文密码的接口调用，改为使用后端返回的密码哈希摘要掩码
+
+// 生成随机密码
+const generateRandomPassword = (length = 12): string => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*()_+' // 去除易混字符
+  let res = ''
+  for (let i = 0; i < length; i++) res += chars[Math.floor(Math.random() * chars.length)]
+  return res
+}
+
+// 验证通过后，重置所选用户的密码并提示新密码
+const resetSelectedUserPassword = async () => {
+  if (!selectedUserStats.value) return
+  if (!passwordVerifiedOk.value) {
+    ElMessage.warning('请先完成验证码校验')
+    return
+  }
+  try {
+    const newPwd = generateRandomPassword(12)
+    await api.put(`/admin/users/${selectedUserStats.value.id}/password`, { password: newPwd })
+    await ElMessageBox.alert(`新密码：${newPwd}`, '重置成功', { confirmButtonText: '我已保存' })
+    // 重置状态，要求再次验证才可再次重置
+    passwordVerifiedOk.value = false
+    showPassword.value = false
+  } catch (e: any) {
+    ElMessage.error('重置密码失败，请重试')
+  }
+}
+
+// 获取验证码剩余时间
+const getVerificationTimeLeft = () => {
+  if (!passwordVerificationExpiry.value) return '0:00'
+  
+  const now = new Date()
+  const diff = passwordVerificationExpiry.value.getTime() - now.getTime()
+  
+  if (diff <= 0) {
+    passwordVerificationExpired.value = true
+    return '已过期'
+  }
+  
+  const minutes = Math.floor(diff / 60000)
+  const seconds = Math.floor((diff % 60000) / 1000)
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
+// 显示用户统计
+const showUserStats = async (user: User) => {
+  console.log('=== showUserStats 开始 ===')
+  console.log('用户信息:', user)
+  
+  try {
+    selectedUserStats.value = user
+    loadingUserStats.value = true
+    showUserStatsDialog.value = true
+    
+    console.log('对话框状态已设置')
+    
+    // 重置密码验证状态
+    showPassword.value = false
+    passwordVerificationSent.value = false
+    passwordVerificationExpired.value = false
+    passwordVerificationCode.value = ''
+    passwordVerificationExpiry.value = null
+    passwordVerifiedOk.value = false
+    
+    console.log('密码验证状态已重置')
+    console.log('开始获取用户统计信息，用户ID:', user.id)
+    console.log('API URL:', `/admin/users/${user.id}/stats`)
+    
+    // 获取用户统计数据 - 从后端实时获取
+    console.log('准备调用API...')
+    const response = await api.get(`/admin/users/${user.id}/stats`)
+    
+    console.log('API调用成功，响应:', response)
+    console.log('响应数据:', response.data)
+    
+    // 检查API响应结构
+    if (response.data.user && response.data.dataStats && response.data.storage) {
+      console.log('API返回成功，开始处理数据')
+      // 后端返回的数据结构: {user: {...}, dataStats: {...}, storage: {...}}
+      const { user: userData, dataStats, storage } = response.data
+      
+      // 确保存储信息是从后端实时获取的真实数据
+      userStats.value = {
+        // 用户基本信息
+        username: userData.username,
+        email: userData.email,
+        role: userData.role,
+        status: userData.status,
+        created_at: userData.created_at,
+        // 存储信息
+        used_storage: storage.used_storage || 0,
+        storage_limit: storage.storage_limit || 0,
+        file_count: storage.file_count || 0,
+        // 统计数据
+        login_count: dataStats.login_count || 0,
+        upload_count: dataStats.upload_count || 0,
+        download_count: dataStats.download_count || 0,
+        last_login: dataStats.last_login || null,
+        password: userData.password || null
+      }
+      
+      console.log('用户统计数据设置完成:', userStats.value)
+      console.log('=== showUserStats 成功完成 ===')
+    } else if (response.data.success) {
+      console.log('API返回成功（旧格式），开始处理数据')
+      // 确保存储信息是从后端实时获取的真实数据
+      userStats.value = {
+        ...response.data,
+        // 确保存储相关字段存在且有值
+        used_storage: response.data.used_storage || 0,
+        storage_limit: response.data.storage_limit || 0,
+        file_count: response.data.file_count || 0,
+        // 其他统计信息
+        login_count: response.data.login_count || 0,
+        upload_count: response.data.upload_count || 0,
+        download_count: response.data.download_count || 0,
+        last_login: response.data.last_login || null,
+        password: response.data.password || null
+      }
+      
+      console.log('用户统计数据设置完成:', userStats.value)
+      console.log('=== showUserStats 成功完成 ===')
+    } else {
+      console.error('API返回失败:', response.data)
+      throw new Error(response.data.message || '获取用户统计失败')
+    }
+    
+  } catch (error: any) {
+    console.log('=== showUserStats 发生错误 ===')
+    console.error('获取用户统计失败 - 完整错误信息:', {
+      message: error.message,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      config: error.config,
+      stack: error.stack
+    })
+    
+    // 检查是否是404错误（API不存在）
+    if (error.response?.status === 404) {
+      console.log('用户统计API不存在，使用用户基本信息作为备用数据')
+      
+      // 使用用户列表中的基本信息作为备用数据
+      userStats.value = {
+        used_storage: user.used_storage || 0,
+        storage_limit: user.storage_limit || 0,
+        file_count: 0, // 用户列表中没有文件数信息
+        login_count: 0,
+        upload_count: 0,
+        download_count: 0,
+        last_login: null,
+        password: null,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        created_at: user.created_at
+      }
+      
+      ElMessage.warning('用户统计API暂不可用，显示基本信息')
+    } else if (error.response?.status === 403) {
+      ElMessage.error('没有权限访问用户统计信息')
+      showUserStatsDialog.value = false
+    } else if (error.response?.status >= 500) {
+      ElMessage.error('服务器错误，请稍后重试')
+      showUserStatsDialog.value = false
+    } else {
+      // 显示更详细的错误信息
+      const errorMsg = error.response?.data?.message || error.message || '获取用户统计失败'
+      console.error('具体错误信息:', errorMsg)
+      
+      // 如果API调用失败，尝试使用用户基本信息作为备用
+      console.log('API调用失败，尝试使用用户基本信息作为备用数据')
+      
+      userStats.value = {
+        used_storage: user.used_storage || 0,
+        storage_limit: user.storage_limit || 0,
+        file_count: 0,
+        login_count: 0,
+        upload_count: 0,
+        download_count: 0,
+        last_login: null,
+        password: null,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        created_at: user.created_at
+      }
+      
+      ElMessage.warning(`用户统计API调用失败: ${errorMsg}，显示基本信息`)
+    }
+  } finally {
+    console.log('=== showUserStats finally 执行 ===')
+    loadingUserStats.value = false
+    console.log('loadingUserStats 已设置为 false')
+  }
+}
+
+// 关闭用户统计对话框
+const closeUserStatsDialog = () => {
+  showUserStatsDialog.value = false
+  selectedUserStats.value = null
+  userStats.value = null
+  showPassword.value = false
+  passwordVerificationSent.value = false
+  passwordVerificationExpired.value = false
+  passwordVerificationCode.value = ''
+  passwordVerificationExpiry.value = null
+}
+
 // 管理用户存储
 const manageUserStorage = async (user: User) => {
   try {
     // 创建自定义对话框
-    await ElMessageBox({
+    const { value: formData } = await ElMessageBox({
       title: '管理用户存储',
       message: `
         <div style="text-align: left;">
@@ -2882,7 +3499,7 @@ const manageUserStorage = async (user: User) => {
               ElMessage.success(`用户存储限制已更新为 ${value} ${unit}`)
               done()
             })
-            .catch(() => {
+            .catch((error: any) => {
               ElMessage.error('更新存储限制失败')
               instance.confirmButtonLoading = false
             })
@@ -2895,33 +3512,6 @@ const manageUserStorage = async (user: User) => {
     if (error !== 'cancel') {
       ElMessage.error('管理用户存储失败')
     }
-  }
-}
-
-// 查看用户统计（移动端弹窗）
-const viewUserStats = async (user: User) => {
-  try {
-    const used = user.used_storage || 0
-    const limit = user.storage_limit || 0
-    const percent = limit > 0 ? ((used / limit) * 100).toFixed(2) : '0.00'
-    const createdAt = user.created_at || ''
-    await ElMessageBox({
-      title: '用户统计',
-      message: `
-        <div style="text-align:left; line-height:1.7;">
-          <p><strong>用户：</strong>${user.username}</p>
-          ${createdAt ? `<p><strong>创建时间：</strong>${createdAt}</p>` : ''}
-          <p><strong>已用存储：</strong>${formatFileSize(used)}</p>
-          <p><strong>存储上限：</strong>${limit ? formatFileSize(limit) : '未设置'}</p>
-          <p><strong>使用率：</strong>${percent}%</p>
-        </div>
-      `,
-      confirmButtonText: '知道了',
-      dangerouslyUseHTMLString: true,
-      customClass: 'custom-message-box'
-    })
-  } catch (error) {
-    // 用户取消或关闭弹窗，无需处理
   }
 }
 
@@ -3040,7 +3630,6 @@ const batchDeleteUsers = async () => {
     }
   }
 }
-
 // 搜索用户
 const searchUsers = async () => {
   if (refreshing.value) {
@@ -3053,6 +3642,16 @@ const searchUsers = async () => {
     if (userFilter.search) params.search = userFilter.search
     if (userFilter.role) params.role = userFilter.role
     if (userFilter.status) params.status = userFilter.status
+    if (userFilter.createdRange?.length === 2) {
+      params.created_from = userFilter.createdRange[0]
+      params.created_to = userFilter.createdRange[1]
+    }
+    if (userFilter.lastLoginRange?.length === 2) {
+      params.last_login_from = userFilter.lastLoginRange[0]
+      params.last_login_to = userFilter.lastLoginRange[1]
+    }
+    if (userFilter.sortBy) params.sort_by = userFilter.sortBy
+    if (userFilter.sortOrder) params.sort_order = userFilter.sortOrder
     
     const response = await api.get('/admin/users', { params })
     users.value = response.data.users || []
@@ -3073,6 +3672,10 @@ const resetUserFilter = async () => {
   userFilter.search = ''
   userFilter.role = ''
   userFilter.status = ''
+  userFilter.createdRange = []
+  userFilter.lastLoginRange = []
+  userFilter.sortBy = 'created_at'
+  userFilter.sortOrder = 'desc'
   
   try {
     await fetchUsers()
@@ -3155,8 +3758,8 @@ const clearLogs = async () => {
     await api.delete('/admin/logs')
     logs.value = []
     ElMessage.success('日志已清空')
-  } catch (e) {
-    if (e !== 'cancel') {
+  } catch (error) {
+    if (error !== 'cancel') {
       ElMessage.error('清空日志失败')
     }
   }
@@ -3179,6 +3782,7 @@ const exportLogs = () => {
   
   // 创建CSV内容
   const headers = ['时间', '级别', '来源', '消息', '用户ID'] as const
+  type HeaderKey = '时间' | '级别' | '来源' | '消息' | '用户ID'
   const csvContent = [
     headers.join(','),
     ...logData.map(row => 
@@ -3198,11 +3802,18 @@ const exportLogs = () => {
   
   ElMessage.success(`已导出 ${logs.value.length} 条日志记录`)
 }
-
 const saveSystemSettings = async () => {
   // 验证设置
   if (systemSettings.allowedImageTypes.length === 0) {
     ElMessage.error('至少需要选择一种图片格式')
+    return
+  }
+  if (systemSettings.minPasswordLength < 4) {
+    ElMessage.error('最小密码长度不能小于4')
+    return
+  }
+  if (systemSettings.enableLoginLock && systemSettings.maxLoginAttempts < 3) {
+    ElMessage.error('启用登录锁定时，最大失败次数需≥3')
     return
   }
   
@@ -3213,19 +3824,49 @@ const saveSystemSettings = async () => {
   
   savingSettings.value = true
   try {
+    if (!prevMaintenanceMode.value && systemSettings.maintenanceMode) {
+      await ElMessageBox.confirm(
+        '你将开启维护模式，普通用户将无法访问，确认继续？',
+        '确认开启维护模式',
+        { type: 'warning', confirmButtonText: '确认开启', cancelButtonText: '取消' }
+      )
+    }
     const settings = {
       system_name: systemSettings.systemName.trim(),
       enable_registration: systemSettings.allowRegistration.toString(),
+      maintenance_mode: systemSettings.maintenanceMode.toString(),
       max_file_size: systemSettings.maxFileSize.toString(),
       max_upload_files: systemSettings.maxUploadFiles.toString(),
       allowed_image_types: systemSettings.allowedImageTypes.join(','),
       allowed_video_types: systemSettings.allowedVideoTypes.join(','),
+      allowed_document_types: (systemSettings.allowedDocumentTypesCsv || systemSettings.allowedDocumentTypes.join(',')).trim(),
       thumbnail_size: systemSettings.thumbnailSize.toString(),
-      auto_clean_logs: systemSettings.autoCleanLogs.toString()
+      auto_clean_logs: systemSettings.autoCleanLogs.toString(),
+      // 外观与前端行为设置
+      theme_mode: systemSettings.themeMode,
+      primary_color: systemSettings.primaryColor,
+      sidebar_width: systemSettings.sidebarWidth.toString(),
+      enable_animation: systemSettings.enableAnimation.toString(),
+      logo_url: systemSettings.logoUrl,
+      favicon_url: systemSettings.faviconUrl,
+      custom_css: systemSettings.customCss,
+      // 存储（每用户上限，MB => 后端转换）
+      max_storage_per_user: systemSettings.maxStoragePerUser.toString(),
+      // 安全设置
+      min_password_length: systemSettings.minPasswordLength.toString(),
+      password_complexity: systemSettings.passwordComplexity,
+      enable_login_lock: systemSettings.enableLoginLock.toString(),
+      max_login_attempts: systemSettings.maxLoginAttempts.toString(),
+      lockout_duration: systemSettings.lockoutDuration.toString(),
+      session_timeout: systemSettings.sessionTimeout.toString(),
+      enable_two_factor: systemSettings.enableTwoFactor.toString(),
+      // 通知设置
+      enable_maintenance_notification: systemSettings.enableMaintenanceNotification.toString()
     }
     
     await api.put('/admin/settings', { settings })
     ElMessage.success('系统设置保存成功')
+    prevMaintenanceMode.value = systemSettings.maintenanceMode
     
     // 发送全局事件通知其他组件设置已更新
     window.dispatchEvent(new CustomEvent('system-settings-changed', {
@@ -3236,6 +3877,7 @@ const saveSystemSettings = async () => {
         sidebar_width: systemSettings.sidebarWidth
       }
     }))
+    applyFrontendSettings()
     
     // 如果开启了维护模式，显示警告
     if (systemSettings.maintenanceMode) {
@@ -3259,7 +3901,6 @@ const saveSystemSettings = async () => {
     savingSettings.value = false
   }
 }
-
 // 预览效果
 const showSettingsPreview = () => {
   ElMessageBox.alert(
@@ -3394,56 +4035,6 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
-.user-detail-dialog {
-  :deep(.el-dialog) {
-    border-radius: 14px;
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.12);
-  }
-  :deep(.el-dialog__header) {
-    border-bottom: 1px solid #eee;
-  }
-  .detail-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    .title-wrap {
-      display: flex; flex-direction: column;
-      .name { font-weight: 700; font-size: 16px; color: #111827; }
-      .sub { font-size: 12px; color: #6b7280; }
-    }
-  }
-  .detail-content { padding-top: 8px; }
-  .grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-  .item {
-    background: #fafafa;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    padding: 12px;
-    .label { font-size: 12px; color: #6b7280; margin-bottom: 6px; }
-    .value { font-size: 14px; color: #111827; display: flex; align-items: center; gap: 8px; }
-    &.span-2 { grid-column: span 2; }
-    .storage-text { font-size: 12px; color: #6b7280; }
-  }
-  .detail-actions { display: flex; justify-content: flex-end; }
-}
-
-.username-text.clickable { cursor: pointer; color: #111827; transition: color .2s; }
-.username-text.clickable:hover { color: #000; }
-
-@media (max-width: 1024px) {
-  .user-detail-dialog .grid { grid-template-columns: 1fr; }
-  .user-detail-dialog .item.span-2 { grid-column: span 1; }
-}
-
-@media (max-width: 480px) {
-  .user-detail-dialog :deep(.el-dialog) { width: 95% !important; }
-}
 // 全局按钮样式覆盖 - 确保所有按钮使用灰白黑三色
 :deep(.el-button--primary) {
   background: linear-gradient(135deg, #374151 0%, #111827 100%) !important;
@@ -3563,58 +4154,22 @@ onUnmounted(() => {
   .collapse-btn {
     background: linear-gradient(135deg, #f9fafb, #e5e7eb) !important;
     border: 1px solid #d1d5db !important;
-    color: #6b7280 !important; /* 默认灰色，与主布局一致 */
+    color: #374151 !important;
     
     &:hover {
       background: linear-gradient(135deg, #e5e7eb, #d1d5db) !important;
       border-color: #9ca3af !important;
-      color: #111827 !important; /* 悬停黑色 */
-    }
-
-    &:active,
-    &.is-active,
-    &[aria-pressed="true"] {
-      background: linear-gradient(135deg, #374151, #111827) !important;
-      border-color: #111827 !important;
-      color: #ffffff !important; /* 按下白色 */
-    }
-    
-    &[aria-disabled="true"],
-    &.is-disabled {
-      color: #9ca3af !important; /* 禁用浅灰 */
-      border-color: #e5e7eb !important;
-      background: linear-gradient(135deg, #f9fafb, #f3f4f6) !important;
     }
   }
   
   .user-menu-btn {
     background: linear-gradient(135deg, #f9fafb, #e5e7eb) !important;
     border: 1px solid #d1d5db !important;
-    color: #6b7280 !important; /* 默认灰色，与 collapse-btn 保持一致 */
+    color: #374151 !important;
     
     &:hover {
       background: linear-gradient(135deg, #e5e7eb, #d1d5db) !important;
       border-color: #9ca3af !important;
-      color: #111827 !important; /* 悬停黑色 */
-    }
-
-    &:active,
-    &.is-active,
-    &[aria-pressed="true"] {
-      background: linear-gradient(135deg, #374151, #111827) !important;
-      border-color: #111827 !important;
-      color: #ffffff !important; /* 按下白色 */
-    }
-    
-    &[aria-disabled="true"],
-    &.is-disabled {
-      color: #9ca3af !important; /* 禁用浅灰 */
-      border-color: #e5e7eb !important;
-      background: linear-gradient(135deg, #f9fafb, #f3f4f6) !important;
-    }
-    
-    :deep(.el-icon) {
-      color: currentColor !important; /* 图标跟随文字颜色 */
     }
   }
   
@@ -3761,50 +4316,10 @@ onUnmounted(() => {
     }
   }
 }
-
 .admin-center-page {
   padding: 24px; // 统一设置所有方向的内边距
   background: #f5f7fa;
   min-height: 100vh;
-  /* 动效统一覆盖（AdminCenter） */
-  .admin-center-content { content-visibility: auto; contain-intrinsic-size: 1800px; }
-
-  :deep(.el-button),
-  :deep(.el-menu-item),
-  :deep(.el-input__wrapper),
-  :deep(.el-select .el-input__wrapper),
-  :deep(.el-switch),
-  :deep(.el-checkbox),
-  :deep(.el-pagination .btn-prev),
-  :deep(.el-pagination .btn-next),
-  :deep(.el-pagination .el-pager li),
-  .admin-nav-card,
-  .admin-panel-card,
-  .stat-card,
-  .quick-action-btn,
-  .user-card {
-    transition: background var(--anim-duration-base) var(--anim-ease-standard),
-                color var(--anim-duration-fast) var(--anim-ease-standard),
-                border-color var(--anim-duration-fast) var(--anim-ease-standard),
-                box-shadow var(--anim-duration-base) var(--anim-ease-standard),
-                transform var(--anim-duration-fast) var(--anim-ease-standard);
-  }
-
-  :deep(.el-menu-item:hover),
-  .quick-action-btn:hover,
-  .user-card:hover { background: var(--hover-bg); }
-
-  :deep(.el-button:active),
-  :deep(.el-menu-item:active),
-  .quick-action-btn:active,
-  .user-card:active { transform: scale(var(--press-scale)); }
-
-  .stat-card, .user-card { will-change: transform, box-shadow; }
-}
-
-/* 无障碍：尊重减少动效偏好 */
-@media (prefers-reduced-motion: reduce) {
-  .admin-center-page :deep(*) { transition: none !important; animation: none !important; }
 }
 
 .page-header {
@@ -3849,7 +4364,6 @@ onUnmounted(() => {
     }
   }
 }
-
 .admin-center-content {
   // 移除所有内边距，让父级容器控制间距
   
@@ -4151,9 +4665,18 @@ onUnmounted(() => {
         align-items: center;
         gap: 8px;
         
+        :deep(.el-avatar) {
+          border-radius: 50% !important;
+          overflow: hidden !important;
+        }
+        
         .username-text {
               font-weight: 500;
           color: #303133;
+          max-width: 120px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
       }
       
@@ -4208,7 +4731,6 @@ onUnmounted(() => {
       // 存储管理样式
       .storage-stats {
         margin-bottom: 24px;
-        padding: 0 8px; // 抵消 :gutter 导致的 el-row 负边距，避免右侧裁切
         
         .storage-stat-card {
           .stat-content {
@@ -4289,7 +4811,6 @@ onUnmounted(() => {
     }
   }
 }
-
 // ==================== 移动端用户卡片样式优化 ====================
 .mobile-user-list {
   display: flex;
@@ -4305,6 +4826,7 @@ onUnmounted(() => {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
+    cursor: pointer;
     
     // 添加微妙的渐变背景
     &::before {
@@ -4456,20 +4978,60 @@ onUnmounted(() => {
         }
       }
       
-      .el-button {
-        min-width: 90px;
-        height: 36px;
-        border-radius: 8px;
-        font-weight: 500;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        
-        &:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-        }
-        
-        &:active {
-          transform: translateY(0);
+      .el-dropdown {
+        .el-button {
+          min-width: 90px;
+          height: 36px;
+          border-radius: 8px;
+          font-weight: 500;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          position: relative;
+          overflow: hidden;
+          
+          // 添加点击波纹效果
+          &::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.3s, height 0.3s;
+            pointer-events: none;
+          }
+          
+          &:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+          }
+          
+          &:active {
+            transform: translateY(0) scale(0.98);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            
+            &::before {
+              width: 200px;
+              height: 200px;
+            }
+          }
+          
+          // 移动端触摸优化
+          @media (max-width: 768px) {
+            &:active {
+              background: rgba(64, 158, 255, 0.2) !important;
+              transform: scale(0.95) !important;
+            }
+            
+            // 添加触摸反馈
+            &:focus {
+              outline: none;
+              box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.3);
+            }
+          }
         }
       }
     }
@@ -4488,7 +5050,6 @@ onUnmounted(() => {
     }
   }
 }
-
 // ==================== 移动端用户筛选样式优化 ====================
 .mobile-user-filters {
   background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
@@ -4779,7 +5340,6 @@ onUnmounted(() => {
     }
   }
 }
-
 // ==================== 移动端筛选表单样式优化 ====================
 .mobile-filters {
   background: #f8f9fa;
@@ -5269,7 +5829,6 @@ onUnmounted(() => {
     border: 2px dashed #e4e7ed;
   }
 }
-
 // ==================== 移动端存储管理样式 ====================
 .mobile-storage-stats {
   display: flex;
@@ -5406,7 +5965,6 @@ onUnmounted(() => {
     }
   }
 }
-
 // ==================== 移动端系统设置样式 ====================
 .mobile-settings-form {
   .settings-group {
@@ -5706,7 +6264,6 @@ onUnmounted(() => {
     }
   }
 }
-
 // ==================== 移动端统计卡片优化 ====================
 @media (max-width: 768px) {
   .stats-cards {
@@ -6163,28 +6720,22 @@ onUnmounted(() => {
             align-items: center !important;
             gap: 8px !important;
             justify-content: center !important;
-            min-width: 0 !important;
             
             .el-avatar {
-              width: 32px !important;
-              height: 32px !important;
+              width: 24px !important;
+              height: 24px !important;
               font-size: 10px !important;
-              flex: 0 0 32px !important;
-              min-width: 32px !important;
-              min-height: 32px !important;
+              flex-shrink: 0 !important;
               box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-              border-radius: 50% !important;
-              overflow: hidden !important;
             }
-            .el-avatar :deep(img) { width: 100% !important; height: 100% !important; border-radius: 50% !important; object-fit: cover !important; display: block !important; }
             
             .username-text {
               font-size: 11px !important;
-              max-width: 120px !important;
+              max-width: 100px !important;
               overflow: hidden !important;
               text-overflow: ellipsis !important;
               white-space: nowrap !important;
-              flex: 1 1 auto !important;
+              flex: 1 !important;
               font-weight: 500 !important;
               color: #2c3e50 !important;
             }
@@ -6327,7 +6878,6 @@ onUnmounted(() => {
             }
           }
         }
-        
         // 完善的下拉菜单样式和交互 - 优化版本
         :deep(.el-dropdown-menu) {
           z-index: 9999 !important;
@@ -6513,7 +7063,6 @@ onUnmounted(() => {
             }
           }
         }
-        
         // 下拉菜单动画 - 优化版本
         @keyframes dropdownSlideIn {
           from {
@@ -6696,7 +7245,6 @@ onUnmounted(() => {
     }
   }
 }
-
 // ==================== 移动端日志筛选样式优化 ====================
 .mobile-log-filters {
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
@@ -7106,95 +7654,823 @@ onUnmounted(() => {
   }
 }
 
-/* 板块进场与错峰动效（AdminCenter） */
-.admin-center-page {
-  .admin-center-content,
-  .desktop-layout,
-  .admin-nav-card,
-  .admin-panel-card { 
-    will-change: opacity, transform; 
-    animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; 
-  }
-  .admin-nav-card { animation-delay: 0ms; }
-  .admin-panel-card { animation-delay: 80ms; }
-
-  /* 概览统计卡：同级错峰 */
-  .stats-cards .stat-card {
-    will-change: opacity, transform;
-    animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both;
-  }
-  .stats-cards .stat-card:nth-child(1) { animation-delay: 0ms; }
-  .stats-cards .stat-card:nth-child(2) { animation-delay: 40ms; }
-  .stats-cards .stat-card:nth-child(3) { animation-delay: 80ms; }
-
-  /* 快速操作：按钮错峰 */
-  .quick-actions-row .el-col .quick-action-btn {
-    will-change: opacity, transform;
-    animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both;
-  }
-  .quick-actions-row .el-col:nth-child(1) .quick-action-btn { animation-delay: 0ms; }
-  .quick-actions-row .el-col:nth-child(2) .quick-action-btn { animation-delay: 40ms; }
-  .quick-actions-row .el-col:nth-child(3) .quick-action-btn { animation-delay: 80ms; }
-  .quick-actions-row .el-col:nth-child(4) .quick-action-btn { animation-delay: 120ms; }
-
-  /* 移动端用户卡：错峰 */
-  .mobile-user-list .user-card { 
-    will-change: opacity, transform; 
-    animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; 
-  }
-  .mobile-user-list .user-card:nth-child(1) { animation-delay: 0ms; }
-  .mobile-user-list .user-card:nth-child(2) { animation-delay: 20ms; }
-  .mobile-user-list .user-card:nth-child(3) { animation-delay: 40ms; }
-  .mobile-user-list .user-card:nth-child(4) { animation-delay: 60ms; }
-  .mobile-user-list .user-card:nth-child(5) { animation-delay: 80ms; }
-  .mobile-user-list .user-card:nth-child(6) { animation-delay: 100ms; }
-
-  /* 表格行：轻量入场，前12行错峰 */
+// 桌面端用户表格样式
+.user-table {
   :deep(.el-table__row) {
-    will-change: opacity, transform;
-    animation: rowFadeIn var(--anim-duration-fast) var(--anim-ease-decelerate) both;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    
+    &:hover {
+      background-color: #f5f7fa;
+    }
   }
-  :deep(.el-table__row:nth-child(1)) { animation-delay: 0ms; }
-  :deep(.el-table__row:nth-child(2)) { animation-delay: 20ms; }
-  :deep(.el-table__row:nth-child(3)) { animation-delay: 40ms; }
-  :deep(.el-table__row:nth-child(4)) { animation-delay: 60ms; }
-  :deep(.el-table__row:nth-child(5)) { animation-delay: 80ms; }
-  :deep(.el-table__row:nth-child(6)) { animation-delay: 100ms; }
-  :deep(.el-table__row:nth-child(7)) { animation-delay: 120ms; }
-  :deep(.el-table__row:nth-child(8)) { animation-delay: 140ms; }
-  :deep(.el-table__row:nth-child(9)) { animation-delay: 160ms; }
-  :deep(.el-table__row:nth-child(10)) { animation-delay: 180ms; }
-  :deep(.el-table__row:nth-child(11)) { animation-delay: 200ms; }
-  :deep(.el-table__row:nth-child(12)) { animation-delay: 220ms; }
 }
 
-@keyframes blockFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes cardRise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-@keyframes rowFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+// 用户统计对话框样式
+.user-stats-content {
+  &.grayscale {
+    .stats-section {
+      background: #ffffff;
+      border: 1px solid #e5e5e5;
+    }
+    h4 { color: #1f1f1f; }
+    .label { color: #6f6f6f; }
+    .value { color: #1f1f1f; font-weight: 600; }
+    .password-display .password-value { background: #f5f5f5; border-color: #e5e5e5; color: #1f1f1f; }
+    .password-verification { background: #f9f9f9; border-color: #e5e5e5; }
+  }
+  .stats-grid {
+    display: grid;
+    gap: 24px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+  
+  .stats-section {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #e9ecef;
+    
+    h4 {
+      margin: 0 0 16px 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #2c3e50;
+      border-bottom: 2px solid #e9ecef;
+      padding-bottom: 8px;
+    }
+    
+  .stats-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+    
+    .label {
+      font-weight: 500;
+      color: #6c757d;
+      font-size: 14px;
+    }
+    
+    .value {
+      font-weight: 600;
+      color: #2c3e50;
+      font-size: 14px;
+      text-align: right;
+      max-width: 60%;
+      word-break: break-all;
+    }
+    
+    .password-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      
+      .password-value {
+        font-size: 14px;
+        color: #2c3e50;
+        font-weight: 600;
+        font-family: 'Courier New', monospace;
+        background: #f8f9fa;
+        padding: 4px 8px;
+        border-radius: 4px;
+        border: 1px solid #e9ecef;
+        max-width: 200px;
+        word-break: break-all;
+      }
+      
+      .password-toggle-btn {
+        padding: 4px 8px;
+        min-width: auto;
+        height: 28px;
+        
+        .el-icon {
+          font-size: 14px;
+        }
+      }
+    }
+    
+    .password-verification {
+      margin-top: 8px;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      border: 1px solid #e9ecef;
+      
+      .verification-input {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      
+      .verification-actions {
+        margin-bottom: 8px;
+        text-align: center;
+      }
+      
+      .verification-timer {
+        text-align: center;
+        
+        .timer-text {
+          font-size: 12px;
+          color: #6c757d;
+          font-weight: 500;
+        }
+      }
+    }
+  }
+  }
+  
+  .no-stats {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6c757d;
+    
+    .no-data-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+    
+    p {
+      margin: 0;
+      font-size: 16px;
+    }
+  }
+  .password-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
 
-/* 无障碍：减少动效偏好 */
-@media (prefers-reduced-motion: reduce) {
-  .admin-center-page :deep(*),
-  .admin-center-page * { animation: none !important; transition: none !important; }
+  // 桌面端：密码项左右布局
+  @media (min-width: 1024px) {
+    .password-item {
+      flex-direction: row;
+      align-items: center;
+      gap: 12px;
+      .label { min-width: 64px; }
+      .password-display { margin-left: auto; }
+      .password-verification {
+        width: 100%;
+        margin-top: 8px; // 验证区域仍然在下一行
+      }
+    }
+  }
+}
+// 移动端用户统计对话框优化
+@media (max-width: 768px) {
+  .user-stats-content {
+    .stats-grid {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    
+    .stats-section {
+      padding: 16px;
+      
+      h4 {
+        font-size: 15px;
+        margin-bottom: 12px;
+      }
+      
+      .stats-item {
+        margin-bottom: 10px;
+        
+        .label {
+          font-size: 13px;
+        }
+        
+        .value {
+          font-size: 13px;
+        }
+      }
+    }
+    
+    // 移动端用户头部
+    .mobile-user-header {
+      margin-bottom: 20px;
+      
+      .user-avatar-section {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 20px;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 16px;
+        border: 1px solid #e9ecef;
+        
+        .user-basic-info {
+          flex: 1;
+          min-width: 0; // 允许flex子元素收缩
+          
+          h3 {
+            margin: 0 0 8px 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #2c3e50;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 100%;
+          }
+          
+          p {
+            margin: 0 0 12px 0;
+            font-size: 14px;
+            color: #6c757d;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 100%;
+          }
+          
+          .user-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+          }
+        }
+      }
+    }
+    
+    // 移动端信息卡片
+    .mobile-info-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      
+      .mobile-info-card {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid #e9ecef;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        
+        .card-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 16px 20px;
+          background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+          border-bottom: 1px solid #e9ecef;
+          
+          .el-icon {
+            font-size: 18px;
+            color: #409eff;
+          }
+          
+          span {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+          }
+        }
+        
+        .card-content {
+          padding: 20px;
+          
+          .info-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            
+            .info-label {
+              font-size: 14px;
+              color: #6c757d;
+              font-weight: 500;
+            }
+            
+            .info-value {
+              font-size: 14px;
+              color: #2c3e50;
+              font-weight: 600;
+            }
+            
+            .password-display {
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              
+              .password-value {
+                font-size: 14px;
+                color: #2c3e50;
+                font-weight: 600;
+                font-family: 'Courier New', monospace;
+                background: #f8f9fa;
+                padding: 4px 8px;
+                border-radius: 4px;
+                border: 1px solid #e9ecef;
+                max-width: 150px;
+                word-break: break-all;
+              }
+              
+              .password-toggle-btn {
+                padding: 4px 8px;
+                min-width: auto;
+                height: 28px;
+                
+                .el-icon {
+                  font-size: 14px;
+                }
+              }
+            }
+            
+          .password-verification {
+            margin-top: 12px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            
+            .verification-input {
+              display: flex;
+              flex-direction: column;
+              gap: 12px;
+              margin-bottom: 16px;
+              
+              .el-input {
+                width: 100%;
+              }
+              
+              .el-button {
+                width: 100%;
+                height: 36px;
+              }
+            }
+            
+            .verification-actions {
+              margin-bottom: 12px;
+              
+              .el-button {
+                width: 100%;
+                height: 36px;
+              }
+            }
+            
+            .verification-timer {
+              text-align: center;
+              
+              .timer-text {
+                font-size: 13px;
+                color: #6c757d;
+                font-weight: 500;
+              }
+            }
+          }
+          }
+          
+          // 存储进度
+          .storage-progress {
+            margin-bottom: 16px;
+            
+            .progress-info {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 8px;
+              
+              .progress-label {
+                font-size: 14px;
+                color: #6c757d;
+                font-weight: 500;
+              }
+              
+              .progress-percent {
+                font-size: 16px;
+                font-weight: 600;
+                color: #409eff;
+              }
+            }
+          }
+          
+          // 存储详情
+          .storage-details {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            
+            .storage-item {
+              text-align: center;
+              padding: 12px 8px;
+              background: #f8f9fa;
+              border-radius: 8px;
+              
+              .storage-label {
+                display: block;
+                font-size: 12px;
+                color: #6c757d;
+                margin-bottom: 4px;
+              }
+              
+              .storage-value {
+                display: block;
+                font-size: 14px;
+                font-weight: 600;
+                color: #2c3e50;
+              }
+            }
+          }
+          
+          // 活动网格
+          .activity-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+            
+            .activity-item {
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              padding: 16px 8px;
+              background: #f8f9fa;
+              border-radius: 8px;
+              
+              .activity-icon {
+                width: 32px;
+                height: 32px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: #409eff;
+                border-radius: 50%;
+                margin-bottom: 8px;
+                
+                .el-icon {
+                  font-size: 16px;
+                  color: #fff;
+                }
+              }
+              
+              .activity-info {
+                text-align: center;
+                
+                .activity-label {
+                  display: block;
+                  font-size: 11px;
+                  color: #6c757d;
+                  margin-bottom: 2px;
+                }
+                
+                .activity-value {
+                  display: block;
+                  font-size: 16px;
+                  font-weight: 600;
+                  color: #2c3e50;
+                }
+              }
+            }
+          }
+          
+          // 最后登录
+          .last-login {
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            text-align: center;
+            
+            .last-login-label {
+              display: block;
+              font-size: 12px;
+              color: #6c757d;
+              margin-bottom: 4px;
+            }
+            
+            .last-login-value {
+              display: block;
+              font-size: 13px;
+              color: #2c3e50;
+              font-weight: 500;
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
-/* View Transitions（AdminCenter） */
-.admin-center-page { view-transition-name: vt-admin; }
-.admin-nav-card { view-transition-name: vt-admin-nav; }
-.admin-panel-card { view-transition-name: vt-admin-panel; }
-:global(::view-transition-old(vt-admin-nav)) { animation: vtSlideLeftOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-admin-nav)) { animation: vtSlideLeftIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-:global(::view-transition-old(vt-admin-panel)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-admin-panel)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-@keyframes vtSlideLeftOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-6px); } }
-@keyframes vtSlideLeftIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
-@keyframes vtFadeOut { from { opacity: 1; } to { opacity: 0; } }
-@keyframes vtFadeIn { from { opacity: 0; } to { opacity: 1; } }
+// 移动端按钮点击动效优化
+@media (max-width: 768px) {
+  // 为所有按钮添加移动端触摸反馈
+  :deep(.el-button) {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    
+    &:active {
+      transform: scale(0.95) !important;
+      transition: transform 0.1s ease !important;
+    }
+  }
+  
+  // 特别优化下拉按钮
+  :deep(.el-dropdown .el-button) {
+    &:active {
+      background: rgba(64, 158, 255, 0.2) !important;
+      transform: scale(0.95) !important;
+    }
+  }
+  
+  // 优化复选框
+  :deep(.el-checkbox) {
+    &:active {
+      transform: scale(0.95);
+      transition: transform 0.1s ease;
+    }
+  }
+  
+  // 移动端对话框优化
+  :deep(.mobile-dialog) {
+    .el-dialog {
+      margin: 5vh auto !important;
+      max-height: 90vh !important;
+      border-radius: 16px !important;
+    }
+    
+    .el-dialog__header {
+      padding: 20px 20px 0 20px !important;
+      
+      .el-dialog__title {
+        font-size: 18px !important;
+        font-weight: 600 !important;
+      }
+    }
+    
+    .el-dialog__body {
+      padding: 20px !important;
+      max-height: calc(90vh - 120px) !important;
+      overflow-y: auto !important;
+    }
+    
+    .el-dialog__footer {
+      padding: 0 20px 20px 20px !important;
+      
+      .el-button {
+        width: 100% !important;
+        height: 48px !important;
+        font-size: 16px !important;
+        border-radius: 12px !important;
+      }
+    }
+  }
+}
 
-/* View Transitions（Admin users） */
-.mobile-user-list .user-card { view-transition-name: vt-admin-user-card; }
-:global(::view-transition-old(vt-admin-user-card)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-admin-user-card)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
+/* 新版用户详情悬浮窗风格 */
+.user-popover.user-popover-v2 {
+  padding: 0 !important;
+  border-radius: 14px !important;
+  overflow: hidden !important;
+}
+
+.user-profile-popover {
+  width: 100%;
+  max-width: 640px;
+}
+.user-profile-popover.minimal {
+  padding: 12px 14px;
+  background: #fff;
+}
+
+.user-profile-popover .header-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-profile-popover .header-row .identity .name {
+  font-weight: 700;
+  color: #1f1f1f;
+}
+
+.user-profile-popover .header-row .identity .email {
+  font-size: 12px;
+  color: #6f6f6f;
+}
+
+.user-profile-popover .kv-list {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+.user-profile-popover .kv-list .kv {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.user-profile-popover .kv-list .kv span {
+  color: #6f6f6f;
+}
+
+.user-profile-popover .kv-list .kv b {
+  color: #1f1f1f;
+}
+
+.user-profile-popover .stats-row {
+  margin-top: 10px;
+  display: flex;
+  gap: 12px;
+}
+
+.user-profile-popover .stats-row .stat {
+  flex: 1;
+  border: 1px solid #e9e9e9;
+  border-radius: 8px;
+  padding: 8px;
+  text-align: center;
+}
+
+.user-profile-popover .stats-row .stat span {
+  display: block;
+  font-size: 11px;
+  color: #6f6f6f;
+}
+
+.user-profile-popover .stats-row .stat b {
+  display: block;
+  font-size: 14px;
+  color: #1f1f1f;
+}
+
+/* 卡片式容器阴影与边框（黑白灰） */
+.user-card-popover.el-card {
+  border: 1px solid #e9e9e9 !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
+  border-radius: 12px !important;
+}
+
+.user-card-popover.inline-card {
+  background: #fff;
+  border: 1px solid #e9e9e9;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+
+.user-profile-popover .popover-close .el-button {
+  color: #6f6f6f;
+}
+
+.user-profile-popover .storage-block.minimal {
+  margin-top: 12px;
+  background: #fafafa;
+  border-color: #e9e9e9;
+}
+@media (max-width: 768px) {
+  .user-profile-popover .kv-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+.user-profile-popover .popover-hero {
+  height: 64px;
+  background: linear-gradient(135deg, #409eff 0%, #66b1ff 100%);
+}
+
+.user-profile-popover .popover-close {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+}
+
+.user-profile-popover .avatar-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: -28px;
+}
+
+.user-profile-popover .name-row {
+  margin-top: 8px;
+  text-align: center;
+}
+
+.user-profile-popover .name-row .name {
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.user-profile-popover .name-row .nickname {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.user-profile-popover .tag-row {
+  margin-top: 8px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.user-profile-popover .info-grid.two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  padding: 12px 16px;
+}
+
+.user-profile-popover .info-grid.two-col.subtle .label {
+  color: #909399;
+}
+
+.user-profile-popover .info-item .label {
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.user-profile-popover .info-item .value {
+  font-size: 13px;
+  color: #2c3e50;
+  font-weight: 600;
+}
+
+.user-profile-popover .storage-block {
+  margin: 8px 16px 0 16px;
+  padding: 12px;
+  border: 1px solid #e9ecef;
+  border-radius: 10px;
+  background: #f8f9fa;
+}
+
+.user-profile-popover .storage-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.user-profile-popover .storage-top .title {
+  font-size: 13px;
+  color: #6c757d;
+}
+
+.user-profile-popover .storage-top .usage {
+  font-size: 13px;
+  color: #409eff;
+  font-weight: 700;
+}
+
+.user-profile-popover .storage-text {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.user-profile-popover .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 12px 16px 0 16px;
+}
+
+.user-profile-popover .stat-item {
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 8px;
+  text-align: center;
+}
+
+.user-profile-popover .stat-item .label {
+  font-size: 11px;
+  color: #909399;
+}
+
+.user-profile-popover .stat-item .value {
+  font-size: 14px;
+  color: #2c3e50;
+  font-weight: 700;
+}
+
+.user-profile-popover .bio-block {
+  padding: 12px 16px;
+}
+
+.user-profile-popover .bio-block .title {
+  font-size: 13px;
+  color: #6c757d;
+  margin-bottom: 6px;
+}
+
+.user-profile-popover .bio-block .bio {
+  color: #2c3e50;
+}
+
+@media (max-width: 768px) {
+  .user-profile-popover .info-grid.two-col {
+    grid-template-columns: 1fr;
+  }
+  .user-profile-popover .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
 </style>
-
-

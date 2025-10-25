@@ -40,7 +40,7 @@
                     :show-file-list="false"
                     :before-upload="beforeAvatarUpload"
                     :on-success="handleAvatarSuccess"
-                    :on-error="handleUploadError"
+                    :on-error="handleAvatarError"
                     accept="image/*"
                   >
                     <el-button type="primary" size="small" circle>
@@ -69,7 +69,7 @@
               <el-button 
                 type="text" 
                 size="small" 
-                @click="() => refreshStorageInfo()"
+                @click="refreshStorageInfo"
                 :loading="refreshingStorage"
               >
                 <el-icon><Refresh /></el-icon>
@@ -335,92 +335,6 @@
                     </el-form-item>
                   </el-form>
                 </div>
-
-                <div class="security-section">
-                  <h4>第三方绑定</h4>
-                  <el-card class="binding-card">
-                    <div class="binding-row">
-                      <div class="binding-info">
-                        <img src="/logo.png" alt="QQ" class="binding-icon" />
-                        <div class="binding-text">
-                          <div class="binding-name">QQ 账号</div>
-                          <div class="binding-status">
-                            <template v-if="bindings.qq">
-                              <span>已绑定</span>
-                              <span v-if="bindings.qqNumber" class="binding-id">（QQ号: {{ bindings.qqNumber }}）</span>
-                            </template>
-                            <template v-else>未绑定</template>
-                          </div>
-                        </div>
-                      </div>
-                      <div class="binding-actions">
-                        <el-button v-if="!bindings.qq" type="primary" @click="bindQQ">去绑定</el-button>
-                        <template v-else>
-                          <el-button v-if="!bindings.qqNumber" @click="setQqNumber">设置QQ号</el-button>
-                          <el-button type="danger" @click="unbindQQ">解绑</el-button>
-                        </template>
-                      </div>
-                    </div>
-
-                    <el-divider />
-
-            <!-- 邮箱绑定 -->
-            <div class="binding-row">
-              <div class="binding-info">
-                <el-icon><Message /></el-icon>
-                <div class="binding-text">
-                  <div class="binding-name">邮箱</div>
-                  <div class="binding-status">
-                    <template v-if="bindings.email">
-                      <span>已绑定</span>
-                      <span class="binding-id">（{{ bindings.email }}）</span>
-                    </template>
-                    <template v-else>未绑定</template>
-                  </div>
-                </div>
-              </div>
-              <div class="binding-actions">
-                <template v-if="!bindings.email">
-                  <div class="row-inline email-bind-row">
-                    <el-input v-model="emailBindForm.email" placeholder="输入邮箱" style="width: 220px;" class="email-input" />
-                    <el-input v-model="emailBindForm.code" placeholder="输入验证码" maxlength="6" style="width: 160px;" class="code-input" />
-                    <el-button
-                      class="send-code-btn"
-                      :loading="emailBindForm.sending"
-                      :disabled="emailBindForm.sending || !emailBindForm.email || emailCodeCooldown > 0"
-                      @click="sendBindEmailCode"
-                    >
-                      {{ emailCodeCooldown > 0 ? `${emailCodeCooldown}s后重发` : '发送验证码' }}
-                    </el-button>
-                    <el-button class="bind-btn" type="primary" :loading="emailBindForm.binding" @click="bindEmail">绑定邮箱</el-button>
-                  </div>
-                </template>
-                <template v-else>
-                  <el-button type="danger" @click="unbindEmail">解绑邮箱</el-button>
-                </template>
-              </div>
-            </div>
-
-            <el-divider />
-
-                    <div class="binding-row">
-                      <div class="binding-info">
-                        <el-icon><Link /></el-icon>
-                        <div class="binding-text">
-                          <div class="binding-name">E时代通行证</div>
-                          <div class="binding-status">{{ bindings.epass ? '已绑定' : '未绑定' }}</div>
-                        </div>
-                      </div>
-                      <div class="binding-actions">
-                        <template v-if="!bindings.epass">
-                          <el-input v-model="epassId" placeholder="输入通行证ID" style="width: 220px; margin-right: 8px;" />
-                          <el-button type="primary" @click="bindEPass" :disabled="!epassId">绑定</el-button>
-                        </template>
-                        <el-button v-else type="danger" @click="unbindEPass">解绑</el-button>
-                      </div>
-                    </div>
-                  </el-card>
-                </div>
               </el-tab-pane>
 
               <!-- 偏好设置 -->
@@ -583,14 +497,11 @@ import {
   Delete,
   Warning,
   InfoFilled,
-  SuccessFilled,
-  Link
+  SuccessFilled
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { formatFileSize, formatPercentage } from '@/utils/helpers'
 import api from '@/utils/api'
-import { useEmailCode } from '@/composables/useEmailCode'
-import { Message } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 
 const authStore = useAuthStore()
@@ -607,111 +518,6 @@ const passwordFormRef = ref<FormInstance>()
 const sendingCode = ref(false)
 const codeCountdown = ref(0)
 const countdownTimer = ref<NodeJS.Timeout | null>(null)
-
-// GeeTest v4 人机验证（bind 模式）
-type AnyFn = (...args: any[]) => any
-const geetestScriptUrl = 'https://static.geetest.com/v4/gt4.js'
-const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '7922d406fb215d02770d5a4cd71af066')
-const geetestReady = ref(false)
-let geetestHandler: any = null
-const geetestMaxWaitMs = 12000
-
-const loadScriptOnce = (src: string): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) return resolve()
-    const s = document.createElement('script')
-    s.src = src
-    s.async = true
-    s.onload = () => resolve()
-    s.onerror = () => reject(new Error('geetest script load failed'))
-    document.head.appendChild(s)
-  })
-}
-
-const ensureGeetest = async (): Promise<boolean> => {
-  if (!geetestCaptchaId) return false
-  if (geetestReady.value && geetestHandler) return true
-  await loadScriptOnce(geetestScriptUrl)
-  const initGeetest4: AnyFn | undefined = (window as any).initGeetest4
-  if (!initGeetest4) return false
-  return new Promise<boolean>((resolve) => {
-    try {
-      initGeetest4({
-        captchaId: geetestCaptchaId,
-        product: 'bind',
-        riskType: 'verify',
-        language: 'zho',
-        protocol: 'https://',
-        timeout: 30000
-      }, (handler: any) => {
-        geetestHandler = handler
-        geetestReady.value = !!handler
-        try {
-          if (geetestHandler?.onReady) geetestHandler.onReady(() => console.log('[GeeTest] ready'))
-          if (geetestHandler?.onSuccess) geetestHandler.onSuccess(() => console.log('[GeeTest] success'))
-          if (geetestHandler?.onError) geetestHandler.onError((err: any) => console.log('[GeeTest] error', err))
-          if (geetestHandler?.onClose) geetestHandler.onClose(() => console.log('[GeeTest] close'))
-        } catch {}
-        resolve(geetestReady.value)
-      })
-    } catch (_) {
-      resolve(false)
-    }
-  })
-}
-
-const runHumanVerification = async (): Promise<boolean> => {
-  if (!geetestCaptchaId) return true
-  const ok = await ensureGeetest()
-  if (!ok || !geetestHandler) return false
-  return new Promise<boolean>((resolve) => {
-    let settled = false
-    let popupShown = false
-    try { ElMessage({ type: 'info', message: '正在拉起人机验证...', duration: 1200 }) } catch {}
-    const onSuccess = async () => {
-      try {
-        const validate = geetestHandler.getValidate ? geetestHandler.getValidate() : null
-        if (!validate) return resolve(false)
-        const { lot_number, captcha_output, pass_token, gen_time } = validate
-        const resp = await api.post('/auth/captcha/validate', {
-          lot_number,
-          captcha_output,
-          pass_token,
-          gen_time,
-          sign_token: validate.sign_token,
-          captcha_id: geetestCaptchaId
-        })
-        settled = true
-        resolve(resp.data?.success === true)
-      } catch (e) {
-        settled = true
-        try { ElMessage.error('二次校验失败，请重试') } catch {}
-        resolve(false)
-      }
-    }
-    if (geetestHandler.onSuccess) geetestHandler.onSuccess(onSuccess)
-    if (geetestHandler.onError) geetestHandler.onError(() => { if (!settled) { settled = true; try { ElMessage.error('人机验证出错，请关闭拦截或更换网络后重试') } catch {}; resolve(false) } })
-    if (geetestHandler.onClose) geetestHandler.onClose(() => { if (!settled) { settled = true; try { ElMessage.warning('请先完成人机验证') } catch {}; resolve(false) } })
-    const showIt = () => {
-      popupShown = true
-      try { /* bind 模式直接调用显示 */ } catch {}
-      if (geetestHandler.showCaptcha) geetestHandler.showCaptcha()
-      else if (geetestHandler.showBox) geetestHandler.showBox()
-      else onSuccess()
-    }
-    try { showIt() } catch {}
-    if (geetestHandler.onReady) geetestHandler.onReady(() => { popupShown = true; showIt() })
-    setTimeout(() => {
-      if (!settled) {
-        settled = true
-        if (!popupShown) {
-          try { ElMessage.error('人机验证超时，请重试或检查拦截设置') } catch {}
-        }
-        resolve(false)
-      }
-    }, geetestMaxWaitMs)
-  })
-}
 
 // 存储相关
 const refreshingStorage = ref(false)
@@ -1381,12 +1187,6 @@ const sendEmailCode = async () => {
   
   try {
     sendingCode.value = true
-    // 人机验证（先校验）
-    const humanOk = await runHumanVerification()
-    if (!humanOk) {
-      ElMessage.error('请先完成人机验证')
-      return
-    }
     
     await api.post('/auth/send-verification-code', {
       email: userInfo.email,
@@ -1490,11 +1290,6 @@ const handleAvatarSuccess = (response: any) => {
 // 头像加载错误处理
 const handleAvatarError = (_event: Event) => {
   ElMessage.warning('头像加载失败，将显示默认头像')
-}
-
-// 上传错误回调签名（Element Plus Upload）
-const handleUploadError = (_error: Error) => {
-  ElMessage.error('头像上传失败')
 }
 
 // 格式化日期（默认北京时间）
@@ -1630,8 +1425,6 @@ onMounted(async () => {
     // 检查存储警告
     checkStorageWarning()
     
-    // 加载绑定状态
-    loadBindings()
   } catch (error) {
     ElMessage.error('页面加载失败，请刷新重试')
   }
@@ -1643,169 +1436,7 @@ onUnmounted(() => {
   
   // 清理验证码倒计时
   clearCountdown()
-  clearEmailCodeCooldown()
 })
-
-const bindings = reactive({
-  qq: false,
-  qqOpenId: null as string | null,
-  qqUnionId: null as string | null,
-  qqNickname: '' as string,
-  qqAvatar: '' as string,
-  qqNumber: null as string | null,
-  epass: false,
-  epassId: null as string | null,
-  email: null as string | null
-})
-const epassId = ref('')
-const emailBindForm = reactive({ email: '', code: '', sending: false, binding: false })
-const { emailCodeCooldown, startEmailCodeCooldown, clearEmailCodeCooldown, sendEmailCodeWithHuman } = useEmailCode({ defaultCooldownSeconds: 60, runHuman: runHumanVerification })
-
-const loadBindings = async () => {
-  try {
-    const res = await api.get('/auth/bindings')
-    if (res.data?.success) {
-      const b = res.data.bindings || {}
-      bindings.qq = !!b.qq
-      bindings.qqOpenId = b.qqOpenId || null
-      bindings.qqUnionId = b.qqUnionId || null
-      bindings.qqNickname = b.qqNickname || ''
-      bindings.qqAvatar = b.qqAvatar || ''
-      bindings.qqNumber = b.qqNumber || null
-      bindings.email = b.email || null
-      bindings.epass = !!b.epass
-      bindings.epassId = b.epassId || null
-      bindings.email = b.email || null
-    }
-  } catch {}
-}
-
-const bindQQ = async () => {
-  try {
-    // 请求后端获取 QQ 授权URL，带上 state=bind
-    const res = await api.get('/auth/qq/auth', { params: { state: 'bind' } })
-    const url = res.data?.authUrl
-    if (url) {
-      window.location.href = url
-    } else {
-      ElMessage.error('无法获取QQ授权地址')
-    }
-  } catch (e) {
-    ElMessage.error('获取QQ授权失败')
-  }
-}
-
-const unbindQQ = async () => {
-  try {
-    const { value } = await ElMessageBox.confirm('确定要解绑QQ吗？', '确认', { type: 'warning' }).catch(() => ({ value: false })) as any
-    if (value === false) return
-  } catch {}
-  try {
-    // 直接清空 qq_openid
-    await api.put('/auth/profile', { qq_openid: null })
-    ElMessage.success('已解绑QQ')
-    loadBindings()
-  } catch {
-    ElMessage.error('解绑失败')
-  }
-}
-
-const sendBindEmailCode = async () => {
-  if (!emailBindForm.email) { ElMessage.warning('请先输入邮箱'); return }
-  try {
-    emailBindForm.sending = true
-    await sendEmailCodeWithHuman(emailBindForm.email, 'change_email')
-  } finally { emailBindForm.sending = false }
-}
-
-const bindEmail = async () => {
-  if (!emailBindForm.email || !emailBindForm.code) { ElMessage.warning('请填写邮箱和验证码'); return }
-  try {
-    emailBindForm.binding = true
-    // 复用 /auth/profile 更新邮箱（需要验证码）
-    const resp = await api.put('/auth/profile', { email: emailBindForm.email, emailCode: emailBindForm.code })
-    if (resp.data?.message) {
-      ElMessage.success('邮箱绑定成功')
-      emailBindForm.email = ''
-      emailBindForm.code = ''
-      loadBindings()
-    }
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '绑定失败')
-  } finally { emailBindForm.binding = false }
-}
-
-const unbindEmail = async () => {
-  try {
-    const ok = await ElMessageBox.confirm('确定要解绑邮箱吗？', '确认', { type: 'warning' }).catch(() => false)
-    if (!ok) return
-    const resp = await api.post('/auth/email/unbind')
-    if (resp.data?.success) {
-      ElMessage.success('邮箱已解绑')
-      loadBindings()
-    } else {
-      ElMessage.error(resp.data?.message || '解绑失败')
-    }
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '解绑失败')
-  }
-}
-
-const setQqNumber = async () => {
-  try {
-    const { value } = await ElMessageBox.prompt('请输入您的QQ号', '设置QQ号', {
-      inputPattern: /^\d{5,20}$/,
-      inputErrorMessage: 'QQ号应为5-20位数字',
-      confirmButtonText: '确定',
-      cancelButtonText: '取消'
-    }) as any
-    if (!value) return
-    const resp = await api.post('/auth/qq/set-number', { qqNumber: value })
-    if (resp?.data?.success) {
-      ElMessage.success('QQ号已更新')
-      loadBindings()
-    } else {
-      ElMessage.error(resp?.data?.message || '更新失败')
-    }
-  } catch (e: any) {
-    if (e === 'cancel') return
-    ElMessage.error(e?.response?.data?.message || '更新失败')
-  }
-}
-
-const bindEPass = async () => {
-  if (!epassId.value) return
-  try {
-    const res = await api.post('/auth/epass/bind', { epassId: epassId.value })
-    if (res.data?.success) {
-      ElMessage.success('EPass绑定成功')
-      epassId.value = ''
-      loadBindings()
-    } else {
-      ElMessage.error(res.data?.message || '绑定失败')
-    }
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '绑定失败')
-  }
-}
-
-const unbindEPass = async () => {
-  try {
-    const { value } = await ElMessageBox.confirm('确定要解绑EPass吗？', '确认', { type: 'warning' }).catch(() => ({ value: false })) as any
-    if (value === false) return
-  } catch {}
-  try {
-    const res = await api.post('/auth/epass/unbind')
-    if (res.data?.success) {
-      ElMessage.success('已解绑EPass')
-      loadBindings()
-    } else {
-      ElMessage.error(res.data?.message || '解绑失败')
-    }
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '解绑失败')
-  }
-}
 </script>
 
 <style lang="scss" scoped>
@@ -4524,64 +4155,6 @@ const unbindEPass = async () => {
     }
   }
 }
-
-/* 板块进场与错峰动效（UserCenter） */
-.user-center-page {
-  .page-header { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-  .user-center-content { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 60ms; }
-
-  .user-info-card { will-change: opacity, transform; animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 0ms; }
-  .storage-card { will-change: opacity, transform; animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 40ms; }
-  .quick-settings-card { will-change: opacity, transform; animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 80ms; }
-  .settings-card { will-change: opacity, transform; animation: cardRise var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 120ms; }
-
-  /* 表单项：轻量错峰（每组前12项） */
-  .profile-form .el-form-item,
-  .password-form .el-form-item,
-  .preferences-form .el-form-item { will-change: opacity, transform; animation: rowFadeIn var(--anim-duration-fast) var(--anim-ease-decelerate) both; }
-  .profile-form .el-form-item:nth-child(1),
-  .password-form .el-form-item:nth-child(1),
-  .preferences-form .el-form-item:nth-child(1) { animation-delay: 0ms; }
-  .profile-form .el-form-item:nth-child(2),
-  .password-form .el-form-item:nth-child(2),
-  .preferences-form .el-form-item:nth-child(2) { animation-delay: 20ms; }
-  .profile-form .el-form-item:nth-child(3),
-  .password-form .el-form-item:nth-child(3),
-  .preferences-form .el-form-item:nth-child(3) { animation-delay: 40ms; }
-  .profile-form .el-form-item:nth-child(4),
-  .password-form .el-form-item:nth-child(4),
-  .preferences-form .el-form-item:nth-child(4) { animation-delay: 60ms; }
-  .profile-form .el-form-item:nth-child(5),
-  .password-form .el-form-item:nth-child(5),
-  .preferences-form .el-form-item:nth-child(5) { animation-delay: 80ms; }
-  .profile-form .el-form-item:nth-child(6),
-  .password-form .el-form-item:nth-child(6),
-  .preferences-form .el-form-item:nth-child(6) { animation-delay: 100ms; }
-}
-
-@keyframes blockFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes cardRise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-@keyframes rowFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-
-@media (prefers-reduced-motion: reduce) {
-  .user-center-page :deep(*),
-  .user-center-page * { animation: none !important; transition: none !important; }
-}
-
-.binding-card {
-  margin-top: 12px;
-}
-.binding-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.binding-info { display: flex; align-items: center; gap: 12px; }
-.binding-icon { width: 28px; height: 28px; border-radius: 6px; }
-.binding-text { display: flex; flex-direction: column; }
-.binding-name { font-weight: 600; }
-.binding-status { color: #909399; font-size: 12px; }
-.binding-actions { display: flex; align-items: center; }
 </style>
 
 

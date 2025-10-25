@@ -1,8 +1,9 @@
 <template>
   <div class="image-viewer" :class="{ 'fullscreen': isFullscreen }">
     <!-- 图片容器 -->
-    <div class="image-container" @click="handleContainerClick">
-      <img
+    <div class="image-container" @click="handleContainerClick"
+         @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd" @mousedown="onMouseDown" @mouseup="onMouseUp">
+      <img v-show="!isPlayingLive"
         ref="imageRef"
         :src="imageUrl"
         :alt="imageName"
@@ -20,6 +21,7 @@
         @mouseleave="endPan"
         @wheel="handleWheel"
       />
+      <video v-if="isPlayingLive && liveVideoUrl" ref="videoRef" class="viewer-video" :src="liveVideoUrl" playsinline muted loop />
       
       <!-- 加载状态 -->
       <div v-if="loading" class="loading-overlay">
@@ -164,6 +166,10 @@ const panY = ref(0)
 const lastPanX = ref(0)
 const lastPanY = ref(0)
 const imageRef = ref<HTMLImageElement>()
+const videoRef = ref<HTMLVideoElement>()
+const isPlayingLive = ref(false)
+const liveVideoUrl = ref<string | null>(null)
+let pressTimer: any = null
 
 // 常量
 const minZoom = 0.1
@@ -204,6 +210,63 @@ const retryLoad = () => {
   if (imageRef.value) {
     imageRef.value.src = imageUrl.value + '?t=' + Date.now()
   }
+}
+
+// LivePhoto: 寻找同目录下同名视频（mp4/mov）
+const detectLiveVideo = () => {
+  if (!props.image || !props.image.original_name) return null
+  // 优先使用后端关联的 live_video_id
+  const anyImg: any = props.image as any
+  if (anyImg.live_video_id) {
+    return getFilePreviewUrl(anyImg.live_video_id)
+  }
+  const base = props.image.original_name.replace(/\.[^.]+$/, '')
+  const candidates = ['.mp4', '.mov']
+  // 如果有传入 images 列表，尝试从同列表中找
+  if (props.images && props.images.length) {
+    const found = props.images.find(it => it.original_name && candidates.some(ext => it.original_name.startsWith(base) && it.original_name.toLowerCase().endsWith(ext))) as any
+    if (found) return getFilePreviewUrl(found.id)
+  }
+  return null
+}
+
+onMounted(() => {
+  liveVideoUrl.value = detectLiveVideo()
+})
+watch(() => props.image, () => {
+  liveVideoUrl.value = detectLiveVideo()
+})
+
+const startLive = () => {
+  if (!liveVideoUrl.value) return
+  isPlayingLive.value = true
+  nextTick(() => {
+    videoRef.value?.play().catch(() => {})
+  })
+}
+const stopLive = () => {
+  if (!liveVideoUrl.value) return
+  videoRef.value?.pause()
+  isPlayingLive.value = false
+}
+
+const onTouchStart = () => {
+  if (!liveVideoUrl.value) return
+  clearTimeout(pressTimer)
+  pressTimer = setTimeout(startLive, 350)
+}
+const onTouchEnd = () => {
+  clearTimeout(pressTimer)
+  stopLive()
+}
+const onMouseDown = (e: MouseEvent) => {
+  if (e.button !== 0 || !liveVideoUrl.value) return
+  clearTimeout(pressTimer)
+  pressTimer = setTimeout(startLive, 350)
+}
+const onMouseUp = () => {
+  clearTimeout(pressTimer)
+  stopLive()
 }
 
 const resetView = () => {
@@ -429,6 +492,14 @@ onUnmounted(() => {
   }
 }
 
+.viewer-video {
+  max-width: 90vw;
+  max-height: 80vh;
+  object-fit: contain;
+  user-select: none;
+  background: #000;
+}
+
 .loading-overlay,
 .error-overlay {
   position: absolute;
@@ -598,6 +669,10 @@ onUnmounted(() => {
   }
   
   .viewer-image {
+    max-width: 95vw;
+    max-height: 70vh;
+  }
+  .viewer-video {
     max-width: 95vw;
     max-height: 70vh;
   }

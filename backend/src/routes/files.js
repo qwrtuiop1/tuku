@@ -389,7 +389,7 @@ const handleFileUpload = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: '没有上传文件' });
   }
 
-  const { folder_id } = req.body;
+  const { folder_id, live_basename, live_role } = req.body;
   const file = req.file;
   const userId = req.user.id;
   
@@ -526,6 +526,39 @@ const handleFileUpload = asyncHandler(async (req, res) => {
       thumbnail_path: thumbnailPath
     }
   });
+
+  // 实况图配对：尝试将图片与同名视频建立关联（需要表结构支持）
+  try {
+    if (live_basename && (live_role === 'image' || live_role === 'video')) {
+      // 确保存在 live_video_id 字段
+      try {
+        await pool.execute("ALTER TABLE files ADD COLUMN IF NOT EXISTS live_video_id INT NULL");
+      } catch (e) {
+        // 某些MySQL版本不支持IF NOT EXISTS，忽略错误
+      }
+      // 如果当前是图片，找同用户/同文件夹下的视频
+      if (live_role === 'image') {
+        const [videos] = await pool.execute(
+          "SELECT id FROM files WHERE user_id=? AND (folder_id <=> ?) AND file_type='video' AND (original_name LIKE ? OR original_name LIKE ? ) ORDER BY id DESC LIMIT 1",
+          [userId, folder_id || null, live_basename + '.%', live_basename + '%']
+        );
+        if (videos.length > 0) {
+          await pool.execute('UPDATE files SET live_video_id=? WHERE id=?', [videos[0].id, result.insertId]);
+        }
+      } else if (live_role === 'video') {
+        // 当前是视频，找图片并回填其live_video_id
+        const [images] = await pool.execute(
+          "SELECT id FROM files WHERE user_id=? AND (folder_id <=> ?) AND file_type='image' AND (original_name LIKE ? OR original_name LIKE ? ) ORDER BY id DESC LIMIT 1",
+          [userId, folder_id || null, live_basename + '.%', live_basename + '%']
+        );
+        if (images.length > 0) {
+          await pool.execute('UPDATE files SET live_video_id=? WHERE id=?', [result.insertId, images[0].id]);
+        }
+      }
+    }
+  } catch (e) {
+    // 关联失败不影响主流程
+  }
 });
 
 // 重命名文件

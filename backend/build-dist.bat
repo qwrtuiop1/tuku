@@ -10,7 +10,14 @@ echo 复制配置文件...
 copy package.json dist\ >nul
 copy package-lock.json dist\ >nul
 copy Dockerfile dist\ >nul
-copy env.example dist\ >nul
+REM 优先复制 .env，如不存在则复制 env.example
+if exist .env (
+  echo 发现 .env，复制到 dist\
+  copy .env dist\ >nul
+) else (
+  echo 未发现 .env，复制 env.example 到 dist\ 以便部署参考
+  copy env.example dist\ >nul
+)
 copy README.md dist\ >nul
 
 REM 复制数据库文件

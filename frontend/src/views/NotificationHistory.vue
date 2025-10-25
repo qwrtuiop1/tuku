@@ -194,7 +194,6 @@
       :width="isMobile ? '95%' : '600px'"
       :close-on-click-modal="false"
       class="notification-dialog"
-      :append-to-body="true"
     >
       <el-form
         ref="notificationFormRef"
@@ -1132,28 +1131,6 @@ onUnmounted(() => {
   @media (max-width: 768px) {
     padding: 16px;
   }
-
-  /* 板块进场与错峰动效（NotificationHistory） */
-  .page-header { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-  .filter-section { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 40ms; }
-  .notifications-section { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 80ms; }
-
-  /* 列表项错峰 */
-  .notification-items .notification-item { will-change: opacity, transform; animation: rowFadeIn var(--anim-duration-fast) var(--anim-ease-decelerate) both; }
-  .notification-items .notification-item:nth-child(1) { animation-delay: 0ms; }
-  .notification-items .notification-item:nth-child(2) { animation-delay: 20ms; }
-  .notification-items .notification-item:nth-child(3) { animation-delay: 40ms; }
-  .notification-items .notification-item:nth-child(4) { animation-delay: 60ms; }
-  .notification-items .notification-item:nth-child(5) { animation-delay: 80ms; }
-  .notification-items .notification-item:nth-child(6) { animation-delay: 100ms; }
-}
-
-@keyframes blockFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes rowFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-
-@media (prefers-reduced-motion: reduce) {
-  .notification-history-page :deep(*),
-  .notification-history-page * { animation: none !important; transition: none !important; }
 }
 
 .page-header {
@@ -2813,9 +2790,4 @@ onUnmounted(() => {
     }
   }
 }
-
-/* View Transitions（Notification items） */
-.notification-items .notification-item { view-transition-name: vt-noti-item; }
-:global(::view-transition-old(vt-noti-item)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-noti-item)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
 </style>

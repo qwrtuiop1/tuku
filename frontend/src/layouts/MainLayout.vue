@@ -1,5 +1,5 @@
 <template>
-  <div class="main-layout anim-root">
+  <div class="main-layout">
     <!-- 移动端遮罩层 -->
     <div 
       v-if="isMobile && !sidebarCollapsed" 
@@ -15,7 +15,7 @@
     }">
       <div class="sidebar-header">
         <div class="logo" @click="expandSidebar">
-          <img src="/logo.png" alt="图库系统" class="logo-image" loading="lazy" decoding="async" />
+          <img src="/logo.png" alt="图库系统" class="logo-image" />
           <span v-if="!sidebarCollapsed" class="logo-text">图库系统</span>
         </div>
         <el-button
@@ -24,17 +24,7 @@
           class="collapse-btn"
           @click="toggleSidebar"
         >
-          <el-icon v-if="isMobile" class="tri-icon">
-            <svg viewBox="0 0 1024 1024" aria-hidden="true">
-              <!-- 三条菜单横线：黑色 -->
-              <rect x="128" y="192" width="768" height="80" rx="16" ry="16" fill="#111827" />
-              <rect x="128" y="472" width="512" height="80" rx="16" ry="16" fill="#111827" />
-              <rect x="128" y="752" width="768" height="80" rx="16" ry="16" fill="#111827" />
-              <!-- 左侧折叠箭头：灰色，白描边 -->
-              <polygon points="320,384 128,512 320,640" fill="#6B7280" stroke="#FFFFFF" stroke-width="24" stroke-linejoin="round" />
-            </svg>
-          </el-icon>
-          <el-icon v-else>
+          <el-icon>
             <Fold />
           </el-icon>
         </el-button>
@@ -59,23 +49,13 @@
             <span>仪表盘</span>
           </el-menu-item>
           
-          <!-- 管理员也显示个人设置（在管理中心之上） -->
-          <el-menu-item v-if="authStore.isAdmin" index="/user-center">
-            <el-icon><User /></el-icon>
-            <span>个人设置</span>
-          </el-menu-item>
-          
           <!-- 管理员专用菜单 -->
           <el-menu-item v-if="authStore.isAdmin" index="/admin">
             <el-icon><Setting /></el-icon>
             <span>管理中心</span>
           </el-menu-item>
           
-          <!-- 普通用户菜单 -->
-          <el-menu-item v-if="!authStore.isAdmin" index="/user-center">
-            <el-icon><User /></el-icon>
-            <span>个人设置</span>
-          </el-menu-item>
+          
         </el-menu>
       </nav>
       
@@ -90,20 +70,16 @@
           </div>
         </div>
         
-        <el-dropdown @command="handleUserCommand" placement="top-end" popper-class="user-menu-popper">
+        <el-dropdown @command="handleUserCommand" placement="top-end">
           <el-button type="text" class="user-menu-btn" :class="{ collapsed: sidebarCollapsed }">
-            <el-icon v-if="isMobile" class="tri-icon">
-              <svg viewBox="0 0 1024 1024" aria-hidden="true">
-                <!-- 三个圆点：黑、深灰、白(灰描边) -->
-                <circle cx="352" cy="512" r="64" fill="#111827" />
-                <circle cx="512" cy="512" r="64" fill="#6B7280" />
-                <circle cx="672" cy="512" r="64" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="20" />
-              </svg>
-            </el-icon>
-            <el-icon v-else><MoreFilled /></el-icon>
+            <el-icon><MoreFilled /></el-icon>
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
+              <el-dropdown-item command="profile">
+                <el-icon><User /></el-icon>
+                个人资料
+              </el-dropdown-item>
               <el-dropdown-item v-if="authStore.isAdmin" command="settings">
                 <el-icon><Setting /></el-icon>
                 设置
@@ -130,14 +106,7 @@
             class="mobile-menu-btn"
             @click="toggleSidebar"
           >
-            <el-icon class="tri-grid-icon">
-              <svg viewBox="0 0 1024 1024" aria-hidden="true">
-                <rect x="160" y="160" width="320" height="320" fill="#111827" rx="24" ry="24" />
-                <rect x="544" y="160" width="320" height="320" fill="#6B7280" rx="24" ry="24" />
-                <rect x="160" y="544" width="320" height="320" fill="#9CA3AF" rx="24" ry="24" />
-                <rect x="544" y="544" width="320" height="320" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="24" rx="24" ry="24" />
-              </svg>
-            </el-icon>
+            <el-icon><Menu /></el-icon>
           </el-button>
           
           <el-breadcrumb separator="/" class="breadcrumb-nav">
@@ -181,7 +150,7 @@
           </div>
           
           <!-- 桌面端用户头像和菜单 -->
-          <el-dropdown v-if="!isMobile" @command="handleUserCommand" placement="bottom-end" popper-class="user-menu-popper">
+          <el-dropdown v-if="!isMobile" @command="handleUserCommand" placement="bottom-end">
             <div class="desktop-user-info">
               <el-avatar :size="32" :src="authStore.user?.avatar_url">
                 {{ authStore.user?.username?.charAt(0).toUpperCase() }}
@@ -190,24 +159,14 @@
                 <div class="username">{{ authStore.user?.username }}</div>
                 <div class="user-role">{{ authStore.user?.role === 'admin' ? '管理员' : '用户' }}</div>
               </div>
-              <el-icon class="dropdown-arrow" v-if="!isMobile"><ArrowDown /></el-icon>
-              <el-icon class="dropdown-arrow tri-icon" v-else>
-                <svg viewBox="0 0 1024 1024" aria-hidden="true">
-                  <!-- 四格：黑/深灰/中灰/白描边 -->
-                  <rect x="160" y="160" width="320" height="320" fill="#111827" rx="24" ry="24" />
-                  <rect x="544" y="160" width="320" height="320" fill="#6B7280" rx="24" ry="24" />
-                  <rect x="160" y="544" width="320" height="320" fill="#9CA3AF" rx="24" ry="24" />
-                  <rect x="544" y="544" width="320" height="320" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="24" rx="24" ry="24" />
-                </svg>
-              </el-icon>
+              <el-icon class="dropdown-arrow"><ArrowDown /></el-icon>
             </div>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item v-if="authStore.isAdmin" command="settings">
-                  <el-icon><Setting /></el-icon>
-                  设置
+                <el-dropdown-item v-if="authStore.isAdmin" command="notifications">
+                  <el-icon><Bell /></el-icon>
+                  通知
                 </el-dropdown-item>
-                
                 <el-dropdown-item divided command="logout">
                   <el-icon><SwitchButton /></el-icon>
                   退出登录
@@ -221,7 +180,6 @@
             v-if="isMobile" 
             @command="handleUserCommand" 
             placement="bottom-end"
-            popper-class="user-menu-popper"
             :visible="mobileUserMenuVisible"
             @visible-change="handleMobileUserMenuVisibleChange"
           >
@@ -232,11 +190,10 @@
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item v-if="authStore.isAdmin" command="settings">
-                  <el-icon><Setting /></el-icon>
-                  设置
+                <el-dropdown-item v-if="authStore.isAdmin" command="notifications">
+                  <el-icon><Bell /></el-icon>
+                  通知
                 </el-dropdown-item>
-                
                 <el-dropdown-item divided command="logout">
                   <el-icon><SwitchButton /></el-icon>
                   退出登录
@@ -258,13 +215,11 @@
       <!-- 页面内容 -->
       <main class="page-content">
         <router-view v-slot="{ Component }">
-          <KeepAlive>
           <transition name="page-slide" mode="out-in" :duration="animationEnabled ? 300 : 0">
             <div v-if="Component" class="page-wrapper">
               <component :is="Component" />
             </div>
           </transition>
-          </KeepAlive>
         </router-view>
       </main>
     </div>
@@ -402,26 +357,41 @@
           <span class="nav-text">管理</span>
         </div>
         
-        
+        <div 
+          class="nav-item" 
+          :class="{ active: $route.path === '/profile' }"
+          @click="$router.push('/profile')"
+        >
+          <el-icon class="nav-icon"><User /></el-icon>
+          <span class="nav-text">我的</span>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/utils/api'
 import {
+  Picture,
   Fold,
+  Expand,
   House,
   Folder,
   Setting,
   MoreFilled,
+  Menu,
   User,
   SwitchButton,
   ArrowDown,
+  UserFilled,
+  Monitor,
+  Document,
+  Tools,
+  Close,
   Bell
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
@@ -437,31 +407,16 @@ const touchStartX = ref(0)
 const touchStartY = ref(0)
 const isDragging = ref(false)
 const isDevelopment = ref(process.env.NODE_ENV === 'development')
-const devLog = (...args: any[]) => { if (isDevelopment.value) { console.log(...args) } }
 const animationEnabled = ref(true) // 页面动画控制
 const mobileUserMenuVisible = ref(false) // 移动端用户菜单显示状态
 
-// 通知类型定义
-interface NotificationItem {
-  id: number
-  title?: string
-  content?: string
-  priority: 'low' | 'normal' | 'high' | 'urgent' | string
-  notification_type: string
-  is_read: boolean | number
-  created_at: string
-  read_at?: string | null
-}
-
 // 全局通知相关
-const globalNotifications = ref<NotificationItem[]>([])
-const allNotifications = ref<NotificationItem[]>([])
-const notificationCheckInterval = ref<ReturnType<typeof setInterval> | null>(null)
+const globalNotifications = ref([])
+const allNotifications = ref([])
+const notificationCheckInterval = ref(null)
 const notificationsDialogVisible = ref(false)
-const detailNotification = ref<NotificationItem | null>(null)
+const detailNotification = ref<any>(null)
 const eventSource = ref<EventSource | null>(null)
-const sseConnected = ref(false)
-let notificationsAbortController: AbortController | null = null
 
 // 检测屏幕尺寸
 const checkScreenSize = () => {
@@ -490,8 +445,8 @@ const breadcrumbs = computed(() => {
     '/': { name: '文件管理', path: '/' },
     '/dashboard': { name: '仪表盘', path: '/dashboard' },
     '/admin': { name: '管理控制台', path: '/admin' },
-    '/settings': { name: '系统设置', path: '/settings' },
-    '/user-center': { name: '个人设置', path: '/user-center' }
+    '/profile': { name: '个人资料', path: '/profile' },
+    '/settings': { name: '系统设置', path: '/settings' }
   }
   
   return breadcrumbMap[route.path] ? [breadcrumbMap[route.path]] : []
@@ -536,6 +491,9 @@ const handleUserCommand = async (command: string) => {
   mobileUserMenuVisible.value = false
   
   switch (command) {
+    case 'profile':
+      router.push('/profile')
+      break
     case 'settings':
       if (authStore.isAdmin) {
         router.push('/settings')
@@ -580,7 +538,6 @@ const handleMobileUserMenuVisibleChange = (visible: boolean) => {
 const handleTouchStart = (e: TouchEvent) => {
   if (!isMobile.value) return
   
-  if (!e.touches || e.touches.length === 0) return
   touchStartX.value = e.touches[0].clientX
   touchStartY.value = e.touches[0].clientY
   isDragging.value = false
@@ -589,7 +546,6 @@ const handleTouchStart = (e: TouchEvent) => {
 const handleTouchMove = (e: TouchEvent) => {
   if (!isMobile.value) return
   
-  if (!e.touches || e.touches.length === 0) return
   const touchX = e.touches[0].clientX
   const touchY = e.touches[0].clientY
   const deltaX = touchX - touchStartX.value
@@ -605,7 +561,6 @@ const handleTouchMove = (e: TouchEvent) => {
 const handleTouchEnd = (e: TouchEvent) => {
   if (!isMobile.value || !isDragging.value) return
   
-  if (!e.changedTouches || e.changedTouches.length === 0) return
   const touchX = e.changedTouches[0].clientX
   const deltaX = touchX - touchStartX.value
   
@@ -621,35 +576,22 @@ const handleTouchEnd = (e: TouchEvent) => {
   isDragging.value = false
 }
 
-// 已移除无效的路由 watcher，避免不必要的回调
+// 监听路由变化，更新面包屑
+watch(route, () => {
+  // 路由变化时的处理逻辑
+}, { immediate: true })
 
-// 监听窗口大小变化（防抖）
-let resizeTimeout: number | null = null
+// 监听窗口大小变化
 const handleResize = () => {
-  if (resizeTimeout) {
-    window.clearTimeout(resizeTimeout)
-  }
-  resizeTimeout = window.setTimeout(() => {
   checkScreenSize()
-    // 根据 isMobile 动态挂载/卸载触摸事件
-    if (isMobile.value) {
-      document.addEventListener('touchstart', handleTouchStart, { passive: true })
-      document.addEventListener('touchmove', handleTouchMove, { passive: true })
-      document.addEventListener('touchend', handleTouchEnd, { passive: true })
-    } else {
-      document.removeEventListener('touchstart', handleTouchStart as EventListener)
-      document.removeEventListener('touchmove', handleTouchMove as EventListener)
-      document.removeEventListener('touchend', handleTouchEnd as EventListener)
-    }
-    resizeTimeout = null
-  }, 150)
 }
 
 // 获取系统设置
 const fetchSystemSettings = async () => {
   try {
     // 使用公共接口获取系统信息，而不是管理员接口
-    await api.get('/system/info')
+    const response = await api.get('/system/info')
+    const systemInfo = response.data
     
     // 使用默认动画设置，因为公共接口不包含动画设置
     animationEnabled.value = true
@@ -741,19 +683,17 @@ const fetchAllNotifications = async () => {
   }
   
   try {
-    notificationsAbortController?.abort()
-    notificationsAbortController = new AbortController()
-    devLog('开始获取所有通知...')
-    devLog('API基础URL:', api.defaults.baseURL)
-    devLog('用户信息:', authStore.user)
+    console.log('开始获取所有通知...')
+    console.log('API基础URL:', api.defaults.baseURL)
+    console.log('用户信息:', authStore.user)
     
-    const response = await api.get('/auth/notifications/all', { signal: notificationsAbortController.signal as any })
-    devLog('获取所有通知响应:', response.data)
+    const response = await api.get('/auth/notifications/all')
+    console.log('获取所有通知响应:', response.data)
     
     if (response.data.success) {
       allNotifications.value = response.data.notifications || []
-      devLog('设置allNotifications:', allNotifications.value.length, '条通知')
-      devLog('通知详情:', allNotifications.value)
+      console.log('设置allNotifications:', allNotifications.value.length, '条通知')
+      console.log('通知详情:', allNotifications.value)
     } else {
       console.error('获取通知失败:', response.data.message)
       ElMessage.error('获取通知失败: ' + response.data.message)
@@ -786,11 +726,9 @@ const fetchGlobalNotifications = async () => {
   }
   
   try {
-    notificationsAbortController?.abort()
-    notificationsAbortController = new AbortController()
-    devLog('开始获取全局通知...')
-    const response = await api.get('/auth/notifications/unread', { signal: notificationsAbortController.signal as any })
-    devLog('获取全局通知响应:', response.data)
+    console.log('开始获取全局通知...')
+    const response = await api.get('/auth/notifications/unread')
+    console.log('获取全局通知响应:', response.data)
     
     if (response.data.success) {
       // 只显示未读通知
@@ -851,7 +789,7 @@ const hasUnreadNotifications = computed(() => {
 const highestPriorityClass = computed(() => {
   if (globalNotifications.value.length === 0) return ''
   
-  const p = globalNotifications.value.reduce((max, n: NotificationItem) => {
+  const p = globalNotifications.value.reduce((max, n:any) => {
     const rank = ({ low: 1, normal: 2, high: 3, urgent: 4 } as any)[n.priority] || 2
     return rank > max ? rank : max
   }, 0)
@@ -859,9 +797,14 @@ const highestPriorityClass = computed(() => {
 })
 
 // 对话框事件处理
-const onDialogOpened = () => { devLog('对话框已打开') }
+const onDialogOpened = () => {
+  console.log('对话框已打开')
+}
 
-const onDialogClosed = () => { devLog('对话框已关闭'); detailNotification.value = null }
+const onDialogClosed = () => {
+  console.log('对话框已关闭')
+  detailNotification.value = null
+}
 
 // 关闭通知对话框
 const closeNotificationsDialog = () => {
@@ -870,17 +813,17 @@ const closeNotificationsDialog = () => {
 }
 
 // 打开通知详情悬浮窗
-const openNotificationDetail = async (n: NotificationItem) => {
-  devLog('打开通知详情:', n)
-  devLog('当前allNotifications数量:', allNotifications.value.length)
-  devLog('当前notificationsDialogVisible:', notificationsDialogVisible.value)
+const openNotificationDetail = async (n: any) => {
+  console.log('打开通知详情:', n)
+  console.log('当前allNotifications数量:', allNotifications.value.length)
+  console.log('当前notificationsDialogVisible:', notificationsDialogVisible.value)
   
   detailNotification.value = n
   
   // 如果通知未读，自动标记为已读
   if (!n.is_read) {
     try {
-      devLog('自动标记通知为已读:', n.id)
+      console.log('自动标记通知为已读:', n.id)
       await api.put(`/auth/notifications/${n.id}/read`)
       
       // 更新本地状态
@@ -897,7 +840,7 @@ const openNotificationDetail = async (n: NotificationItem) => {
       // 从全局未读通知列表中移除
       globalNotifications.value = globalNotifications.value.filter(notif => notif.id !== n.id)
       
-      devLog('通知已自动标记为已读')
+      console.log('通知已自动标记为已读')
       
       // 触发响应式更新
       allNotifications.value = [...allNotifications.value]
@@ -914,8 +857,8 @@ const openNotificationDetail = async (n: NotificationItem) => {
     notificationsDialogVisible.value = true
   }
   
-  devLog('设置后detailNotification:', detailNotification.value)
-  devLog('设置后notificationsDialogVisible:', notificationsDialogVisible.value)
+  console.log('设置后detailNotification:', detailNotification.value)
+  console.log('设置后notificationsDialogVisible:', notificationsDialogVisible.value)
 }
 
 // 打开通知对话框
@@ -925,8 +868,7 @@ const openNotificationsDialog = async () => {
 }
 
 const startNotificationPolling = () => {
-  if (notificationCheckInterval.value || sseConnected.value) return
-  // 每10秒检查一次新通知（SSE 断开时后备）
+  // 每10秒检查一次新通知
   notificationCheckInterval.value = setInterval(() => {
     fetchGlobalNotifications()
   }, 10000)
@@ -948,34 +890,25 @@ const setupSSE = () => {
   const token = localStorage.getItem('token')
   if (!token) return
   
-  // 使用查询参数传递令牌，避免在浏览器 EventSource 中使用不受支持的 headers 选项
-  const streamUrl = new URL(`${api.defaults.baseURL}/auth/notifications/stream`)
-  streamUrl.searchParams.set('token', token)
-  eventSource.value = new EventSource(streamUrl.toString())
-
-  eventSource.value.addEventListener('open', () => {
-    sseConnected.value = true
-    devLog('SSE 连接已建立')
-    // SSE 在线时停止轮询
-    stopNotificationPolling()
+  eventSource.value = new EventSource(`${api.defaults.baseURL}/auth/notifications/stream`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
   })
 
   eventSource.value.onmessage = (event) => {
-    devLog('SSE message:', event.data)
+    console.log('SSE message:', event.data)
   }
 
   eventSource.value.addEventListener('notification:new', (event) => {
-    devLog('New notification via SSE:', event.data)
+    console.log('New notification received via SSE:', event.data)
     fetchGlobalNotifications() // 收到新通知事件后立即刷新
   })
 
   eventSource.value.onerror = (error) => {
     console.error('SSE Error:', error)
-    sseConnected.value = false
     eventSource.value?.close()
-    // SSE 异常时启动轮询作为后备
-    startNotificationPolling()
-    // 尝试延时重连
+    // 尝试重新连接
     setTimeout(setupSSE, 5000)
   }
 }
@@ -985,27 +918,12 @@ const closeSSE = () => {
     eventSource.value.close()
     eventSource.value = null
   }
-  sseConnected.value = false
-}
-
-// 页面可见性变化：隐藏时暂停、显示时恢复
-const handleVisibilityChange = () => {
-  if (document.hidden) {
-    stopNotificationPolling()
-    notificationsAbortController?.abort()
-    closeSSE()
-  } else {
-    fetchGlobalNotifications()
-    setupSSE()
-    if (!sseConnected.value) startNotificationPolling()
-  }
 }
 
 // 生命周期
 onMounted(() => {
   checkScreenSize()
   window.addEventListener('resize', handleResize)
-  document.addEventListener('visibilitychange', handleVisibilityChange)
   
   // 添加触摸事件监听
   if (isMobile.value) {
@@ -1019,8 +937,8 @@ onMounted(() => {
   
   // 初始化全局通知
   fetchGlobalNotifications()
+  startNotificationPolling()
   setupSSE() // 建立 SSE 连接
-  if (!sseConnected.value) startNotificationPolling()
   
   // 添加全局事件监听
   window.addEventListener('system-settings-changed', handleSystemSettingsChange as EventListener)
@@ -1028,7 +946,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
-  document.removeEventListener('visibilitychange', handleVisibilityChange)
   window.removeEventListener('system-settings-changed', handleSystemSettingsChange as EventListener)
   
   // 停止通知轮询
@@ -1036,9 +953,6 @@ onUnmounted(() => {
   
   // 关闭 SSE 连接
   closeSSE()
-  
-  // 中止未完成的通知请求
-  notificationsAbortController?.abort()
   
   // 移除触摸事件监听
   if (isMobile.value) {
@@ -1050,48 +964,12 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
-.anim-root {
-  --anim-duration-fast: 120ms;
-  --anim-duration-base: 200ms;
-  --anim-duration-slow: 280ms;
-  --anim-ease-standard: cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  --anim-ease-entrance: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --anim-ease-exit: cubic-bezier(0.4, 0, 0.2, 1);
-  --elevation-1: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --elevation-2: 0 2px 8px rgba(0, 0, 0, 0.10);
-  --hover-bg: rgba(17, 24, 39, 0.06);
-  --press-scale: 0.98;
-}
 .main-layout {
   display: flex;
   height: 100vh;
   background: #f5f7fa;
   position: relative;
   touch-action: pan-y pinch-zoom; // 允许垂直滚动和缩放，限制水平滚动
-  view-transition-name: page;
-  :deep(.top-header) { view-transition-name: vt-header; }
-  :deep(.sidebar) { view-transition-name: vt-sidebar; }
-  :deep(.page-content) { view-transition-name: vt-content; }
-}
-
-// 用户菜单黑白灰风格
-:deep(.user-menu-popper) {
-  .el-dropdown-menu {
-    padding: 6px;
-    border-radius: 10px;
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 12px 24px rgba(0,0,0,0.08);
-  }
-  .el-dropdown-menu__item {
-    color: #111827;
-    border-radius: 8px;
-    transition: background 0.2s ease;
-    &:hover { background: #f5f5f5; color: #111827; }
-    &.is-disabled { color: #9ca3af; }
-  }
-  .el-dropdown-menu__item--divided { margin-top: 6px; border-top: 1px solid #eee; }
-  .el-icon { color: #6b7280; }
 }
 
 // 移动端遮罩层
@@ -1109,11 +987,11 @@ onUnmounted(() => {
 .sidebar {
   width: 200px; // 增加侧边栏宽度
   background: #ffffff;
-  border-right: 1px solid #e5e7eb; // 更中性灰
+  border-right: 1px solid #e4e7ed;
   display: flex;
   flex-direction: column;
   transition: all 0.3s ease;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
   
   &.collapsed {
     width: 64px;
@@ -1182,8 +1060,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e5e7eb;
-  background: #ffffff;
+  border-bottom: 1px solid #e4e7ed;
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
 }
 
 .logo {
@@ -1193,46 +1071,41 @@ onUnmounted(() => {
   cursor: pointer;
   padding: 8px;
   border-radius: 8px;
-  transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-              transform var(--anim-duration-fast) var(--anim-ease-standard);
+  transition: all 0.3s ease;
   
   &:hover {
-    background: var(--hover-bg);
+    background: rgba(102, 126, 234, 0.1);
   }
-  &:active { transform: scale(var(--press-scale)); }
   
   .logo-image {
     width: 32px;
     height: 32px;
     object-fit: contain;
-    transition: transform var(--anim-duration-fast) var(--anim-ease-standard);
+    transition: all 0.3s ease;
   }
   
   .logo-text {
     font-size: 18px;
     font-weight: 700;
-    color: #111827;
-    transition: color var(--anim-duration-fast) var(--anim-ease-standard);
+    color: #2c3e50;
+    transition: all 0.3s ease;
   }
 }
 
 .collapse-btn {
   padding: 8px;
   border-radius: 8px;
-  transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-              color var(--anim-duration-fast) var(--anim-ease-standard),
-              transform var(--anim-duration-fast) var(--anim-ease-standard);
-  color: #374151;
-  
-  &:hover {
-    background: var(--hover-bg);
-    color: #111827;
-  }
-  &:active { transform: scale(var(--press-scale)); }
+  transition: all 0.3s ease;
+  color: #6f6f6f; /* 基础灰色 */
   
   :deep(.el-icon) {
+    color: currentColor; /* 图标随文字颜色 */
     font-size: 16px;
-    color: inherit;
+  }
+  
+  &:hover {
+    background: #f5f5f5;
+    color: #1f1f1f;
   }
 }
 
@@ -1243,41 +1116,49 @@ onUnmounted(() => {
   
   :deep(.el-menu) {
     border-right: none;
+    /* 灰阶主题 - 侧边栏菜单 */
+    --sb-bg: #ffffff;
+    --sb-text: #1f1f1f;
+    --sb-muted: #6f6f6f;
+    --sb-border: #e5e5e5;
+    --sb-hover-bg: #f5f5f5;
+    --sb-active-bg: #ededed;
+    --sb-active-text: #000000;
+    background-color: var(--sb-bg) !important;
+    color: var(--sb-text) !important;
     
     .el-menu-item {
       height: 48px;
       line-height: 48px;
       margin: 4px 8px;
       border-radius: 8px;
-      transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-                  color var(--anim-duration-fast) var(--anim-ease-standard),
-                  transform var(--anim-duration-fast) var(--anim-ease-standard);
-      color: #374151;
+      transition: all 0.3s ease;
+      color: var(--sb-text) !important;
+      
+      .el-icon { color: var(--sb-muted) !important; }
       
       &:hover {
-        background: #f3f4f6;
-        color: #111827;
+        background: var(--sb-hover-bg) !important;
+        color: var(--sb-text) !important;
+        transform: translateX(4px);
       }
       
       &.is-active {
-        background: #111827;
-        color: white;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        background: var(--sb-active-bg) !important;
+        color: var(--sb-active-text) !important;
+        box-shadow: none !important;
         
         .el-icon {
-          color: white;
+          color: var(--sb-active-text) !important;
         }
       }
     }
-
-    // 菜单项内图标继承文字颜色
-    .el-menu-item .el-icon { color: inherit; }
   }
 }
 
 .sidebar-footer {
   padding: 16px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid #e5e5e5;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1328,20 +1209,20 @@ onUnmounted(() => {
 .user-menu-btn {
   padding: 8px;
   border-radius: 8px;
-  transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-              color var(--anim-duration-fast) var(--anim-ease-standard),
-              transform var(--anim-duration-fast) var(--anim-ease-standard);
-  color: #374151;
+  transition: all 0.3s ease;
+  color: #6f6f6f; /* 基础灰色 */
+  
+  :deep(.el-icon) {
+    color: currentColor; /* 图标随文字颜色 */
+  }
   
   &:hover {
-    background: var(--hover-bg);
-    color: #111827;
+    background: #f5f5f5;
+    color: #1f1f1f;
   }
-  &:active { transform: scale(var(--press-scale)); }
   
   :deep(.el-icon) {
     font-size: 16px;
-    color: inherit;
   }
   
   &.collapsed {
@@ -1364,7 +1245,7 @@ onUnmounted(() => {
   flex-direction: column;
   overflow: hidden;
   transition: margin-left 0.3s ease;
-  background: #f5f7fa; // 添加背景色
+  background: #f7f7f7; // 灰阶背景
   
   // 当侧边栏折叠时调整margin
   &.sidebar-collapsed {
@@ -1395,23 +1276,16 @@ onUnmounted(() => {
   .mobile-menu-btn {
     padding: 12px; // 增加内边距
     border-radius: 12px; // 增加圆角
-    transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-                color var(--anim-duration-fast) var(--anim-ease-standard),
-                transform var(--anim-duration-fast) var(--anim-ease-standard);
-    color: #374151;
+    transition: all 0.3s ease;
     
     &:hover {
-      background: var(--hover-bg);
-      color: #111827;
+      background: #f2f2f2;
+      color: #1f1f1f;
     }
-    &:active { transform: scale(var(--press-scale)); }
     
     :deep(.el-icon) {
       font-size: 24px; // 增大图标
-      color: inherit;
     }
-
-    .tri-grid-icon svg { width: 20px; height: 20px; display: block; }
   }
 
 .breadcrumb-nav {
@@ -1419,8 +1293,10 @@ onUnmounted(() => {
     .el-breadcrumb__inner {
       color: #7f8c8d;
       font-weight: 500;
-      transition: color var(--anim-duration-fast) var(--anim-ease-standard);
-      &:hover { color: #111827; }
+      
+      &:hover {
+        color: #667eea;
+      }
     }
     
     &:last-child .el-breadcrumb__inner {
@@ -1562,13 +1438,11 @@ onUnmounted(() => {
   gap: 8px;
   padding: 8px 12px;
   border-radius: 8px;
-  transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-              color var(--anim-duration-fast) var(--anim-ease-standard),
-              transform var(--anim-duration-fast) var(--anim-ease-standard);
+  transition: all 0.3s ease;
   cursor: pointer;
   
   &:hover {
-    background: var(--hover-bg);
+    background: rgba(102, 126, 234, 0.1);
   }
   
   .user-details {
@@ -1602,10 +1476,11 @@ onUnmounted(() => {
   padding: 12px; // 增加内边距
   border-radius: 12px; // 增加圆角
   transition: all 0.3s ease;
-  color: #374151;
+  color: #6f6f6f;
   
   &:hover {
-    background: rgba(17, 24, 39, 0.06);
+    background: #f5f5f5;
+    color: #1f1f1f;
   }
   
   :deep(.el-avatar) {
@@ -1617,19 +1492,12 @@ onUnmounted(() => {
   flex: 1;
   padding: 16px 0; // 只保留上下内边距，移除左右内边距，让页面组件自己控制
   overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
   background: transparent; // 移除背景色，由main-content提供
-  // 优化渲染：仅在需要时渲染可见内容
-  content-visibility: auto;
-  contain-intrinsic-size: 600px;
 }
 
 .page-wrapper {
   width: 100%;
   min-height: 100%;
-  // 避免深层次布局影响，提高复合层性能
-  contain: content;
 }
 
 // 移动端遮罩层
@@ -1670,19 +1538,19 @@ onUnmounted(() => {
       padding: 4px 8px;
       cursor: pointer;
       transition: all 0.3s ease;
-      color: #374151;
       
-      &:hover { background: var(--hover-bg); color: #111827; }
-      &:active { transform: scale(var(--press-scale)); }
+      &:hover {
+        background: rgba(102, 126, 234, 0.1);
+      }
+      
       &.active {
-        color: #111827;
-        background: #f3f4f6;
+        color: #667eea;
+        background: rgba(102, 126, 234, 0.1);
       }
       
       .nav-icon {
         font-size: 20px;
         margin-bottom: 2px;
-        color: inherit;
       }
       
       .nav-text {
@@ -1697,14 +1565,14 @@ onUnmounted(() => {
 // 桌面端默认样式 (1200px+)
 @media (min-width: 1200px) {
   .main-content {
-    margin-left: 0;
-    margin-right: 0; // 让滚动条贴右侧
+    margin-left: 220px;
+    margin-right: 220px; // 右边距与左边距完全相同
     padding-left: 0px;
     padding-right: 0px; // 移除右边距，保持左右一致
     
     &.sidebar-collapsed {
-      margin-left: 0;
-      margin-right: 0; // 让滚动条贴右侧
+      margin-left: 84px;
+      margin-right: 84px; // 右边距与左边距完全相同
       padding-left: 0px;
       padding-right: 0px; // 移除右边距，保持左右一致
     }
@@ -1721,7 +1589,8 @@ onUnmounted(() => {
   }
   
   .top-header {
-    // 取消限宽与居中，使用父级左右 margin 实现等距
+    max-width: calc(100vw - 400px); // 限制宽度与内容区域一致
+    margin: 0 auto; // 居中显示
     border-radius: 0 0 16px 16px; // 添加圆角
   }
 }
@@ -1730,14 +1599,14 @@ onUnmounted(() => {
 // 超大屏 (1920px+)
 @media (min-width: 1920px) {
   .main-content {
-    margin-left: 0;
-    margin-right: 0; // 让滚动条贴右侧
+    margin-left: 250px;
+    margin-right: 250px; // 右边距与左边距完全相同
     padding-left: 0px;
     padding-right: 0px; // 移除右边距，保持左右一致
     
     &.sidebar-collapsed {
-      margin-left: 0;
-      margin-right: 0; // 让滚动条贴右侧
+      margin-left: 110px;
+      margin-right: 110px; // 右边距与左边距完全相同
       padding-left: 0px;
       padding-right: 0px; // 移除右边距，保持左右一致
     }
@@ -1758,27 +1627,22 @@ onUnmounted(() => {
   .top-header {
     height: 70px;
     padding: 0 32px;
+    max-width: calc(100vw - 440px); // 与内容区域宽度一致
     border-radius: 0 0 20px 20px; // 更大的圆角
   }
-  
-  // 使用内部 padding 形成左右空白，同时保持滚动条在最右侧
-  .page-content { padding-left: 250px; padding-right: 250px; }
-  .main-content.sidebar-collapsed .page-content { padding-left: 110px; padding-right: 110px; }
-  .top-header { padding-left: calc(250px + 32px); padding-right: calc(250px + 32px); }
-  .main-content.sidebar-collapsed .top-header { padding-left: calc(110px + 32px); padding-right: calc(110px + 32px); }
 }
 
 // 大屏桌面 (1440px - 1919px)
 @media (min-width: 1440px) and (max-width: 1919px) {
   .main-content {
-    margin-left: 0;
-    margin-right: 0; // 让滚动条贴右侧
+    margin-left: 235px;
+    margin-right: 235px; // 右边距与左边距完全相同
     padding-left: 0px;
     padding-right: 0px; // 移除右边距，保持左右一致
     
     &.sidebar-collapsed {
-      margin-left: 0;
-      margin-right: 0; // 让滚动条贴右侧
+      margin-left: 95px;
+      margin-right: 95px; // 右边距与左边距完全相同
       padding-left: 0px;
       padding-right: 0px; // 移除右边距，保持左右一致
     }
@@ -1799,27 +1663,22 @@ onUnmounted(() => {
   .top-header {
     height: 65px;
     padding: 0 28px;
+    max-width: calc(100vw - 420px); // 与内容区域宽度一致
     border-radius: 0 0 18px 18px; // 适中的圆角
   }
-  
-  // 使用内部 padding 形成左右空白，同时保持滚动条在最右侧
-  .page-content { padding-left: 235px; padding-right: 235px; }
-  .main-content.sidebar-collapsed .page-content { padding-left: 95px; padding-right: 95px; }
-  .top-header { padding-left: calc(235px + 28px); padding-right: calc(235px + 28px); }
-  .main-content.sidebar-collapsed .top-header { padding-left: calc(95px + 28px); padding-right: calc(95px + 28px); }
 }
 
 // 桌面端 (1200px - 1439px)
 @media (min-width: 1200px) and (max-width: 1439px) {
   .main-content {
-    margin-left: 0;
-    margin-right: 0; // 让滚动条贴右侧
+    margin-left: 220px;
+    margin-right: 220px; // 右边距与左边距完全相同
     padding-left: 0px;
     padding-right: 0px; // 移除右边距，保持左右一致
     
     &.sidebar-collapsed {
-      margin-left: 0;
-      margin-right: 0; // 让滚动条贴右侧
+      margin-left: 84px;
+      margin-right: 84px; // 右边距与左边距完全相同
       padding-left: 0px;
       padding-right: 0px; // 移除右边距，保持左右一致
     }
@@ -1840,14 +1699,9 @@ onUnmounted(() => {
   .top-header {
     height: 60px;
     padding: 0 24px;
+    max-width: calc(100vw - 400px); // 与内容区域宽度一致
     border-radius: 0 0 16px 16px; // 标准圆角
   }
-  
-  // 使用内部 padding 形成左右空白，同时保持滚动条在最右侧
-  .page-content { padding-left: 220px; padding-right: 220px; }
-  .main-content.sidebar-collapsed .page-content { padding-left: 84px; padding-right: 84px; }
-  .top-header { padding-left: calc(220px + 24px); padding-right: calc(220px + 24px); }
-  .main-content.sidebar-collapsed .top-header { padding-left: calc(84px + 24px); padding-right: calc(84px + 24px); }
 }
 
 // 平板横屏/小屏笔记本 (1024px - 1199px)
@@ -2384,42 +2238,27 @@ onUnmounted(() => {
 
 // 页面切换动画 - 优化性能
 .page-slide-enter-active {
-  transition: transform var(--anim-duration-base) var(--anim-ease-standard),
-              opacity var(--anim-duration-base) var(--anim-ease-standard);
+  transition: all 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   will-change: transform, opacity;
 }
 
 .page-slide-leave-active {
-  transition: transform var(--anim-duration-fast) var(--anim-ease-exit),
-              opacity var(--anim-duration-fast) var(--anim-ease-exit);
+  transition: all 0.2s cubic-bezier(0.55, 0.06, 0.68, 0.19);
   will-change: transform, opacity;
 }
 
 .page-slide-enter-from {
   opacity: 0;
-  transform: translateY(8px);
+  transform: translateX(20px);
 }
 
 .page-slide-leave-to {
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateX(-20px);
 }
 
 .page-wrapper {
   will-change: auto;
-}
-
-// 系统减少动态偏好支持
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation: none !important;
-    transition: none !important;
-    scroll-behavior: auto !important;
-  }
-  .page-slide-enter-from, .page-slide-leave-to {
-    transform: none !important;
-    opacity: 1 !important;
-  }
 }
 
 // 滚动条样式
@@ -3196,8 +3035,6 @@ onUnmounted(() => {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
-    display: box;
-    line-clamp: 2;
     overflow: hidden;
   }
   
@@ -3488,412 +3325,4 @@ onUnmounted(() => {
     }
   }
 }
-
-/* 全局交互动效覆盖（布局内生效） */
-.main-layout.anim-root :deep(.el-button),
-.main-layout.anim-root :deep(.el-link),
-.main-layout.anim-root :deep(.el-menu-item),
-.main-layout.anim-root :deep(.el-breadcrumb__inner),
-.main-layout.anim-root :deep(.el-dropdown-menu__item),
-.main-layout.anim-root :deep(.el-tabs__item) {
-  transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-              color var(--anim-duration-fast) var(--anim-ease-standard),
-              transform var(--anim-duration-fast) var(--anim-ease-standard),
-              box-shadow var(--anim-duration-fast) var(--anim-ease-standard);
-}
-
-.main-layout.anim-root :deep(.el-button:active),
-.main-layout.anim-root :deep(.el-link:active),
-.main-layout.anim-root :deep(.el-menu-item:active),
-.main-layout.anim-root :deep(.el-breadcrumb__inner:active),
-.main-layout.anim-root :deep(.el-dropdown-menu__item:active),
-.main-layout.anim-root :deep(.el-tabs__item:active) {
-  transform: scale(var(--press-scale));
-}
-
-/* 轻量 Hover 背景（黑白灰） */
-.main-layout.anim-root :deep(.el-menu-item:hover),
-.main-layout.anim-root :deep(.el-dropdown-menu__item:hover),
-.main-layout.anim-root :deep(.el-tabs__item:hover),
-.main-layout.anim-root :deep(.el-breadcrumb__inner:hover) {
-  background: var(--hover-bg);
-  color: #111827;
-}
-
-/* 页面容器可见性优化 */
-.main-layout .page-content { content-visibility: auto; contain-intrinsic-size: 1200px; }
-
-/* 无障碍：减少动效偏好 */
-@media (prefers-reduced-motion: reduce) {
-  .main-layout.anim-root { scroll-behavior: auto !important; }
-  .main-layout.anim-root :deep(*) { animation: none !important; transition: none !important; }
-}
-
-/* reduced-motion 变量级降级：将动效时长/阴影归零，禁用平滑滚动 */
-@media (prefers-reduced-motion: reduce) {
-  .main-layout.anim-root {
-    --anim-duration-fast: 0s;
-    --anim-duration-base: 0s;
-    --anim-duration-slow: 0s;
-    --hover-shadow: none;
-    --press-shadow: none;
-    scroll-behavior: auto;
-  }
-}
-
-/* 全局表格动效统一（头/行/分页） */
-.main-layout.anim-root {
-  :deep(.el-table__header th) {
-    transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-                color var(--anim-duration-fast) var(--anim-ease-standard);
-  }
-  :deep(.el-table__header th:hover) { background: var(--hover-bg); }
-
-  :deep(.el-table__row) {
-    transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-                transform var(--anim-duration-fast) var(--anim-ease-standard),
-                box-shadow var(--anim-duration-fast) var(--anim-ease-standard);
-  }
-  :deep(.el-table__row:hover) {
-    background: var(--hover-bg);
-    transform: translateY(-1px);
-    box-shadow: var(--hover-shadow);
-  }
-
-  :deep(.el-pagination .btn-prev),
-  :deep(.el-pagination .btn-next),
-  :deep(.el-pagination .el-pager li) {
-    transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-                color var(--anim-duration-fast) var(--anim-ease-standard),
-                transform var(--anim-duration-fast) var(--anim-ease-standard);
-  }
-  :deep(.el-pagination .el-pager li:hover),
-  :deep(.el-pagination .btn-prev:hover),
-  :deep(.el-pagination .btn-next:hover) { background: var(--hover-bg); }
-  :deep(.el-pagination .el-pager li:active),
-  :deep(.el-pagination .btn-prev:active),
-  :deep(.el-pagination .btn-next:active) { transform: scale(var(--press-scale)); }
-}
-
-/* 全局弹层/下拉/提示/通知/对话框 动效统一 */
-.main-layout.anim-root {
-  /* Overlay 轻淡入 */
-  :deep(.el-overlay) {
-    animation: overlayFade var(--anim-duration-base) var(--anim-ease-decelerate) both;
-    will-change: opacity;
-  }
-
-  /* Dialog 弹出缩放 */
-  :deep(.el-dialog) {
-    animation: popFadeScale var(--anim-duration-base) var(--anim-ease-decelerate) both;
-    transform-origin: center top;
-    will-change: opacity, transform;
-  }
-
-  /* Popper 系列（下拉/选择/菜单/提示） */
-  :deep(.el-popper) {
-    animation: popFadeScale var(--anim-duration-fast) var(--anim-ease-decelerate) both;
-    will-change: opacity, transform;
-  }
-
-  /* Message/Notification 轻入场 */
-  :deep(.el-message),
-  :deep(.el-notification) {
-    animation: overlayFade var(--anim-duration-base) var(--anim-ease-decelerate) both;
-    will-change: opacity;
-  }
-}
-
-@keyframes overlayFade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes popFadeScale { from { opacity: 0; transform: translateY(6px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-
-/* 全局表单/标签微动效、抽屉/折叠、通知列表项 */
-.main-layout.anim-root {
-  /* 表单控件 */
-  :deep(.el-input__wrapper),
-  :deep(.el-textarea__inner),
-  :deep(.el-select .el-input__wrapper),
-  :deep(.el-switch),
-  :deep(.el-checkbox),
-  :deep(.el-radio) {
-    transition: box-shadow var(--anim-duration-base) var(--anim-ease-standard),
-                border-color var(--anim-duration-base) var(--anim-ease-standard),
-                background var(--anim-duration-fast) var(--anim-ease-standard),
-                color var(--anim-duration-fast) var(--anim-ease-standard);
-  }
-
-  /* 标签/徽章 */
-  :deep(.el-tag),
-  :deep(.el-badge) {
-    transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-                color var(--anim-duration-fast) var(--anim-ease-standard),
-                transform var(--anim-duration-fast) var(--anim-ease-standard);
-  }
-  :deep(.el-tag:hover) { transform: translateY(-1px); }
-
-  /* 抽屉/折叠 */
-  :deep(.el-drawer) { 
-    animation: panelSlide var(--anim-duration-base) var(--anim-ease-decelerate) both; 
-    will-change: transform, opacity; 
-  }
-  :deep(.el-collapse-item__wrap) {
-    transition: height var(--anim-duration-base) var(--anim-ease-decelerate),
-                opacity var(--anim-duration-base) var(--anim-ease-decelerate);
-  }
-
-  /* 通知列表项（统一轻量入场） */
-  :deep(.notification-list .notification-item),
-  :deep(.noti-list .noti-item) {
-    animation: rowFadeIn var(--anim-duration-fast) var(--anim-ease-decelerate) both;
-    will-change: opacity, transform;
-  }
-}
-
-@keyframes panelSlide { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
-
-/* 全局 Tabs/Progress/Steps 动效统一 */
-.main-layout.anim-root {
-  /* Tabs */
-  :deep(.el-tabs__item) {
-    transition: color var(--anim-duration-fast) var(--anim-ease-standard),
-                background var(--anim-duration-fast) var(--anim-ease-standard),
-                transform var(--anim-duration-fast) var(--anim-ease-standard);
-  }
-  :deep(.el-tabs__item:hover) { background: var(--hover-bg); }
-  :deep(.el-tabs__item:active) { transform: scale(var(--press-scale)); }
-  :deep(.el-tabs__active-bar) {
-    transition: transform var(--anim-duration-base) var(--anim-ease-decelerate),
-                width var(--anim-duration-base) var(--anim-ease-decelerate);
-  }
-
-  /* Progress */
-  :deep(.el-progress-bar__inner) {
-    transition: width var(--anim-duration-slow) var(--anim-ease-decelerate),
-                background var(--anim-duration-fast) var(--anim-ease-standard);
-  }
-
-  /* Steps */
-  :deep(.el-steps),
-  :deep(.el-step) { will-change: opacity, transform; }
-  :deep(.el-step__head),
-  :deep(.el-step__main) {
-    transition: color var(--anim-duration-fast) var(--anim-ease-standard),
-                background var(--anim-duration-fast) var(--anim-ease-standard),
-                transform var(--anim-duration-fast) var(--anim-ease-standard);
-  }
-  :deep(.el-step.is-process .el-step__head) { transform: translateY(-1px); }
-}
-
-/* 全局：骨架屏/空状态/表单报错 动效统一 */
-.main-layout.anim-root {
-  /* 骨架屏闪烁（细腻） */
-  :deep(.el-skeleton__item),
-  :deep(.el-skeleton) {
-    animation: shimmer 1.6s linear infinite;
-    background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 37%, #f3f4f6 63%);
-    background-size: 400% 100%;
-  }
-
-  /* 空状态淡入 */
-  :deep(.el-empty),
-  :deep(.empty-state) {
-    animation: overlayFade var(--anim-duration-base) var(--anim-ease-decelerate) both;
-  }
-
-  /* 表单报错：轻微抖动+颜色过渡 */
-  :deep(.el-form-item.is-error .el-input__wrapper),
-  :deep(.el-form-item.is-error .el-textarea__inner) {
-    transition: border-color var(--anim-duration-fast) var(--anim-ease-standard),
-                box-shadow var(--anim-duration-fast) var(--anim-ease-standard),
-                background var(--anim-duration-fast) var(--anim-ease-standard);
-    animation: subtleShake var(--anim-duration-base) var(--anim-ease-accelerate);
-  }
-}
-
-@keyframes shimmer {
-  0% { background-position: 100% 0; }
-  100% { background-position: 0 0; }
-}
-
-@keyframes subtleShake {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-1px); }
-  40% { transform: translateX(1px); }
-  60% { transform: translateX(-1px); }
-  80% { transform: translateX(1px); }
-}
-
-/* 移动端底部导航、对话框内部分区、面包屑微互动 */
-.main-layout.anim-root {
-  /* 底部导航：激活指示与错峰入场 */
-  :deep(.mobile-bottom-nav) {
-    .nav-item { 
-      will-change: opacity, transform; 
-      animation: rowFadeIn var(--anim-duration-fast) var(--anim-ease-decelerate) both; 
-      transition: color var(--anim-duration-fast) var(--anim-ease-standard),
-                  background var(--anim-duration-fast) var(--anim-ease-standard),
-                  transform var(--anim-duration-fast) var(--anim-ease-standard);
-    }
-    .nav-item:nth-child(1) { animation-delay: 0ms; }
-    .nav-item:nth-child(2) { animation-delay: 30ms; }
-    .nav-item:nth-child(3) { animation-delay: 60ms; }
-    .nav-item:nth-child(4) { animation-delay: 90ms; }
-
-    .nav-item.is-active {
-      color: #111827;
-      position: relative;
-    }
-    .nav-item.is-active::after {
-      content: '';
-      position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%);
-      width: 24px; height: 3px; border-radius: 2px; background: #111827;
-      animation: overlayFade var(--anim-duration-base) var(--anim-ease-decelerate) both;
-    }
-  }
-
-  /* 对话框内部：头/体/脚 分区错峰 */
-  :deep(.el-dialog__header) { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-  :deep(.el-dialog__body) { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 60ms; }
-  :deep(.el-dialog__footer) { will-change: opacity, transform; animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 100ms; }
-
-  /* 面包屑：悬停与当前项微互动 */
-  :deep(.el-breadcrumb__inner) {
-    transition: color var(--anim-duration-fast) var(--anim-ease-standard),
-                background var(--anim-duration-fast) var(--anim-ease-standard),
-                transform var(--anim-duration-fast) var(--anim-ease-standard);
-  }
-  :deep(.el-breadcrumb__inner:hover) { background: var(--hover-bg); transform: translateY(-1px); }
-  :deep(.el-breadcrumb__item:last-child .el-breadcrumb__inner) { font-weight: 600; color: #111827; }
-}
-
-/* 全局细节动效：focus 可见态、Popper箭头、Loading遮罩、Tag关闭、表格排序指示 */
-.main-layout.anim-root {
-  /* Focus-visible 可见态统一（键盘导航友好） */
-  :deep(.el-button:focus-visible),
-  :deep(.el-link:focus-visible) {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.12);
-    transition: box-shadow var(--anim-duration-base) var(--anim-ease-standard);
-  }
-
-  /* Popper 箭头淡入 */
-  :deep(.el-popper__arrow)::before {
-    transition: opacity var(--anim-duration-fast) var(--anim-ease-standard),
-                transform var(--anim-duration-fast) var(--anim-ease-standard);
-  }
-
-  /* Loading 遮罩与 Spinner */
-  :deep(.el-loading-mask) {
-    animation: overlayFade var(--anim-duration-base) var(--anim-ease-decelerate) both;
-  }
-  :deep(.el-loading-spinner) {
-    animation: spin var(--anim-duration-slow) linear infinite;
-    will-change: transform;
-  }
-
-  /* Tag 关闭按钮微动效 */
-  :deep(.el-tag .el-tag__close) {
-    transition: transform var(--anim-duration-fast) var(--anim-ease-standard),
-                color var(--anim-duration-fast) var(--anim-ease-standard);
-  }
-  :deep(.el-tag .el-tag__close:hover) { transform: scale(1.1); }
-
-  /* 表格排序指示轻微过渡 */
-  :deep(.caret-wrapper),
-  :deep(.sort-caret) {
-    transition: transform var(--anim-duration-fast) var(--anim-ease-standard),
-                opacity var(--anim-duration-fast) var(--anim-ease-standard),
-                color var(--anim-duration-fast) var(--anim-ease-standard);
-  }
-}
-
-/* 触控设备 hover 降级：移除位移与阴影，保留颜色反馈 */
-@media (hover: none) {
-  .main-layout.anim-root {
-    :deep(.el-button:hover),
-    :deep(.el-link:hover),
-    :deep(.el-menu-item:hover),
-    :deep(.el-dropdown-menu__item:hover),
-    :deep(.el-tabs__item:hover),
-    :deep(.el-breadcrumb__inner:hover),
-    :deep(.el-table__row:hover),
-    :deep(.file-list-row:hover),
-    :deep(.mobile-bottom-nav .nav-item:hover) {
-      transform: none !important;
-      box-shadow: none !important;
-      background: var(--hover-bg);
-    }
-  }
-}
-
-/* View Transitions（渐隐/显）- 渐进增强 */
-:global(::view-transition-old(page)) {
-  animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both;
-}
-:global(::view-transition-new(page)) {
-  animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both;
-}
-@keyframes vtFadeOut { from { opacity: 1; } to { opacity: 0; } }
-@keyframes vtFadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-@media (prefers-reduced-motion: reduce) {
-  :global(::view-transition-old(page)),
-  :global(::view-transition-new(page)) { animation: none !important; }
-}
-
-/* 命名 View Transitions：头部/侧栏/内容 分区 */
-:global(::view-transition-old(vt-header)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-header)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-:global(::view-transition-old(vt-sidebar)) { animation: vtSlideLeftOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-sidebar)) { animation: vtSlideLeftIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-:global(::view-transition-old(vt-content)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-content)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-
-@keyframes vtSlideLeftOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(-6px); } }
-@keyframes vtSlideLeftIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
-
-@media (prefers-reduced-motion: reduce) {
-  :global(::view-transition-old(vt-header)),
-  :global(::view-transition-new(vt-header)),
-  :global(::view-transition-old(vt-sidebar)),
-  :global(::view-transition-new(vt-sidebar)),
-  :global(::view-transition-old(vt-content)),
-  :global(::view-transition-new(vt-content)) { animation: none !important; }
-}
-
-/* 共享元素 View Transitions：头像/用户名 */
-.main-layout.anim-root {
-  /* 常见上下文中的头像与用户名 */
-  :deep(.desktop-user-info .el-avatar),
-  :deep(.user-avatar .el-avatar),
-  :deep(.profile-avatar),
-  :deep(.el-avatar.user-avatar) {
-    view-transition-name: vt-avatar;
-  }
-  :deep(.desktop-user-info .username),
-  :deep(.user-basic-info .username) {
-    view-transition-name: vt-username;
-  }
-}
-
-:global(::view-transition-old(vt-avatar)) { animation: vtScaleOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-avatar)) { animation: vtScaleIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-:global(::view-transition-old(vt-username)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-username)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-
-@keyframes vtScaleOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.98); } }
-@keyframes vtScaleIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
-
-/* 统计与进度：命名 View Transitions */
-.main-layout.anim-root {
-  /* 顶部存储信息（若存在） */
-  :deep(.storage-info .storage-progress .el-progress-bar__inner) { view-transition-name: vt-storage-bar; }
-  :deep(.storage-info .storage-text),
-  :deep(.storage-info .storage-percent) { view-transition-name: vt-storage-text; }
-}
-:global(::view-transition-old(vt-storage-bar)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-storage-bar)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-:global(::view-transition-old(vt-storage-text)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-storage-text)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-
 </style>

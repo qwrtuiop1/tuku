@@ -143,12 +143,26 @@ router.post('/users', [
 
 // 获取用户列表
 router.get('/users', asyncHandler(async (req, res) => {
-  const { page = 1, limit = 20, search } = req.query;
-  const offset = (page - 1) * limit;
+  const {
+    page = 1,
+    limit = 20,
+    search,
+    role,
+    status,
+    created_from,
+    created_to,
+    last_login_from,
+    last_login_to,
+    sort_by,
+    sort_order
+  } = req.query;
+  const pageNum = parseInt(page)
+  const limitNum = parseInt(limit)
+  const offset = (pageNum - 1) * limitNum;
 
   // 使用安全的字段查询
   let query = `
-    SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, created_at 
+    SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, created_at, last_login, login_count 
     FROM users 
     WHERE 1=1
   `;
@@ -158,8 +172,44 @@ router.get('/users', asyncHandler(async (req, res) => {
     query += ' AND (username LIKE ? OR email LIKE ?)';
     params.push(`%${search}%`, `%${search}%`);
   }
+  if (role) {
+    query += ' AND role = ?'
+    params.push(role)
+  }
+  if (status) {
+    query += ' AND status = ?'
+    params.push(status)
+  }
+  if (created_from) {
+    query += ' AND created_at >= ?'
+    params.push(created_from)
+  }
+  if (created_to) {
+    query += ' AND created_at <= ?'
+    params.push(created_to)
+  }
+  if (last_login_from) {
+    query += ' AND last_login >= ?'
+    params.push(last_login_from)
+  }
+  if (last_login_to) {
+    query += ' AND last_login <= ?'
+    params.push(last_login_to)
+  }
 
-  query += ` ORDER BY created_at DESC LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
+  // 安全排序白名单
+  const SORT_FIELDS = {
+    created_at: 'created_at',
+    last_login: 'last_login',
+    used_storage: 'used_storage',
+    username: 'username',
+    email: 'email',
+    login_count: 'login_count'
+  }
+  const sortField = SORT_FIELDS[String(sort_by)] || 'created_at'
+  const sortDir = String(sort_order)?.toLowerCase() === 'asc' ? 'ASC' : 'DESC'
+
+  query += ` ORDER BY ${sortField} ${sortDir} LIMIT ${limitNum} OFFSET ${offset}`;
 
   let users;
   try {
@@ -167,7 +217,7 @@ router.get('/users', asyncHandler(async (req, res) => {
   } catch (error) {
     // 如果查询失败，可能是表结构问题，尝试基本查询
     console.log('🔧 尝试基本用户列表查询...');
-    const basicQuery = `
+    let basicQuery = `
       SELECT id, username, email, role, status, created_at 
       FROM users 
       WHERE 1=1
@@ -178,8 +228,16 @@ router.get('/users', asyncHandler(async (req, res) => {
       basicQuery += ' AND (username LIKE ? OR email LIKE ?)';
       basicParams.push(`%${search}%`, `%${search}%`);
     }
+    if (role) {
+      basicQuery += ' AND role = ?'
+      basicParams.push(role)
+    }
+    if (status) {
+      basicQuery += ' AND status = ?'
+      basicParams.push(status)
+    }
     
-    basicQuery += ` ORDER BY created_at DESC LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
+    basicQuery += ` ORDER BY ${sortField} ${sortDir} LIMIT ${limitNum} OFFSET ${offset}`;
     [users] = await pool.execute(basicQuery, basicParams);
   }
 
@@ -190,6 +248,30 @@ router.get('/users', asyncHandler(async (req, res) => {
   if (search) {
     countQuery += ' AND (username LIKE ? OR email LIKE ?)';
     countParams.push(`%${search}%`, `%${search}%`);
+  }
+  if (role) {
+    countQuery += ' AND role = ?'
+    countParams.push(role)
+  }
+  if (status) {
+    countQuery += ' AND status = ?'
+    countParams.push(status)
+  }
+  if (created_from) {
+    countQuery += ' AND created_at >= ?'
+    countParams.push(created_from)
+  }
+  if (created_to) {
+    countQuery += ' AND created_at <= ?'
+    countParams.push(created_to)
+  }
+  if (last_login_from) {
+    countQuery += ' AND last_login >= ?'
+    countParams.push(last_login_from)
+  }
+  if (last_login_to) {
+    countQuery += ' AND last_login <= ?'
+    countParams.push(last_login_to)
   }
 
   let countResult;
@@ -203,10 +285,10 @@ router.get('/users', asyncHandler(async (req, res) => {
   res.json({
     users,
     pagination: {
-      page: parseInt(page),
-      limit: parseInt(limit),
+      page: pageNum,
+      limit: limitNum,
       total: countResult[0].total,
-      pages: Math.ceil(countResult[0].total / limit)
+      pages: Math.ceil(countResult[0].total / limitNum)
     }
   });
 }));

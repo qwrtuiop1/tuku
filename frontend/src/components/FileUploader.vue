@@ -15,8 +15,9 @@
         <h3 class="upload-title">拖拽文件到此处上传</h3>
         <p class="upload-subtitle">或点击选择文件</p>
         <div class="upload-tips">
-          <span class="tip-item">支持图片和视频文件</span>
+          <span class="tip-item">支持图片、HEIC/HEIF 和 MP4/MOV 视频</span>
           <span class="tip-item">单个文件最大{{ maxFileSizeMB }}MB</span>
+          <span class="tip-item">同名“图片+短视频”将自动识别为实况图（长按预览）</span>
         </div>
       </div>
       
@@ -39,7 +40,7 @@
       ref="fileInputRef"
       type="file"
       multiple
-      accept="image/*,video/*"
+      accept="image/*,video/*,.heic,.heif,.mov"
       style="display: none"
       @change="handleFileSelect"
     />
@@ -234,6 +235,8 @@ const validateFile = (file: File): boolean => {
     'image/gif',
     'image/webp',
     'image/svg+xml',
+    'image/heic',
+    'image/heif',
     'video/mp4',
     'video/webm',
     'video/quicktime'
@@ -296,6 +299,8 @@ const processFiles = async (files: File[]) => {
   
   // 创建上传项目
   for (const file of validFiles) {
+    // 标记live basename
+    const base = file.name.replace(/\.[^.]+$/, '')
     const preview = await createFilePreview(file)
     const uploadItem: UploadItem = {
       id: generateId(),
@@ -304,6 +309,7 @@ const processFiles = async (files: File[]) => {
       progress: 0,
       status: 'pending'
     }
+    ;(uploadItem as any).liveBasename = base
     uploadList.value.push(uploadItem)
   }
   
@@ -341,6 +347,13 @@ const uploadSingleFile = async (item: UploadItem) => {
     
     const formData = new FormData()
     formData.append('file', item.file)
+    // 传递实况图配对信息
+    const isImage = item.file.type.startsWith('image/')
+    const isVideo = item.file.type.startsWith('video/')
+    if ((item as any).liveBasename && (isImage || isVideo)) {
+      formData.append('live_basename', (item as any).liveBasename)
+      formData.append('live_role', isImage ? 'image' : (isVideo ? 'video' : ''))
+    }
     
     // 如果有当前文件夹，添加到表单数据
     if (filesStore.currentFolder) {

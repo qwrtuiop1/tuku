@@ -55,6 +55,7 @@ declare module 'vue' {
     FilePreview: typeof import('./../components/FilePreview.vue')['default']
     FileThumbnail: typeof import('./../components/FileThumbnail.vue')['default']
     FileUploader: typeof import('./../components/FileUploader.vue')['default']
+    FolderDetailsDialog: typeof import('./../components/FolderDetailsDialog.vue')['default']
     ImageViewer: typeof import('./../components/ImageViewer.vue')['default']
     NginxConfigManager: typeof import('./../components/NginxConfigManager.vue')['default']
     QuickPreview: typeof import('./../components/QuickPreview.vue')['default']

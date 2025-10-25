@@ -33,6 +33,7 @@
               <el-icon><Search /></el-icon>
             </template>
           </el-input>
+          <el-checkbox v-model="onlyLive" class="only-live-checkbox">仅实况</el-checkbox>
           
           <el-dropdown @command="handleSortChange" class="sort-dropdown">
             <el-button size="small" class="sort-btn">
@@ -142,15 +143,7 @@
             size="small"
             class="mobile-view-btn"
           >
-            <el-icon v-if="isMobile" class="tri-grid-icon">
-              <svg viewBox="0 0 1024 1024" width="1em" height="1em" aria-hidden="true">
-                <rect x="160" y="160" width="320" height="320" fill="#000000" rx="32" ry="32" />
-                <rect x="544" y="160" width="320" height="320" fill="#6B7280" rx="32" ry="32" />
-                <rect x="160" y="544" width="320" height="320" fill="#9CA3AF" rx="32" ry="32" />
-                <rect x="544" y="544" width="320" height="320" fill="#FFFFFF" stroke="#9CA3AF" stroke-width="32" rx="32" ry="32" />
-              </svg>
-            </el-icon>
-            <el-icon v-else><Grid /></el-icon>
+            <el-icon><Grid /></el-icon>
           </el-button>
           <el-button 
             :type="viewMode === 'list' ? 'primary' : ''" 
@@ -178,7 +171,8 @@
         </div>
       </div>
     </div>
-    
+    </div>
+
     <!-- 面包屑导航 -->
     <div v-if="filesStore.currentFolder" class="breadcrumb-nav">
       <el-breadcrumb separator="/">
@@ -226,14 +220,17 @@
         <p class="loading-text">正在加载文件...</p>
       </div>
       
-      <!-- 网格视图：恢复为原有 CSS Grid 布局 -->
-      <div v-else-if="viewMode === 'grid'" class="file-grid" style="content-visibility:auto;contain-intrinsic-size:800px;">
+      <!-- 网格视图 -->
+      <div v-else-if="viewMode === 'grid'" class="file-grid">
         <div 
-          v-for="item in displayItems" 
+          v-for="item in paginatedFiles" 
           :key="item.id"
           class="file-card"
-          :data-item-id="item.id"
-          :class="{ 'selected': selectedFiles.includes(item.id), 'folder-card': item.isFolder, 'long-pressed': longPressedCards.has(item.id) }"
+          :class="{ 
+            'selected': selectedFiles.includes(item.id),
+            'folder-card': item.isFolder,
+            'long-pressed': longPressedCards.has(item.id)
+          }"
           @click="!isMobile && handleItemClick(item, $event)"
           @touchstart="handleTouchStart"
           @touchmove="handleTouchMove"
@@ -245,19 +242,38 @@
           @mouseenter="!item.isFolder && showQuickPreview(item, $event)"
         >
           <div class="card-checkbox" @click.stop @touchstart.stop @touchend.stop>
-            <el-checkbox :model-value="selectedFiles.includes(item.id)" @change="(checked) => toggleFileSelection(item.id, $event)" @click.stop />
+            <el-checkbox 
+              :model-value="selectedFiles.includes(item.id)"
+              @change="(checked) => toggleFileSelection(item.id, $event)"
+              @click.stop
+            />
           </div>
+          
           <div class="card-thumbnail">
-            <div v-if="item.isFolder" class="folder-thumbnail"><el-icon class="folder-icon"><Folder /></el-icon></div>
-            <FileThumbnail v-else :file="item" size="medium" @click="(file) => handleFileClick(file)" />
+            <!-- 文件夹图标 -->
+            <div v-if="item.isFolder" class="folder-thumbnail">
+              <el-icon class="folder-icon"><Folder /></el-icon>
+            </div>
+            <!-- 文件缩略图 -->
+            <FileThumbnail 
+              v-else
+              :file="item" 
+              size="medium"
+              @click="(file) => handleFileClick(file)"
+            />
+            <div v-if="!item.isFolder && item.file_type==='image' && item.live_video_id" class="live-badge">LIVE</div>
           </div>
+          
           <div class="card-info">
-            <div class="file-name" :title="item.original_name">{{ item.original_name }}</div>
+            <div class="file-name" :title="item.original_name">
+              {{ item.original_name }}
+            </div>
             <div class="file-meta">
               <span v-if="item.isFolder">文件夹</span>
               <span v-else>{{ formatFileSize(item.file_size) }} • {{ formatTime(item.created_at) }}</span>
             </div>
           </div>
+          
           <div class="card-actions" @touchstart.stop @touchmove.stop @touchend.stop>
             <el-button v-if="!item.isFolder" type="text" size="small" @click.stop="downloadFile(item)" class="action-btn">
               <el-icon><Download /></el-icon>
@@ -279,103 +295,70 @@
         </div>
       </div>
       
-      <!-- 列表视图：动态虚拟化优先，回退普通渲染 -->
-      <div v-else-if="viewMode === 'list'">
-        <DynamicScroller
-          v-if="virtualEnabled"
-          class="file-list"
-          :items="virtualItems"
-          key-field="id"
-          :min-item-size="44"
-          page-mode
-          @update="onDynamicUpdate"
+      <!-- 列表视图 -->
+      <div v-else-if="viewMode === 'list'" class="file-list">
+        <el-table 
+          :data="paginatedFiles" 
+          @row-click="handleItemClick"
+          @selection-change="handleSelectionChange"
+          :row-class-name="getRowClassName"
         >
-          <template #default="{ item, index }">
-            <DynamicScrollerItem :item="item" :active="true" :size-dependencies="[item.original_name]" :index="index">
-              <div class="file-list-row" @click="handleItemClick(item)">
-                <div class="file-name-cell">
-                  <el-icon class="file-type-icon">
-                    <Folder v-if="item.isFolder" />
-                    <Picture v-else-if="item.file_type === 'image'" />
-                    <VideoPlay v-else />
-                  </el-icon>
-                  <span>{{ item.original_name }}</span>
-                </div>
-                <div class="file-size-cell">{{ item.isFolder ? '-' : formatFileSize(item.file_size) }}</div>
-                <div class="file-time-cell">{{ formatTime(item.created_at) }}</div>
-                <div class="file-actions">
-                  <el-button v-if="!item.isFolder" type="text" size="small" @click.stop="downloadFile(item)" class="action-btn"><el-icon><Download /></el-icon>下载</el-button>
-                  <el-button v-if="!item.isFolder" type="text" size="small" @click.stop="shareFileAction(item)" class="action-btn"><el-icon><Share /></el-icon>分享</el-button>
-                  <el-button type="text" size="small" @click.stop="renameItem(item)" class="action-btn"><el-icon><Edit /></el-icon>重命名</el-button>
-                  <el-button type="text" size="small" @click.stop="deleteItem(item)" class="action-btn danger"><el-icon><Delete /></el-icon>删除</el-button>
-                </div>
+          <el-table-column type="selection" width="55" />
+          
+          <el-table-column prop="original_name" label="名称" min-width="200">
+            <template #default="{ row }">
+              <div class="file-name-cell">
+                <el-icon class="file-type-icon">
+                  <Folder v-if="row.isFolder" />
+                  <Picture v-else-if="row.file_type === 'image'" />
+                  <VideoPlay v-else />
+                </el-icon>
+                <span>{{ row.original_name }}</span>
+                <el-tag v-if="!row.isFolder && row.file_type==='image' && row.live_video_id" size="small" type="info" class="live-inline-tag">LIVE</el-tag>
               </div>
-            </DynamicScrollerItem>
-          </template>
-        </DynamicScroller>
-        <div v-else class="file-list" style="content-visibility:auto;contain-intrinsic-size:600px;">
-          <el-table 
-            :data="displayItems" 
-            @row-click="handleItemClick"
-            @selection-change="handleSelectionChange"
-            :row-class-name="getRowClassName"
-          >
-            <el-table-column type="selection" width="55" />
-            
-            <el-table-column prop="original_name" label="名称" min-width="200">
-              <template #default="{ row }">
-                <div class="file-name-cell">
-                  <el-icon class="file-type-icon">
-                    <Folder v-if="row.isFolder" />
-                    <Picture v-else-if="row.file_type === 'image'" />
-                    <VideoPlay v-else />
-                  </el-icon>
-                  <span>{{ row.original_name }}</span>
-                </div>
-              </template>
-            </el-table-column>
-            
-            <el-table-column prop="file_size" label="大小" width="120">
-              <template #default="{ row }">
-                <span v-if="row.isFolder">-</span>
-                <span v-else>{{ formatFileSize(row.file_size) }}</span>
-              </template>
-            </el-table-column>
-            
-            <el-table-column prop="created_at" label="创建时间" width="180">
-              <template #default="{ row }">
-                {{ formatTime(row.created_at) }}
-              </template>
-            </el-table-column>
-            
-            <el-table-column label="操作" width="200" fixed="right">
-              <template #default="{ row }">
-                <div class="file-actions">
-                  <el-button v-if="!row.isFolder" type="text" size="small" @click="downloadFile(row)" class="action-btn">
-                    <el-icon><Download /></el-icon>
-                    下载
-                  </el-button>
-                  <el-button v-if="!row.isFolder" type="text" size="small" @click="shareFileAction(row)" class="action-btn">
-                    <el-icon><Share /></el-icon>
-                    分享
-                  </el-button>
-                  <el-button type="text" size="small" @click="renameItem(row)" class="action-btn">
-                    <el-icon><Edit /></el-icon>
-                    重命名
-                  </el-button>
-                  <el-button type="text" size="small" @click="deleteItem(row)" class="action-btn danger">
-                    <el-icon><Delete /></el-icon>
-                    删除
-                  </el-button>
-                </div>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
+            </template>
+          </el-table-column>
+          
+          <el-table-column prop="file_size" label="大小" width="120">
+            <template #default="{ row }">
+              <span v-if="row.isFolder">-</span>
+              <span v-else>{{ formatFileSize(row.file_size) }}</span>
+            </template>
+          </el-table-column>
+          
+          <el-table-column prop="created_at" label="创建时间" width="180">
+            <template #default="{ row }">
+              {{ formatTime(row.created_at) }}
+            </template>
+          </el-table-column>
+          
+          <el-table-column label="操作" width="200" fixed="right">
+            <template #default="{ row }">
+              <div class="file-actions">
+                <el-button v-if="!row.isFolder" type="text" size="small" @click="downloadFile(row)" class="action-btn">
+                  <el-icon><Download /></el-icon>
+                  下载
+                </el-button>
+                <el-button v-if="!row.isFolder" type="text" size="small" @click="shareFileAction(row)" class="action-btn">
+                  <el-icon><Share /></el-icon>
+                  分享
+                </el-button>
+                <el-button type="text" size="small" @click="renameItem(row)" class="action-btn">
+                  <el-icon><Edit /></el-icon>
+                  重命名
+                </el-button>
+                <el-button type="text" size="small" @click="deleteItem(row)" class="action-btn danger">
+                  <el-icon><Delete /></el-icon>
+                  删除
+                </el-button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
       </div>
       
       <!-- 分页 -->
-      <div v-if="!virtualEnabled && allItems.length > 0 && totalPages > 1" class="pagination">
+      <div v-if="allItems.length > 0 && totalPages > 1" class="pagination">
         <el-pagination
           v-model:current-page="currentPage"
           :page-size="pageSize"
@@ -384,33 +367,22 @@
           @current-change="handlePageChange"
         />
       </div>
-
-      <!-- 触底加载提示 -->
-      <transition name="fade-slim">
-        <div v-if="virtualEnabled && shouldShowInfinite" class="infinite-loader">
-          <div ref="infiniteSentinelRef" class="infinite-sentinel"></div>
-          <el-button type="text" class="load-more-btn" @click="loadMore">加载更多</el-button>
-        </div>
-      </transition>
     </div>
 
     <!-- 快速预览 -->
-    <transition name="fade-scale">
-      <QuickPreview
-        v-if="quickPreviewFile"
-        :file="quickPreviewFile"
-        :visible="showQuickPreviewDialog"
-      />
-    </transition>
+    <QuickPreview
+      v-if="quickPreviewFile"
+      :file="quickPreviewFile"
+      :visible="showQuickPreviewDialog"
+    />
 
     <!-- 右键菜单 -->
-    <transition name="menu-fade-scale">
-      <div 
-        v-if="showContextMenu" 
-        class="context-menu"
-        :style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
-        @click.stop
-      >
+    <div 
+      v-if="showContextMenu" 
+      class="context-menu"
+      :style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
+      @click.stop
+    >
       <!-- 文件操作 -->
       <template v-if="contextFile && !contextFile.isFolder">
       <div class="context-menu-item" @click="previewContextFile">
@@ -446,6 +418,10 @@
           <el-icon><FolderOpened /></el-icon>
           进入文件夹
         </div>
+        <div class="context-menu-item" @click="openFolderDetails(contextFile)">
+          <el-icon><View /></el-icon>
+          详情
+        </div>
         <div class="context-menu-divider"></div>
         <div class="context-menu-item" @click="renameContextItem">
           <el-icon><Edit /></el-icon>
@@ -456,8 +432,7 @@
           删除
         </div>
       </template>
-      </div>
-    </transition>
+    </div>
 
     <!-- 上传对话框 -->
     <el-dialog
@@ -467,7 +442,6 @@
       :close-on-click-modal="false"
       :class="{ 'mobile-upload-dialog': isMobile }"
       :modal-class="isMobile ? 'mobile-modal' : ''"
-      :append-to-body="true"
     >
       <FileUploader @upload-success="handleUploadSuccess" />
     </el-dialog>
@@ -485,12 +459,24 @@
       @touchmove="handlePreviewTouchMove"
     />
 
+    <!-- 文件夹详情对话框 -->
+    <FolderDetailsDialog
+      v-model="showFolderDetailsDialog"
+      :folder="folderDetails"
+      :files-count="folderFilesCount"
+      :subfolders-count="folderSubfoldersCount"
+      :total-size="folderTotalSize"
+      :path="folderPath"
+      @enter="handleEnterFolderFromDetails"
+      @rename="(f:any)=>renameItem({ ...f, isFolder: true })"
+      @delete="(id?:number)=> id && deleteItem({ id, isFolder: true })"
+    />
+
     <!-- 分享对话框 -->
     <el-dialog
       v-model="showShareDialog"
       title="分享文件"
       width="500px"
-      :append-to-body="true"
     >
       <div class="share-content">
         <div class="share-info">
@@ -530,7 +516,6 @@
       :width="isMobile ? '90%' : '400px'"
       :class="{ 'mobile-folder-dialog': isMobile }"
       :modal-class="isMobile ? 'mobile-modal' : ''"
-      :append-to-body="true"
     >
       <el-form :model="folderForm" :rules="folderRules" ref="folderFormRef">
         <el-form-item prop="name">
@@ -551,14 +536,12 @@
       </template>
     </el-dialog>
     
-  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, nextTick, onUnmounted, defineAsyncComponent, watch } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElForm } from 'element-plus'
-import { RecycleScroller, DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 import {
   Upload,
   FolderAdd,
@@ -587,11 +570,12 @@ import {
 import { useFilesStore } from '@/stores/files'
 import { useAuthStore } from '@/stores/auth'
 import { formatFileSize, formatTime, getFilePreviewUrl, downloadFile as downloadFileUtil, copyToClipboard } from '@/utils/helpers'
-const FileUploader = defineAsyncComponent(() => import('@/components/FileUploader.vue'))
-const FilePreview = defineAsyncComponent(() => import('@/components/FilePreview.vue'))
-const FileThumbnail = defineAsyncComponent(() => import('@/components/FileThumbnail.vue'))
-const EnhancedPreviewDialog = defineAsyncComponent(() => import('@/components/EnhancedPreviewDialog.vue'))
-const QuickPreview = defineAsyncComponent(() => import('@/components/QuickPreview.vue'))
+import FileUploader from '@/components/FileUploader.vue'
+import FilePreview from '@/components/FilePreview.vue'
+import FileThumbnail from '@/components/FileThumbnail.vue'
+import EnhancedPreviewDialog from '@/components/EnhancedPreviewDialog.vue'
+import FolderDetailsDialog from '@/components/FolderDetailsDialog.vue'
+import QuickPreview from '@/components/QuickPreview.vue'
 
 const router = useRouter()
 const filesStore = useFilesStore()
@@ -619,6 +603,50 @@ const selectedFiles = ref<number[]>([])
 const currentPage = ref(1)
 const pageSize = ref(20)
 
+// 文件夹详情
+const showFolderDetailsDialog = ref(false)
+const folderDetails = ref<any>(null)
+const folderFilesCount = computed(() => {
+  if (!folderDetails.value) return null
+  if (filesStore.currentFolder === folderDetails.value.id) {
+    return filesStore.files.length
+  }
+  return null
+})
+const folderSubfoldersCount = computed(() => {
+  if (!folderDetails.value) return null
+  if (filesStore.currentFolder === folderDetails.value.id) {
+    return filesStore.folders.length
+  }
+  return null
+})
+const folderTotalSize = computed(() => {
+  if (!folderDetails.value) return null
+  if (filesStore.currentFolder === folderDetails.value.id) {
+    return filesStore.files.reduce((sum, f) => sum + (f.file_size || 0), 0)
+  }
+  return null
+})
+
+const openFolderDetails = async (folder: any) => {
+  folderDetails.value = folder
+  try {
+    const path = await filesStore.fetchFolderPath(folder.id)
+    folderPath.value = path
+  } catch {}
+  showFolderDetailsDialog.value = true
+  showContextMenu.value = false
+}
+
+const handleEnterFolderFromDetails = async (folderId?: number) => {
+  if (!folderId) return
+  filesStore.currentFolder = folderId
+  await updateFolderPath(folderId)
+  await filesStore.fetchFiles(1)
+  await filesStore.fetchFolders()
+  showFolderDetailsDialog.value = false
+}
+
 // 视图模式
 const viewMode = ref<'grid' | 'list'>('grid')
 
@@ -638,6 +666,7 @@ const loadViewSettings = () => {
 
 // 搜索
 const searchQuery = ref('')
+const onlyLive = ref(false)
 
 // 文件夹路径
 const folderPath = ref<Array<{id: number, name: string}>>([])
@@ -669,6 +698,9 @@ const filteredFiles = computed(() => {
     files = files.filter(file => 
       file.original_name.toLowerCase().includes(searchQuery.value.toLowerCase())
     )
+  }
+  if (onlyLive.value) {
+    files = files.filter((f: any) => !f.isFolder && f.file_type === 'image' && f.live_video_id)
   }
   
   return files.sort((a, b) => {
@@ -772,80 +804,6 @@ const paginatedFiles = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
   const end = start + pageSize.value
   return allItems.value.slice(start, end)
-})
-
-// 虚拟渲染开关与显示数据源
-const virtualEnabled = ref(true)
-const gridEstimatedRowHeight = 260
-const listEstimatedRowHeight = 44
-
-// 动态项尺寸更新钩子（可扩展用于缓存策略）
-const onDynamicUpdate = () => {}
-
-// IntersectionObserver 触底自动加载
-const infiniteSentinelRef = ref<HTMLElement | null>(null)
-let io: IntersectionObserver | null = null
-
-const setupInfiniteObserver = () => {
-  if (!virtualEnabled.value) return
-  if (io) { io.disconnect(); io = null }
-  if (!('IntersectionObserver' in window)) return
-  io = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (entry.isIntersecting) {
-        loadMore()
-      }
-    }
-  }, { root: null, rootMargin: '200px', threshold: 0 })
-  if (infiniteSentinelRef.value) io.observe(infiniteSentinelRef.value)
-}
-
-onMounted(() => {
-  setupInfiniteObserver()
-})
-
-onUnmounted(() => {
-  if (io) { io.disconnect(); io = null }
-})
-
-watch([virtualEnabled, () => allItems.value.length], () => {
-  nextTick(() => setupInfiniteObserver())
-})
-const displayItems = computed(() => {
-  return virtualEnabled.value ? allItems.value : paginatedFiles.value
-})
-
-// 触底加载下一批（增量加载）
-const infiniteEnabled = ref(true)
-const batchSize = ref(100)
-const visibleCount = ref(batchSize.value)
-const endReached = ref(false)
-
-const loadMore = () => {
-  if (!infiniteEnabled.value) return
-  if (visibleCount.value >= allItems.value.length) {
-    endReached.value = true
-    return
-  }
-  visibleCount.value = Math.min(visibleCount.value + batchSize.value, allItems.value.length)
-}
-
-// 当虚拟化开启时，使用 visibleCount 控制实际提供给虚拟列表的数据量
-const virtualItems = computed(() => {
-  if (!virtualEnabled.value) return displayItems.value
-  return allItems.value.slice(0, visibleCount.value)
-})
-
-// 是否需要显示"加载更多"与触底哨兵：仅在有未显示内容时
-const shouldShowInfinite = computed(() => {
-  if (!virtualEnabled.value) return false
-  return visibleCount.value < allItems.value.length
-})
-
-// 当数据源变化时重置状态
-watch(allItems, () => {
-  visibleCount.value = batchSize.value
-  endReached.value = false
 })
 
 // 方法
@@ -956,7 +914,6 @@ const handleLongPress = (item: any) => {
 }
 
 const handleTouchStart = (event: TouchEvent) => {
-  if (!event.touches || event.touches.length === 0) return
   touchStartX.value = event.touches[0].clientX
   touchStartY.value = event.touches[0].clientY
   touchStartTime.value = Date.now()
@@ -1010,7 +967,6 @@ const handleTouchStart = (event: TouchEvent) => {
 // 触摸移动检测
 const handleTouchMove = (event: TouchEvent) => {
   if (event.touches.length > 0) {
-    if (!event.touches || event.touches.length === 0) return
     const touchCurrentX = event.touches[0].clientX
     const touchCurrentY = event.touches[0].clientY
     
@@ -1072,7 +1028,6 @@ const handleTouchEnd = (event: TouchEvent, item: any) => {
     longPressTimer.value = null
   }
   
-  if (!event.changedTouches || event.changedTouches.length === 0) return
   const touchEndX = event.changedTouches[0].clientX
   const touchEndY = event.changedTouches[0].clientY
   const touchEndTime = Date.now()
@@ -1122,13 +1077,11 @@ const swipeStartX = ref(0)
 const swipeStartY = ref(0)
 
 const handleSwipeStart = (event: TouchEvent) => {
-  if (!event.touches || event.touches.length === 0) return
   swipeStartX.value = event.touches[0].clientX
   swipeStartY.value = event.touches[0].clientY
 }
 
 const handleSwipeEnd = (event: TouchEvent) => {
-  if (!event.changedTouches || event.changedTouches.length === 0) return
   const swipeEndX = event.changedTouches[0].clientX
   const swipeEndY = event.changedTouches[0].clientY
   
@@ -1170,7 +1123,6 @@ const lastScale = ref(1)
 
 const handlePinchStart = (event: TouchEvent) => {
   if (event.touches.length === 2) {
-    if (!event.touches || event.touches.length === 0) return
     const touch1 = event.touches[0]
     const touch2 = event.touches[1]
     lastDistance.value = Math.sqrt(
@@ -1183,7 +1135,6 @@ const handlePinchStart = (event: TouchEvent) => {
 
 const handlePinchMove = (event: TouchEvent) => {
   if (event.touches.length === 2) {
-    if (!event.touches || event.touches.length === 0) return
     const touch1 = event.touches[0]
     const touch2 = event.touches[1]
     const currentDistance = Math.sqrt(
@@ -1284,13 +1235,6 @@ const handleItemClick = async (item: any, event?: Event) => {
   }
   
   if (item.isFolder) {
-    // 防重复提示：短时间内同一文件夹仅提示一次
-    if (!('__lastEnterFolder' in window)) {
-      ;(window as any).__lastEnterFolder = { id: null, ts: 0 }
-    }
-    const last = (window as any).__lastEnterFolder as { id: number | null; ts: number }
-    const now = Date.now()
-    const shouldToast = !(last.id === item.id && (now - last.ts) < 600)
     // 重置长按状态
     resetLongPressState()
     
@@ -1299,11 +1243,7 @@ const handleItemClick = async (item: any, event?: Event) => {
     await updateFolderPath(item.id)
     await filesStore.fetchFiles(1)
     await filesStore.fetchFolders() // 刷新文件夹列表
-    if (shouldToast) {
-      ElMessage.info(`进入文件夹: ${item.folder_name}`)
-      last.id = item.id
-      last.ts = now
-    }
+    ElMessage.info(`进入文件夹: ${item.folder_name}`)
   } else {
     // 处理文件点击 - 预览文件
     handleFileClick(item)
@@ -1788,19 +1728,16 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
-@import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 .files-page {
   display: block;
   background: transparent; // 透明背景，由父级提供
   padding: 24px; // 统一设置所有方向的内边距，确保左右一致
   border-radius: 16px; // 添加圆角
-  view-transition-name: vt-files;
 }
 
 // 桌面端工具栏样式
 .desktop-toolbar {
   display: block;
-  view-transition-name: vt-files-toolbar;
 }
 
 .unified-toolbar {
@@ -1814,9 +1751,9 @@ onUnmounted(() => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   border: 1px solid #e5e7eb;
   margin-bottom: 8px;
-  width: 100%; // 不限宽，随内容区域
-  margin-left: 0;
-  margin-right: 0;
+  max-width: calc(100vw - 400px); // 限制宽度与内容区域一致
+  margin-left: auto;
+  margin-right: auto;
   
   .toolbar-main {
     display: flex;
@@ -1828,17 +1765,13 @@ onUnmounted(() => {
       padding: 0 16px;
       border-radius: 12px;
       font-weight: 500;
-      transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-                  color var(--anim-duration-fast) var(--anim-ease-standard),
-                  transform var(--anim-duration-fast) var(--anim-ease-standard),
-                  box-shadow var(--anim-duration-fast) var(--anim-ease-standard);
+      transition: all 0.3s ease;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       
       &:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
       }
-      &:active { transform: scale(var(--press-scale)); }
       
       &.el-button--primary {
         background: #000000;
@@ -2069,15 +2002,6 @@ onUnmounted(() => {
           border: none;
           color: #ffffff;
         }
-
-      // 黑白灰三色移动端网格图标尺寸适配
-      .tri-grid-icon {
-        svg {
-          width: 16px;
-          height: 16px;
-          display: block;
-        }
-      }
       }
     }
   }
@@ -2297,7 +2221,6 @@ onUnmounted(() => {
   overflow: hidden;
   position: relative;
   margin-top: 8px; // 与工具栏的间距
-  view-transition-name: vt-files-content;
 }
 
 .empty-state {
@@ -2343,23 +2266,21 @@ onUnmounted(() => {
     font-size: 16px;
     color: #374151;
     margin-bottom: 4px;
-    animation: spin var(--anim-duration-slow) linear infinite;
-    will-change: transform;
+    animation: spin 1s linear infinite;
   }
   
   .loading-text {
     font-size: 10px;
     color: #6b7280;
-    animation: textPulse 1.2s var(--anim-ease-standard) infinite;
   }
 }
-@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@keyframes textPulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
 
-@media (prefers-reduced-motion: reduce) {
-  .loading-state .loading-icon, .loading-state .loading-text { animation: none !important; }
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
+// 添加动画效果
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -2476,18 +2397,16 @@ onUnmounted(() => {
 
 .file-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
   justify-content: start;
-  grid-auto-flow: row;
 }
 
   .file-card {
     border: 1px solid #e5e7eb;
     border-radius: 12px;
     overflow: hidden;
-  transition: transform var(--anim-duration-fast) var(--anim-ease-standard),
-              box-shadow var(--anim-duration-fast) var(--anim-ease-standard);
+    transition: all 0.3s ease;
     cursor: pointer;
     position: relative; // 添加相对定位，以便card-actions绝对定位
     
@@ -2496,7 +2415,6 @@ onUnmounted(() => {
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       transform: translateY(-2px);
     }
-  &:active { transform: scale(var(--press-scale)); }
     
     &.folder-card {
       border: none;
@@ -2564,6 +2482,18 @@ onUnmounted(() => {
       font-size: 12px;
       color: #6b7280;
     }
+    .live-badge {
+      position: absolute;
+      left: 8px;
+      bottom: 8px;
+      background: rgba(0,0,0,0.75);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 10px;
+      letter-spacing: 1px;
+    }
   }
 }
 
@@ -2575,6 +2505,16 @@ onUnmounted(() => {
     
     .file-type-icon {
       color: #374151;
+    }
+    .live-inline-tag {
+      height: 18px;
+      line-height: 18px;
+      padding: 0 6px;
+      border-radius: 9px;
+      font-size: 10px;
+      color: #fff;
+      background: #4b5563;
+      border: none;
     }
   }
 }
@@ -2602,7 +2542,7 @@ onUnmounted(() => {
   .unified-toolbar {
     padding: 16px 20px;
     gap: 20px;
-    width: 100%; // 与内容区域一致，不限宽
+    max-width: calc(100vw - 440px); // 与内容区域宽度一致
     
     .toolbar-main .action-btn {
       height: 44px;
@@ -2626,7 +2566,7 @@ onUnmounted(() => {
   }
   
   .file-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 20px;
   }
   
@@ -2642,7 +2582,7 @@ onUnmounted(() => {
   }
   
   .file-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 18px;
   }
   
@@ -2658,7 +2598,7 @@ onUnmounted(() => {
   }
   
   .file-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 16px;
   }
   
@@ -2675,7 +2615,7 @@ onUnmounted(() => {
   }
   
   .file-grid {
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 14px;
   }
   
@@ -2732,7 +2672,7 @@ onUnmounted(() => {
   
   .file-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     justify-content: start;
   }
@@ -2811,7 +2751,7 @@ onUnmounted(() => {
   }
   
   .file-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 12px;
   }
   
@@ -3032,7 +2972,7 @@ onUnmounted(() => {
   
   .file-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
     justify-content: start;
   }
@@ -3190,7 +3130,6 @@ onUnmounted(() => {
   }
   
   .file-grid {
-    grid-template-columns: repeat(4, 1fr);
     gap: 4px; // 最小网格间距
     
     .file-card {
@@ -3509,10 +3448,7 @@ onUnmounted(() => {
     padding: 6px 8px;
     font-size: 11px;
     border-radius: 6px;
-    transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-                color var(--anim-duration-fast) var(--anim-ease-standard),
-                transform var(--anim-duration-fast) var(--anim-ease-standard),
-                box-shadow var(--anim-duration-fast) var(--anim-ease-standard);
+    transition: all 0.2s ease;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3524,7 +3460,6 @@ onUnmounted(() => {
       transform: translateY(-1px);
       box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
     }
-    &:active { transform: scale(var(--press-scale)); }
     
     &.danger:hover {
       background: #fef0f0;
@@ -3698,9 +3633,7 @@ onUnmounted(() => {
       display: flex;
       align-items: center;
       gap: 8px;
-      transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-                  color var(--anim-duration-fast) var(--anim-ease-standard),
-                  transform var(--anim-duration-fast) var(--anim-ease-standard);
+      transition: all 0.3s ease;
       cursor: pointer;
       
       &:hover {
@@ -4180,28 +4113,6 @@ onUnmounted(() => {
   }
 }
 
-.infinite-loader {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 0;
-}
-.infinite-sentinel {
-  width: 100%;
-  height: 1px;
-}
-
-// 黑白灰按钮样式
-.load-more-btn {
-  color: #374151;
-  transition: color 0.2s ease, background 0.2s ease;
-  
-  &:hover {
-    color: #111827;
-    background: rgba(17, 24, 39, 0.04);
-  }
-}
-
 // 移动端触摸优化
 @media (max-width: 768px) {
   .file-card {
@@ -4305,174 +4216,4 @@ onUnmounted(() => {
     color: #6b7280 !important;
   }
 }
-
-// 右键菜单与快速预览过渡（全局动效变量）
-.menu-fade-scale-enter-active,
-.menu-fade-scale-leave-active,
-.fade-scale-enter-active,
-.fade-scale-leave-active {
-  transition: opacity var(--anim-duration-base) var(--anim-ease-standard),
-              transform var(--anim-duration-base) var(--anim-ease-standard);
-  will-change: opacity, transform;
-}
-.menu-fade-scale-enter-from,
-.fade-scale-enter-from { opacity: 0; transform: scale(0.98); }
-.menu-fade-scale-leave-to,
-.fade-scale-leave-to { opacity: 0; transform: scale(0.98); }
-
-// 简洁的淡入淡出过渡（列表/加载更多）
-.fade-slim-enter-active,
-.fade-slim-leave-active {
-  transition: opacity var(--anim-duration-base) var(--anim-ease-standard);
-}
-.fade-slim-enter-from,
-.fade-slim-leave-to { opacity: 0; }
-
-// 列表行过渡与悬停
-:deep(.el-table__row) {
-  transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-              transform var(--anim-duration-fast) var(--anim-ease-standard);
-}
-:deep(.el-table__row:hover) {
-  background: #f9fafb;
-}
-:deep(.el-table__row.selected-row) {
-  background: #f3f4f6;
-}
-
-// 列表表头与分页器动效统一
-:deep(.el-table__header th) {
-  transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-              color var(--anim-duration-fast) var(--anim-ease-standard);
-}
-:deep(.el-table__header th:hover) { background: #f9fafb; }
-
-:deep(.el-pagination .btn-prev),
-:deep(.el-pagination .btn-next),
-:deep(.el-pagination .el-pager li) {
-  transition: background var(--anim-duration-fast) var(--anim-ease-standard),
-              color var(--anim-duration-fast) var(--anim-ease-standard),
-              transform var(--anim-duration-fast) var(--anim-ease-standard);
-}
-:deep(.el-pagination .el-pager li:hover),
-:deep(.el-pagination .btn-prev:hover),
-:deep(.el-pagination .btn-next:hover) {
-  background: var(--hover-bg);
-  color: #111827;
-}
-:deep(.el-pagination .el-pager li.is-active) {
-  background: #111827;
-  color: #ffffff;
-}
-:deep(.el-pagination .el-pager li:active),
-:deep(.el-pagination .btn-prev:active),
-:deep(.el-pagination .btn-next:active) {
-  transform: scale(var(--press-scale));
-}
-
-// 右键菜单容器性能提示
-.context-menu { will-change: opacity, transform; }
-
-/* 板块进场与错峰动效（Files） */
-.files-page {
-  .desktop-toolbar,
-  .mobile-toolbar,
-  .breadcrumb-nav,
-  .file-content {
-    will-change: opacity, transform;
-    animation: blockFadeUp var(--anim-duration-base) var(--anim-ease-decelerate) both;
-  }
-  .desktop-toolbar { animation-delay: 0ms; }
-  .breadcrumb-nav { animation-delay: 40ms; }
-  .file-content { animation-delay: 80ms; }
-}
-
-@keyframes blockFadeUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes cardFadeScale {
-  from { opacity: 0; transform: translateY(8px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes rowFadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* 网格卡片：错峰入场 */
-.file-grid {
-  .file-card {
-    will-change: opacity, transform;
-    animation: cardFadeScale var(--anim-duration-base) var(--anim-ease-decelerate) both;
-  }
-  .file-card:nth-child(1) { animation-delay: 0ms; }
-  .file-card:nth-child(2) { animation-delay: 20ms; }
-  .file-card:nth-child(3) { animation-delay: 40ms; }
-  .file-card:nth-child(4) { animation-delay: 60ms; }
-  .file-card:nth-child(5) { animation-delay: 80ms; }
-  .file-card:nth-child(6) { animation-delay: 100ms; }
-  .file-card:nth-child(7) { animation-delay: 120ms; }
-  .file-card:nth-child(8) { animation-delay: 140ms; }
-  .file-card:nth-child(9) { animation-delay: 160ms; }
-  .file-card:nth-child(10) { animation-delay: 180ms; }
-  .file-card:nth-child(11) { animation-delay: 200ms; }
-  .file-card:nth-child(12) { animation-delay: 220ms; }
-}
-
-/* 列表（虚拟滚动）行：轻量入场 */
-.file-list {
-  .file-list-row {
-    will-change: opacity, transform;
-    animation: rowFadeIn var(--anim-duration-fast) var(--anim-ease-decelerate) both;
-  }
-}
-
-/* 非虚拟化表格行：错峰入场 */
-:deep(.el-table__row) {
-  will-change: opacity, transform;
-  animation: rowFadeIn var(--anim-duration-fast) var(--anim-ease-decelerate) both;
-}
-:deep(.el-table__row:nth-child(1)) { animation-delay: 0ms; }
-:deep(.el-table__row:nth-child(2)) { animation-delay: 20ms; }
-:deep(.el-table__row:nth-child(3)) { animation-delay: 40ms; }
-:deep(.el-table__row:nth-child(4)) { animation-delay: 60ms; }
-:deep(.el-table__row:nth-child(5)) { animation-delay: 80ms; }
-:deep(.el-table__row:nth-child(6)) { animation-delay: 100ms; }
-:deep(.el-table__row:nth-child(7)) { animation-delay: 120ms; }
-:deep(.el-table__row:nth-child(8)) { animation-delay: 140ms; }
-:deep(.el-table__row:nth-child(9)) { animation-delay: 160ms; }
-:deep(.el-table__row:nth-child(10)) { animation-delay: 180ms; }
-:deep(.el-table__row:nth-child(11)) { animation-delay: 200ms; }
-:deep(.el-table__row:nth-child(12)) { animation-delay: 220ms; }
-
-/* 无障碍：减少动效偏好 */
-@media (prefers-reduced-motion: reduce) {
-  .files-page :deep(*),
-  .files-page * {
-    animation: none !important;
-    transition: none !important;
-  }
-}
-
-/* View Transitions（Files） */
-.files-page { view-transition-name: vt-files; }
-.file-content { view-transition-name: vt-files-content; }
-.desktop-toolbar { view-transition-name: vt-files-toolbar; }
-:global(::view-transition-old(vt-files-toolbar)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-files-toolbar)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-:global(::view-transition-old(vt-files-content)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-files-content)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-@keyframes vtFadeOut { from { opacity: 1; } to { opacity: 0; } }
-@keyframes vtFadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-/* View Transitions（Files items） */
-.file-grid .file-card { view-transition-name: vt-file-card; }
-.file-list .file-list-row { view-transition-name: vt-file-row; }
-:global(::view-transition-old(vt-file-card)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-file-card)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
-:global(::view-transition-old(vt-file-row)) { animation: vtFadeOut var(--anim-duration-fast) var(--anim-ease-accelerate) both; }
-:global(::view-transition-new(vt-file-row)) { animation: vtFadeIn var(--anim-duration-base) var(--anim-ease-decelerate) both; }
 </style>

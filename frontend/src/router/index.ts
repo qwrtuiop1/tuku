@@ -125,13 +125,7 @@ const routes = [
       
       {
         path: '/settings',
-        name: 'Settings',
-        component: () => import('@/views/SettingsPage.vue'),
-        meta: { 
-          title: '系统设置',
-          requiresAuth: true,
-          requiresAdmin: true 
-        }
+        redirect: { path: '/admin', query: { section: 'settings' } }
       },
       {
         path: '/notifications',

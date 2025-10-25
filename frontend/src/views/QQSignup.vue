@@ -123,7 +123,7 @@ const rules = {
   ],
   password: [ { required: true, message: '请输入密码', trigger: 'blur' }, { min: 6, message: '至少6位', trigger: 'blur' } ],
   confirmPassword: [ { validator: (_: any, v: string, cb: any) => { v !== form.value.password ? cb(new Error('两次密码不一致')) : cb() }, trigger: 'blur' } ],
-  email: [ { required: true, message: '请输入邮箱', trigger: 'blur' }, { type: 'email', message: '邮箱格式不正确', trigger: 'blur' } ],
+  email: [ { required: true, message: '请输入邮箱', trigger: 'blur' }, { type: 'email' as const, message: '邮箱格式不正确', trigger: 'blur' } ],
   emailCode: [ { required: true, message: '请输入验证码', trigger: 'blur' }, { min: 6, max: 6, message: '6位验证码', trigger: 'blur' } ],
   agree: [ { validator: (_: any, v: boolean, cb: any) => { !v ? cb(new Error('请先同意协议')) : cb() }, trigger: 'change' } ]
 }
@@ -184,14 +184,30 @@ const verifyHuman = async (): Promise<boolean> => {
       try {
         const validate = geetestHandler.getValidate ? geetestHandler.getValidate() : null
         if (!validate) { ElMessage.error('请完成人机验证'); return resolve(false) }
+        
+        // 添加调试信息
+        console.log('GeeTest验证参数:', validate)
+        
         const { lot_number, captcha_output, pass_token, gen_time } = validate
+        
+        // 检查必要参数是否存在
+        if (!lot_number || !captcha_output || !pass_token || !gen_time) {
+          console.error('验证码参数缺失:', { lot_number, captcha_output, pass_token, gen_time })
+          ElMessage.error('验证码参数不完整，请重新验证')
+          return resolve(false)
+        }
+        
         const resp = await api.post('/auth/captcha/validate', {
           lot_number, captcha_output, pass_token, gen_time, captcha_id: geetestCaptchaId
         })
+        
+        console.log('验证码验证响应:', resp.data)
+        
         if (resp?.data?.success || resp?.data?.result === 'success') return resolve(true)
-        ElMessage.error(resp?.data?.message || '人机验证失败')
+        ElMessage.error(resp?.data?.message || resp?.data?.reason || '人机验证失败')
         resolve(false)
       } catch (e: any) {
+        console.error('验证码验证异常:', e)
         ElMessage.error('人机验证服务异常，请稍后重试')
         resolve(false)
       }

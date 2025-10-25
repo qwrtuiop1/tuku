@@ -36,15 +36,63 @@
       </el-button>
     </div>
     
-    <!-- 预览内容 -->
-    <div class="preview-content">
-      <FilePreview 
-        v-if="currentFile"
-        :key="currentFile?.id || currentIndex"
-        :file="currentFile"
-        @file-deleted="handleFileDeleted"
-        @close="handleClose"
-      />
+    <!-- 预览内容 + 详情 -->
+    <div class="preview-layout">
+      <div class="preview-content">
+        <FilePreview 
+          v-if="currentFile"
+          :key="currentFile?.id || currentIndex"
+          :file="currentFile"
+          @file-deleted="handleFileDeleted"
+          @close="handleClose"
+        />
+      </div>
+      <aside class="details-panel" v-if="currentFile">
+        <div class="details-header">
+          <div class="details-title">文件详情</div>
+          <div class="details-type" :class="currentFile.file_type">{{ currentFile.file_type === 'image' ? '图片' : '视频' }}</div>
+        </div>
+        <div class="details-list">
+          <div class="detail-item">
+            <span class="label">名称</span>
+            <span class="value" :title="currentFile.original_name">{{ currentFile.original_name }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="label">大小</span>
+            <span class="value">{{ formatFileSize(currentFile.file_size || 0) }}</span>
+          </div>
+          <div class="detail-item" v-if="currentFile.mime_type">
+            <span class="label">类型</span>
+            <span class="value">{{ currentFile.mime_type }}</span>
+          </div>
+          <div class="detail-item" v-if="currentFile.file_type==='image' && (currentFile.width || currentFile.height)">
+            <span class="label">分辨率</span>
+            <span class="value">{{ (currentFile.width||'?') + ' × ' + (currentFile.height||'?') }}</span>
+          </div>
+          <div class="detail-item" v-if="currentFile.file_type==='video' && currentFile.duration">
+            <span class="label">时长</span>
+            <span class="value">{{ currentFile.duration }}s</span>
+          </div>
+          <div class="detail-item" v-if="currentFile.created_at">
+            <span class="label">创建时间</span>
+            <span class="value">{{ new Date(currentFile.created_at).toLocaleString() }}</span>
+          </div>
+        </div>
+        <div class="details-actions">
+          <el-button @click="downloadCurrentFile" class="gray-btn">
+            <el-icon><Download /></el-icon>
+            下载
+          </el-button>
+          <el-button @click="shareCurrentFile" class="gray-btn">
+            <el-icon><Share /></el-icon>
+            分享
+          </el-button>
+          <el-button @click="openInNewWindow" class="gray-btn">
+            <el-icon><Link /></el-icon>
+            新窗口
+          </el-button>
+        </div>
+      </aside>
     </div>
     
     <!-- 底部操作栏 -->
@@ -281,14 +329,14 @@ watch(() => props.file, (newFile) => {
     }
   }
   
-  :deep(.el-dialog__body) {
-    flex: 1;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: transparent;
-  }
+:deep(.el-dialog__body) {
+  flex: 1;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: transparent;
+}
   
   :deep(.el-dialog__footer) {
     display: none;
@@ -370,6 +418,89 @@ watch(() => props.file, (newFile) => {
   display: flex;
   flex-direction: column;
   background: transparent;
+}
+
+.preview-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 0;
+  height: 100%;
+}
+
+.details-panel {
+  border-left: 1px solid #e5e7eb;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+}
+
+.details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #ececec;
+  background: #ffffff;
+}
+
+.details-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.details-type {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+}
+
+.details-list {
+  padding: 12px 16px;
+  display: grid;
+  grid-auto-rows: minmax(20px, auto);
+  gap: 10px;
+}
+
+.detail-item {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  align-items: center;
+}
+
+.detail-item .label {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.detail-item .value {
+  font-size: 12px;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.details-actions {
+  margin-top: auto;
+  padding: 12px 16px;
+  border-top: 1px solid #ececec;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.gray-btn {
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #e5e7eb;
+}
+
+.gray-btn:hover {
+  background: #f3f4f6;
+  border-color: #d1d5db;
 }
 
 .preview-footer {
@@ -546,6 +677,16 @@ watch(() => props.file, (newFile) => {
         }
       }
     }
+  }
+}
+
+@media (max-width: 1024px) {
+  .preview-layout {
+    grid-template-columns: 1fr;
+  }
+  .details-panel {
+    border-left: none;
+    border-top: 1px solid #e5e7eb;
   }
 }
 
