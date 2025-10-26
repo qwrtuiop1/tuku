@@ -8,6 +8,7 @@ const mime = require('mime-types');
 const { pool } = require('../config/database');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
+const liveMediaService = require('../services/liveMediaService');
 
 const router = express.Router();
 
@@ -384,6 +385,29 @@ router.post('/upload', authenticateToken, asyncHandler(async (req, res) => {
 }));
 
 // 处理文件上传的核心逻辑
+async function isMotionPhotoJpeg(filePath) {
+  try {
+    const fd = await fs.open(filePath, 'r');
+    const stat = await fs.stat(filePath);
+    const size = Math.min(stat.size, 1024 * 1024); // 读前 1MB
+    const buf = Buffer.alloc(size);
+    await fd.read(buf, 0, size, 0);
+    await fd.close();
+    const headStr = buf.toString('utf8');
+    if (/G(Camera|Image)|MicroVideo|MotionPhoto/i.test(headStr)) return true;
+    // 简单 EOI(FFD9) 后 ftyp 检测：再读最后 256KB
+    const tailLen = Math.min(stat.size, 256 * 1024);
+    const tailBuf = Buffer.alloc(tailLen);
+    const fd2 = await fs.open(filePath, 'r');
+    await fd2.read(tailBuf, 0, tailLen, stat.size - tailLen);
+    await fd2.close();
+    if (tailBuf.includes(Buffer.from('ftyp'))) return true;
+  } catch (e) {
+    return false;
+  }
+  return false;
+}
+
 const handleFileUpload = asyncHandler(async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: '没有上传文件' });
@@ -414,6 +438,17 @@ const handleFileUpload = asyncHandler(async (req, res) => {
   
 
   if (fileType === 'image') {
+    // 兜底：安卓 Motion Photo 检测，命中则转交 live 通道
+    if ((file.mimetype === 'image/jpeg' || path.extname(file.originalname).toLowerCase() === '.jpg' || path.extname(file.originalname).toLowerCase() === '.jpeg') && await isMotionPhotoJpeg(file.path)) {
+      try {
+        const jobId = await liveMediaService.createUploadJob(userId, [
+          { path: file.path, originalname: file.originalname, mimetype: file.mimetype }
+        ]);
+        return res.status(202).json({ message: '检测到 Motion Photo，已转交实况处理', jobId });
+      } catch (e) {
+        // 若转交失败，则继续按普通图片处理
+      }
+    }
     try {
       const metadata = await sharp(file.path).metadata();
       width = metadata.width || null;
@@ -778,6 +813,10 @@ router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
 
   // 从数据库删除记录
   await pool.execute('DELETE FROM files WHERE id = ?', [fileId]);
+  // 清理与该文件的实况关联（如有）
+  try {
+    await pool.execute('UPDATE files SET live_video_id = NULL WHERE live_video_id = ? AND user_id = ?', [fileId, userId]);
+  } catch (e) {}
 
   // 更新用户存储使用量
   await pool.execute(

@@ -1777,18 +1777,19 @@
               <span class="value">{{ selectedUserStats?.email }}</span>
             </div>
             <div class="stats-item password-item">
-              <span class="label">密码：</span>
-              <div class="password-display">
-                <span class="password-value">{{ showPassword ? (userStats.password || '未设置') : '******' }}</span>
-                <el-button 
-                  type="primary" 
-                  size="small" 
-                  @click="resetSelectedUserPassword"
-                  class="password-toggle-btn"
-                  :disabled="!passwordVerifiedOk"
-                >
-                  重置密码
-                </el-button>
+              <div class="password-container">
+                <span class="label">密码：</span>
+                <div class="password-display">
+                  <span class="password-value">{{ showPassword ? (userStats.password || '未设置') : '******' }}</span>
+                  <el-button 
+                    type="primary" 
+                    size="small" 
+                    @click="resetSelectedUserPassword"
+                    class="password-toggle-btn"
+                  >
+                    重置密码
+                  </el-button>
+                </div>
               </div>
               <!-- 验证码输入区域 -->
               <div v-if="passwordVerificationSent && !passwordVerificationExpired" class="password-verification">
@@ -1798,23 +1799,23 @@
                     placeholder="请输入验证码"
                     size="small"
                     maxlength="6"
-                    style="width: 120px; margin-right: 8px;"
+                    class="verification-code-input"
                   />
                   <el-button 
                     type="success" 
                     size="small" 
                     @click="verifyPasswordCode"
                     :disabled="passwordVerificationCode.length !== 6"
+                    class="verify-btn-desktop"
                   >
                     验证
                   </el-button>
-                </div>
-                <div class="verification-actions">
                   <el-button 
                     type="primary" 
                     size="small" 
                     @click="sendPasswordVerificationCode"
                     :loading="sendingVerificationCode"
+                    class="send-code-btn-desktop"
                   >
                     发送验证码
                   </el-button>
@@ -1864,7 +1865,6 @@
                       size="small" 
                       @click="resetSelectedUserPassword"
                       class="password-toggle-btn"
-                      :disabled="!passwordVerifiedOk"
                     >
                       重置密码
                     </el-button>
@@ -1879,21 +1879,23 @@
                       size="small"
                       maxlength="6"
                     />
+                  </div>
+                  <div class="verification-actions-mobile">
                     <el-button 
                       type="success" 
                       size="small" 
                       @click="verifyPasswordCode"
                       :disabled="passwordVerificationCode.length !== 6"
+                      class="verify-btn"
                     >
                       验证
                     </el-button>
-                  </div>
-                  <div class="verification-actions">
                     <el-button 
                       type="primary" 
                       size="small" 
                       @click="sendPasswordVerificationCode"
                       :loading="sendingVerificationCode"
+                      class="send-code-btn"
                     >
                       发送验证码
                     </el-button>
@@ -3215,10 +3217,19 @@ const generateRandomPassword = (length = 12): string => {
 // 验证通过后，重置所选用户的密码并提示新密码
 const resetSelectedUserPassword = async () => {
   if (!selectedUserStats.value) return
+  
+  // 如果还没有验证通过，先显示验证码输入框
   if (!passwordVerifiedOk.value) {
-    ElMessage.warning('请先完成验证码校验')
+    // 显示验证码输入框
+    passwordVerificationSent.value = true
+    passwordVerificationExpired.value = false
+    passwordVerificationExpiry.value = new Date(Date.now() + 5 * 60 * 1000) // 5分钟有效期
+    passwordVerificationCode.value = ''
+    ElMessage.info('请先完成验证码校验')
     return
   }
+  
+  // 验证通过后，执行重置密码
   try {
     const newPwd = generateRandomPassword(12)
     await api.put(`/admin/users/${selectedUserStats.value.id}/password`, { password: newPwd })
@@ -3226,6 +3237,7 @@ const resetSelectedUserPassword = async () => {
     // 重置状态，要求再次验证才可再次重置
     passwordVerifiedOk.value = false
     showPassword.value = false
+    passwordVerificationSent.value = false
   } catch (e: any) {
     ElMessage.error('重置密码失败，请重试')
   }
@@ -7728,6 +7740,8 @@ onUnmounted(() => {
     .password-display {
       display: flex;
       align-items: center;
+      justify-content: space-between;
+      width: 100%;
       gap: 8px;
       
       .password-value {
@@ -7739,14 +7753,18 @@ onUnmounted(() => {
         padding: 4px 8px;
         border-radius: 4px;
         border: 1px solid #e9ecef;
-        max-width: 200px;
+        flex: 1;
+        min-width: 0;
         word-break: break-all;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       
       .password-toggle-btn {
-        padding: 4px 8px;
-        min-width: auto;
+        padding: 4px 12px;
+        min-width: 80px;
         height: 28px;
+        flex-shrink: 0;
         
         .el-icon {
           font-size: 14px;
@@ -7764,7 +7782,25 @@ onUnmounted(() => {
       .verification-input {
         display: flex;
         align-items: center;
+        gap: 8px;
         margin-bottom: 8px;
+        
+        .verification-code-input {
+          width: 180px;
+          flex-shrink: 0;
+          
+          .el-input__wrapper {
+            width: 100%;
+          }
+        }
+        
+        .verify-btn-desktop {
+          flex-shrink: 0;
+        }
+        
+        .send-code-btn-desktop {
+          flex-shrink: 0;
+        }
       }
       
       .verification-actions {
@@ -7805,19 +7841,55 @@ onUnmounted(() => {
     display: flex;
     flex-direction: column;
     gap: 8px;
-  }
-
-  // 桌面端：密码项左右布局
-  @media (min-width: 1024px) {
-    .password-item {
-      flex-direction: row;
+    
+    .password-container {
+      display: flex;
       align-items: center;
       gap: 12px;
-      .label { min-width: 64px; }
-      .password-display { margin-left: auto; }
+      
+      .label {
+        font-weight: 500;
+        color: #6c757d;
+        min-width: 60px;
+        flex-shrink: 0;
+      }
+      
+      .password-display {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+    }
+  }
+
+  // 桌面端：密码项上下布局
+  @media (min-width: 1024px) {
+    .password-item {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      
+      .password-container {
+        width: 100%;
+        
+        .label {
+          min-width: 60px;
+          font-weight: 500;
+          color: #6c757d;
+        }
+        
+        .password-display {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+      }
+      
       .password-verification {
         width: 100%;
-        margin-top: 8px; // 验证区域仍然在下一行
+        margin-top: 0;
       }
     }
   }
@@ -7954,6 +8026,8 @@ onUnmounted(() => {
             .password-display {
               display: flex;
               align-items: center;
+              justify-content: space-between;
+              width: 100%;
               gap: 8px;
               
               .password-value {
@@ -7965,14 +8039,18 @@ onUnmounted(() => {
                 padding: 4px 8px;
                 border-radius: 4px;
                 border: 1px solid #e9ecef;
-                max-width: 150px;
+                flex: 1;
+                min-width: 0;
                 word-break: break-all;
+                overflow: hidden;
+                text-overflow: ellipsis;
               }
               
               .password-toggle-btn {
-                padding: 4px 8px;
-                min-width: auto;
+                padding: 4px 12px;
+                min-width: 80px;
                 height: 28px;
+                flex-shrink: 0;
                 
                 .el-icon {
                   font-size: 14px;
@@ -7991,14 +8069,22 @@ onUnmounted(() => {
               display: flex;
               flex-direction: column;
               gap: 12px;
-              margin-bottom: 16px;
+              margin-bottom: 12px;
               
               .el-input {
                 width: 100%;
               }
+            }
+            
+            .verification-actions-mobile {
+              display: flex;
+              gap: 8px;
+              margin-bottom: 12px;
               
-              .el-button {
-                width: 100%;
+              .verify-btn,
+              .send-code-btn {
+                flex: 1;
+                width: 50%;
                 height: 36px;
               }
             }

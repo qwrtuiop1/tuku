@@ -11,6 +11,7 @@ const folderRoutes = require('./routes/folders');
 const adminRoutes = require('./routes/admin');
 const avatarRoutes = require('./routes/avatars');
 const systemRoutes = require('./routes/system');
+const liveMediaRoutes = require('./routes/liveMedia');
 const nginxConfigRoutes = require('./routes/nginxConfig');
 const { errorHandler } = require('./middleware/errorHandler');
 const { authenticateToken } = require('./middleware/auth');
@@ -190,6 +191,7 @@ app.use('/api/files/avatar', express.static(path.join(process.env.UPLOAD_PATH ||
 
 // 文件路由 - 必须在头像静态服务之后
 app.use('/api/files', authenticateToken, fileRoutes);
+app.use('/api/live-media', authenticateToken, liveMediaRoutes);
 
 // 健康检查
 app.get('/api/health', (req, res) => {

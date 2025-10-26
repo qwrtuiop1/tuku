@@ -10,7 +10,12 @@ class DatabaseInitService {
       'add_qq_unionid.sql',
       'add_epass_id.sql',
       // 其他初始化修复
-      'fix_notification_frequency.sql'
+      'fix_notification_frequency.sql',
+      // 实况媒体表
+      'create_live_media_assets.sql',
+      'create_live_media_jobs.sql',
+      'create_live_media_variants.sql',
+      'add_live_media_folder_id.sql'
     ];
   }
 
@@ -214,6 +219,25 @@ class DatabaseInitService {
     }
     
     console.log('✅ 数据库初始化完成');
+    
+    // 兜底：确保 live_media_assets.folder_id 存在并建立索引/外键
+    try {
+      const [lmCols] = await pool.execute('DESCRIBE live_media_assets');
+      const lmColNames = lmCols.map(c => c.Field);
+      if (!lmColNames.includes('folder_id')) {
+        try { await pool.execute('ALTER TABLE live_media_assets ADD COLUMN folder_id INT NULL'); } catch (_) {}
+      }
+      try { await pool.execute('ALTER TABLE live_media_assets ADD INDEX idx_owner_folder (owner_user_id, folder_id)'); } catch (_) {}
+      try { await pool.execute('ALTER TABLE live_media_assets ADD CONSTRAINT fk_live_asset_folder FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL'); } catch (_) {}
+    } catch (e) {
+      console.error('❌ 兜底添加 live_media_assets.folder_id 失败:', e.message);
+    }
+    
+    // 兜底：扩展 live_media_jobs.status 枚举加入 cancelled
+    try {
+      await pool.execute("ALTER TABLE live_media_jobs MODIFY COLUMN status ENUM('queued','processing','completed','failed','cancelled') NOT NULL DEFAULT 'queued'");
+    } catch (_) {}
+    
     return true;
   }
 }

@@ -33,7 +33,7 @@
               <el-icon><Search /></el-icon>
             </template>
           </el-input>
-          <el-checkbox v-model="onlyLive" class="only-live-checkbox">仅实况</el-checkbox>
+          
           
           <el-dropdown @command="handleSortChange" class="sort-dropdown">
             <el-button size="small" class="sort-btn">
@@ -52,6 +52,15 @@
         
         <!-- 视图和批量操作 -->
         <div class="toolbar-actions">
+          <el-button
+            size="small"
+            :type="onlyLive ? 'primary' : ''"
+            class="filter-live-btn"
+            @click="toggleOnlyLive"
+            round
+          >
+            仅实况
+          </el-button>
           <!-- 视图切换 -->
           <el-button-group class="view-toggle">
             <el-tooltip content="网格视图" placement="bottom">
@@ -220,7 +229,49 @@
         <p class="loading-text">正在加载文件...</p>
       </div>
       
-      <!-- 网格视图 -->
+      <!-- 网格视图（实况专用） -->
+      <div v-else-if="viewMode === 'grid' && onlyLive" class="file-grid">
+        <div 
+          v-for="asset in liveAssets" 
+          :key="asset.id"
+          class="file-card"
+          :class="{ 'selected': selectedFiles.includes(asset.id), 'is-live': true }"
+          @contextmenu.prevent="showCardActions({ id: asset.id, isFolder: false, isLive: true })"
+          :data-item-id="asset.id"
+        >
+          <div class="card-checkbox" @click.stop @touchstart.stop @touchend.stop>
+            <el-checkbox 
+              :model-value="selectedFiles.includes(asset.id)"
+              @change="() => toggleFileSelection(asset.id)"
+              @click.stop
+            />
+          </div>
+          <div class="card-thumbnail" @click="openLivePreview(asset)">
+            <LiveMediaCard :asset="asset" :autoplay="true" @bg-theme="(t)=>setLiveTheme(asset.id, t)" />
+          </div>
+          <div class="card-info" :class="liveTheme[asset.id] === 'light' ? 'theme-light' : 'theme-dark'">
+            <div class="file-name">{{ asset.kind }}</div>
+            <div class="file-meta">
+              <span>
+                {{ asset.duration_ms ? Math.round(asset.duration_ms/1000) + 's' : '实况' }}
+                <template v-if="asset.created_at"> • {{ formatTime(asset.created_at) }}</template>
+              </span>
+            </div>
+          </div>
+          <div class="card-actions" @touchstart.stop @touchmove.stop @touchend.stop>
+            <el-button type="text" size="small" @click.stop="openLivePreview(asset)" class="action-btn">
+              <el-icon><View /></el-icon>
+              <span>预览</span>
+            </el-button>
+            <el-button type="text" size="small" @click.stop="deleteLiveAsset(asset.id)" class="action-btn danger">
+              <el-icon><Delete /></el-icon>
+              <span>删除</span>
+            </el-button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 网格视图（常规文件 + 实况资源） -->
       <div v-else-if="viewMode === 'grid'" class="file-grid">
         <div 
           v-for="item in paginatedFiles" 
@@ -229,17 +280,19 @@
           :class="{ 
             'selected': selectedFiles.includes(item.id),
             'folder-card': item.isFolder,
-            'long-pressed': longPressedCards.has(item.id)
+            'long-pressed': longPressedCards.has(item.id),
+            'is-live': item.isLive
           }"
-          @click="!isMobile && handleItemClick(item, $event)"
+          @click="handleGridCardClick(item, $event)"
           @touchstart="handleTouchStart"
           @touchmove="handleTouchMove"
           @touchend="(event) => handleTouchEnd(event, item)"
-          @contextmenu="handleContextMenu($event, item)"
+          @contextmenu.prevent="showCardActions(item)"
           @mousedown="(event) => handleMouseDown(event, item)"
           @mouseup="(event) => handleMouseUp(event, item)"
           @mouseleave="(event) => { handleMouseLeave(event, item); hideQuickPreview() }"
-          @mouseenter="!item.isFolder && showQuickPreview(item, $event)"
+          @mouseenter="!item.isFolder && !item.isLive && showQuickPreview(item, $event)"
+          :data-item-id="item.id"
         >
           <div class="card-checkbox" @click.stop @touchstart.stop @touchend.stop>
             <el-checkbox 
@@ -255,31 +308,38 @@
               <el-icon class="folder-icon"><Folder /></el-icon>
             </div>
             <!-- 文件缩略图 -->
+            <template v-else>
+              <LiveMediaCard v-if="item.isLive" :asset="item.liveAsset" :autoplay="true" @bg-theme="(t)=>setLiveTheme(item.liveAsset.id, t)" />
             <FileThumbnail 
               v-else
               :file="item" 
               size="medium"
               @click="(file) => handleFileClick(file)"
             />
-            <div v-if="!item.isFolder && item.file_type==='image' && item.live_video_id" class="live-badge">LIVE</div>
+              
+            </template>
           </div>
           
-          <div class="card-info">
+          <div class="card-info" :class="item.isLive ? (liveTheme[item.liveAsset.id] === 'light' ? 'theme-light' : 'theme-dark') : ''">
             <div class="file-name" :title="item.original_name">
-              {{ item.original_name }}
+              {{ item.isLive ? (item.liveAsset?.kind || '实况') : item.original_name }}
             </div>
             <div class="file-meta">
               <span v-if="item.isFolder">文件夹</span>
+              <span v-else-if="item.isLive">
+                {{ item.liveAsset?.duration_ms ? Math.round(item.liveAsset.duration_ms/1000) + 's' : '实况' }}
+                <template v-if="item.liveAsset?.created_at"> • {{ formatTime(item.liveAsset.created_at) }}</template>
+              </span>
               <span v-else>{{ formatFileSize(item.file_size) }} • {{ formatTime(item.created_at) }}</span>
             </div>
           </div>
           
           <div class="card-actions" @touchstart.stop @touchmove.stop @touchend.stop>
-            <el-button v-if="!item.isFolder" type="text" size="small" @click.stop="downloadFile(item)" class="action-btn">
+            <el-button v-if="!item.isFolder && !item.isLive" type="text" size="small" @click.stop="downloadFile(item)" class="action-btn">
               <el-icon><Download /></el-icon>
               <span>下载</span>
             </el-button>
-            <el-button v-if="!item.isFolder" type="text" size="small" @click.stop="shareFileAction(item)" class="action-btn">
+            <el-button v-if="!item.isFolder && !item.isLive" type="text" size="small" @click.stop="shareFileAction(item)" class="action-btn">
               <el-icon><Share /></el-icon>
               <span>分享</span>
             </el-button>
@@ -370,69 +430,26 @@
     </div>
 
     <!-- 快速预览 -->
-    <QuickPreview
+      <QuickPreview
       v-if="quickPreviewFile"
       :file="quickPreviewFile"
       :visible="showQuickPreviewDialog"
     />
 
-    <!-- 右键菜单 -->
-    <div 
-      v-if="showContextMenu" 
-      class="context-menu"
-      :style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
-      @click.stop
-    >
-      <!-- 文件操作 -->
-      <template v-if="contextFile && !contextFile.isFolder">
-      <div class="context-menu-item" @click="previewContextFile">
-        <el-icon><View /></el-icon>
-        预览
-      </div>
-      <div class="context-menu-item" @click="downloadContextFile">
-        <el-icon><Download /></el-icon>
-        下载
-      </div>
-      <div class="context-menu-item" @click="shareContextFile">
-        <el-icon><Share /></el-icon>
-        分享
-      </div>
-      <div class="context-menu-item" @click="copyFileUrl">
-        <el-icon><Link /></el-icon>
-        复制链接
-      </div>
-      <div class="context-menu-divider"></div>
-        <div class="context-menu-item" @click="renameContextItem">
-          <el-icon><Edit /></el-icon>
-          重命名
-        </div>
-      <div class="context-menu-item danger" @click="deleteContextFile">
-        <el-icon><Delete /></el-icon>
-        删除
-      </div>
-      </template>
-      
-      <!-- 文件夹操作 -->
-      <template v-else-if="contextFile && contextFile.isFolder">
-        <div class="context-menu-item" @click="enterContextFolder">
-          <el-icon><FolderOpened /></el-icon>
-          进入文件夹
-        </div>
-        <div class="context-menu-item" @click="openFolderDetails(contextFile)">
-          <el-icon><View /></el-icon>
-          详情
-        </div>
-        <div class="context-menu-divider"></div>
-        <div class="context-menu-item" @click="renameContextItem">
-          <el-icon><Edit /></el-icon>
-          重命名
-        </div>
-        <div class="context-menu-item danger" @click="deleteContextFile">
-          <el-icon><Delete /></el-icon>
-          删除
-        </div>
-      </template>
-    </div>
+      <!-- Live 全屏 -->
+      <LiveMediaFullscreen 
+        v-if="showLiveFullscreen" 
+        v-model:visible="showLiveFullscreen" 
+        :asset="currentLiveAsset!" 
+      />
+      <LiveMediaPreview 
+        v-if="showLivePreview" 
+        v-model="showLivePreview" 
+        :asset="currentLiveAsset!"
+        @fullscreen="openLiveFullscreen"
+      />
+
+      <!-- 右键菜单已移除 -->
 
     <!-- 上传对话框 -->
     <el-dialog
@@ -576,6 +593,11 @@ import FileThumbnail from '@/components/FileThumbnail.vue'
 import EnhancedPreviewDialog from '@/components/EnhancedPreviewDialog.vue'
 import FolderDetailsDialog from '@/components/FolderDetailsDialog.vue'
 import QuickPreview from '@/components/QuickPreview.vue'
+import LiveMediaCard from '@/components/LiveMediaCard.vue'
+import LiveMediaFullscreen from '@/components/LiveMediaFullscreen.vue'
+import LiveMediaPreview from '@/components/LiveMediaPreview.vue'
+import api from '@/utils/api'
+import type { LiveMediaAsset } from '@/utils/liveMedia'
 
 const router = useRouter()
 const filesStore = useFilesStore()
@@ -599,7 +621,7 @@ const contextMenuPosition = ref({ x: 0, y: 0 })
 const folderFormRef = ref<InstanceType<typeof ElForm>>()
 const sortBy = ref('name')
 const sortOrder = ref('asc')
-const selectedFiles = ref<number[]>([])
+const selectedFiles = ref<any[]>([])
 const currentPage = ref(1)
 const pageSize = ref(20)
 
@@ -667,6 +689,12 @@ const loadViewSettings = () => {
 // 搜索
 const searchQuery = ref('')
 const onlyLive = ref(false)
+const liveAssets = ref<LiveMediaAsset[]>([])
+const showLiveFullscreen = ref(false)
+const currentLiveAsset = ref<LiveMediaAsset | null>(null)
+const showLivePreview = ref(false)
+const liveTheme = ref<Record<number, 'light' | 'dark'>>({})
+const setLiveTheme = (id: number, t: 'light' | 'dark') => { liveTheme.value[id] = t }
 
 // 文件夹路径
 const folderPath = ref<Array<{id: number, name: string}>>([])
@@ -767,6 +795,22 @@ const allItems = computed(() => {
       isFolder: false
     })
   })
+
+  // 合并当前文件夹的实况（仅普通视图时，且 liveAssets 已按当前文件夹查询）
+  if (!onlyLive.value && liveAssets.value && liveAssets.value.length > 0) {
+    for (const asset of liveAssets.value) {
+      items.push({
+        id: `live_${asset.id}`,
+        isFolder: false,
+        isLive: true,
+        liveAsset: asset,
+        original_name: asset.kind || '实况',
+        file_size: 0,
+        file_type: 'live'
+      } as any)
+    }
+  }
+
   
   // 重新排序
   return items.sort((a, b) => {
@@ -810,6 +854,8 @@ const paginatedFiles = computed(() => {
 const refreshFiles = () => {
   filesStore.fetchFiles(1)
   filesStore.fetchFolders()
+  // 同步刷新实况资源，确保普通视图合并区也更新
+  fetchLiveAssets()
   ElMessage.success('文件列表已刷新')
 }
 
@@ -872,8 +918,8 @@ onUnmounted(() => {
 
 // 根据屏幕尺寸调整长按延迟
 const getLongPressDelay = () => {
-  if (isMobile.value) return 2000 // 移动端2秒
-  if (isTablet.value) return 1500 // 平板1.5秒
+  if (isMobile.value) return 1000 // 移动端1秒
+  if (isTablet.value) return 1000 // 平板1秒
   return 1000 // 桌面端1秒
 }
 
@@ -891,19 +937,10 @@ const handleLongPress = (item: any) => {
   isLongPressing.value = true
   longPressItem.value = item
   
-  // 在移动端，只显示统一的 context-menu
+  // 移动端：保留长按显示操作按钮
   if (isMobile.value) {
-    // 移动端统一使用 context-menu
-    handleContextMenu(new MouseEvent('contextmenu'), item)
-    ElMessage.info('长按触发菜单')
-  } else {
-    // 桌面端显示 card-actions 和 context-menu
-  if (item.isFolder) {
-      longPressedCards.value.add(item.id)
-      startAutoResetTimer()
-    }
-    handleContextMenu(new MouseEvent('contextmenu'), item)
-    ElMessage.info('长按触发上下文菜单')
+    longPressedCards.value.add(item.id)
+    startAutoResetTimer()
   }
   
   // 设置长按状态重置定时器
@@ -956,7 +993,6 @@ const handleTouchStart = (event: TouchEvent) => {
         
         const item = allItems.find(item => item.id == itemId)
         if (item) {
-          // 直接显示菜单，不等松手
           handleLongPress(item)
         }
       }
@@ -1311,8 +1347,12 @@ const deleteItem = async (item: any) => {
       }
     }
   } else {
-    // 删除文件
+    // 删除文件或实况
+    if ((item as any).isLive && (item as any).liveAsset?.id) {
+      await deleteLiveAsset((item as any).liveAsset.id)
+    } else {
     deleteFile(item)
+    }
   }
 }
 
@@ -1370,7 +1410,7 @@ const handleSelectionChange = (selection: any[]) => {
   selectedFiles.value = selection.map(item => item.id)
 }
 
-const toggleFileSelection = (fileId: number, event?: Event) => {
+const toggleFileSelection = (fileId: any, event?: Event) => {
   // 阻止事件冒泡
   if (event) {
     event.stopPropagation()
@@ -1394,63 +1434,30 @@ const rightClickTimer = ref<NodeJS.Timeout | null>(null)
 const rightClickDelay = 500 // 右键长按延迟时间
 
 const handleMouseDown = (event: MouseEvent, item: any) => {
-  // 只处理左键
-  if (event.button !== 0) return
-  
-  // 检查是否点击了checkbox区域或操作按钮区域
-  const target = event.target as HTMLElement
-  if (target.closest('.card-checkbox') || target.closest('.card-actions')) {
-    return
-  }
-  
-  // 设置鼠标按下定时器
-  rightClickTimer.value = setTimeout(() => {
-    // 长按显示操作按钮（仅对文件夹）
-    if (item.isFolder) {
-      longPressedCards.value.add(item.id)
-      startAutoResetTimer()
-    }
-  }, getLongPressDelay())
+  // 桌面端不再通过长按显示操作按钮
+  // 只通过右键显示
+  return
 }
 
 const handleMouseUp = (event: MouseEvent, item: any) => {
-  // 清除长按定时器
-  if (rightClickTimer.value) {
-    clearTimeout(rightClickTimer.value)
-    rightClickTimer.value = null
-  }
+  // 桌面端不再需要清理长按定时器
+  return
 }
 
 const handleMouseLeave = (event: MouseEvent, item: any) => {
-  // 鼠标离开时清除长按定时器
-  if (rightClickTimer.value) {
-    clearTimeout(rightClickTimer.value)
-    rightClickTimer.value = null
-  }
+  // 桌面端不再需要清理长按定时器
+  return
 }
 
-const handleContextMenu = (event: MouseEvent, file: any) => {
-  event.preventDefault()
-  
-  // 如果是文件夹，添加到长按卡片集合中
-  if (file.isFolder) {
-    longPressedCards.value.add(file.id)
-    // 启动自动重置定时器
-    startAutoResetTimer()
-  }
-  
-  contextFile.value = file
-  contextMenuPosition.value = { x: event.clientX, y: event.clientY }
-  showContextMenu.value = true
+const showCardActions = (item: any) => {
+  // 仅桌面端通过右键触发
+  if (isMobile.value) return
+  longPressedCards.value.clear()
+  longPressedCards.value.add(item.id)
+  startAutoResetTimer()
 }
 
-const previewContextFile = () => {
-  if (contextFile.value) {
-    previewFile.value = contextFile.value
-    showPreviewDialog.value = true
-  }
-  showContextMenu.value = false
-}
+// 右键菜单功能移除
 
 const downloadContextFile = () => {
   if (contextFile.value) {
@@ -1511,6 +1518,10 @@ const copyFileUrl = async () => {
 // 文件操作
 const downloadFile = (file: any) => {
   try {
+    if ((file as any).isLive) {
+      ElMessage.warning('实况暂不支持打包下载，请在预览中播放或右键另存为')
+      return
+    }
     downloadFileUtil(file.id, file.original_name)
     ElMessage.success('开始下载文件')
   } catch (error) {
@@ -1535,7 +1546,11 @@ const deleteFile = async (file: any) => {
       }
     )
     
+    if ((file as any).isLive && (file as any).liveAsset?.id) {
+      await deleteLiveAsset((file as any).liveAsset.id)
+    } else {
     await filesStore.deleteFile(file.id)
+    }
     ElMessage.success('文件删除成功')
     
     // 刷新文件列表以确保数据同步
@@ -1571,6 +1586,27 @@ const batchDelete = async () => {
   }
   
   try {
+    // 仅实况视图：批量删除实况资源
+    if (onlyLive.value) {
+      for (const idStr of selectedFiles.value) {
+        try { 
+          // 从 live_xxx 格式中提取数字ID
+          const id = typeof idStr === 'string' && idStr.startsWith('live_') 
+            ? parseInt(idStr.replace('live_', '')) 
+            : parseInt(idStr)
+          await api.delete(`/live-media/${id}`)
+          // 立即从本地数组中移除
+          const index = liveAssets.value.findIndex(a => a.id === id)
+          if (index !== -1) {
+            liveAssets.value.splice(index, 1)
+          }
+        } catch {}
+      }
+      ElMessage.success(`成功删除 ${selectedFiles.value.length} 个实况`)
+      selectedFiles.value = []
+      return
+    }
+
     await ElMessageBox.confirm(
       `确定要删除选中的 ${selectedFiles.value.length} 个项目吗？`,
       '批量删除确认',
@@ -1581,11 +1617,12 @@ const batchDelete = async () => {
       }
     )
     
-    // 分别处理文件和文件夹
+  // 分别处理文件/文件夹/实况
     const filesToDelete = []
     const foldersToDelete = []
+  const liveToDelete: number[] = []
     
-    // 获取所有项目信息
+  // 获取所有项目信息（含合并的实况项）
     const allItems = filesStore.folders.map(folder => ({
       ...folder,
       isFolder: true,
@@ -1599,6 +1636,12 @@ const batchDelete = async () => {
     
     // 分类选中的项目
     for (const itemId of selectedFiles.value) {
+    // 识别实况ID
+    if (typeof itemId === 'string' && itemId.startsWith('live_')) {
+      const numId = parseInt(itemId.replace('live_', ''))
+      if (!Number.isNaN(numId)) liveToDelete.push(numId)
+      continue
+    }
       const item = allItems.find(item => item.id === itemId)
       if (item) {
         if (item.isFolder) {
@@ -1619,7 +1662,11 @@ const batchDelete = async () => {
       await filesStore.deleteFile(file.id)
     }
     
-    const totalCount = filesToDelete.length + foldersToDelete.length
+  // 删除实况
+  for (const liveId of liveToDelete) {
+    try { await api.delete(`/live-media/${liveId}`) } catch {}
+  }
+  const totalCount = filesToDelete.length + foldersToDelete.length + liveToDelete.length
     ElMessage.success(`成功删除 ${totalCount} 个项目`)
     selectedFiles.value = []
     
@@ -1708,9 +1755,13 @@ onMounted(() => {
   
   // 加载用户视图设置
   loadViewSettings()
+  // 恢复仅实况筛选
+  try { const v = localStorage.getItem('onlyLive'); if (v !== null) onlyLive.value = v === '1' } catch {}
   
   // 监听用户设置变化
   window.addEventListener('preferencesUpdated', loadViewSettings)
+  // 首屏无论是否仅实况，都拉取一次当前上下文的实况资源
+  fetchLiveAssets()
 })
 
 onUnmounted(() => {
@@ -1725,6 +1776,70 @@ onUnmounted(() => {
     clearTimeout(quickPreviewTimer.value)
   }
 })
+
+// 拉取实况资源
+const fetchLiveAssets = async () => {
+  try {
+    const params: any = { page: 1, limit: 60 }
+    if (!onlyLive.value && filesStore.currentFolder) params.folder_id = filesStore.currentFolder
+    if (onlyLive.value && filesStore.currentFolder) params.folder_id = filesStore.currentFolder
+    const { data } = await api.get('/live-media', { params })
+    liveAssets.value = data.items || []
+  } catch (e) {
+    liveAssets.value = []
+  }
+}
+
+// 监听“仅实况”切换
+watch(onlyLive, async () => {
+  // 切换筛选时，同步刷新实况数据（当前文件夹上下文）
+  await fetchLiveAssets()
+  try { localStorage.setItem('onlyLive', val ? '1' : '0') } catch {}
+})
+
+// 当前文件夹变化时刷新实况（用于普通视图合并展示该文件夹内实况）
+watch(() => filesStore.currentFolder, async () => {
+  await fetchLiveAssets()
+})
+
+const openLiveFullscreen = (asset: LiveMediaAsset) => {
+  currentLiveAsset.value = asset
+  showLiveFullscreen.value = true
+}
+
+const openLivePreview = (asset: LiveMediaAsset) => {
+  currentLiveAsset.value = asset
+  showLivePreview.value = true
+}
+
+const toggleOnlyLive = () => {
+  onlyLive.value = !onlyLive.value
+}
+
+  // 新增：常规视图点击卡片时，识别实况资源并打开预览
+  const handleGridCardClick = (item: any, event?: Event) => {
+    if (item?.isLive && item?.liveAsset) {
+      openLivePreview(item.liveAsset as LiveMediaAsset)
+      return
+    }
+    if (!isMobile.value) handleItemClick(item, event as any)
+  }
+
+// 删除单个实况
+const deleteLiveAsset = async (assetId: number) => {
+  try {
+    await ElMessageBox.confirm('确定要删除该实况吗？', '删除确认', { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' })
+    await api.delete(`/live-media/${assetId}`)
+    // 立即从本地数组中移除，实现即时更新
+    const index = liveAssets.value.findIndex(a => a.id === assetId)
+    if (index !== -1) {
+      liveAssets.value.splice(index, 1)
+    }
+    ElMessage.success('实况已删除')
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('删除失败')
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -2403,6 +2518,9 @@ onUnmounted(() => {
 }
 
   .file-card {
+    &.is-live { position: relative; }
+    // 统一信息区高度，实况使用占位与之对齐
+    --info-height: 56px;
     border: 1px solid #e5e7eb;
     border-radius: 12px;
     overflow: hidden;
@@ -2441,6 +2559,7 @@ onUnmounted(() => {
     }
   
   .card-thumbnail {
+    position: relative;
     height: 120px;
     background: #f9fafb;
     display: flex;
@@ -2468,32 +2587,60 @@ onUnmounted(() => {
   
   .card-info {
     padding: 12px;
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 12px;
+      min-height: var(--info-height);
     
     .file-name {
-      font-weight: 500;
-      color: #111827;
+      font-weight: 600;
+      color: #ffffff;
       margin-bottom: 4px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
     }
     
     .file-meta {
       font-size: 12px;
-      color: #6b7280;
+      color: #f3f4f6;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
     }
     .live-badge {
       position: absolute;
       left: 8px;
       bottom: 8px;
-      background: rgba(0,0,0,0.75);
+      background: rgba(0, 0, 0, 0.55);
       color: #fff;
       font-size: 10px;
       font-weight: 700;
       padding: 2px 6px;
       border-radius: 10px;
       letter-spacing: 1px;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
     }
+
+    // 占位条：不再需要
+    .card-info-spacer.live-spacer { display: none; }
+
+    // 操作按钮层级高于任何缩略图覆盖元素/角标
+    .card-actions { position: relative; z-index: 5; }
+  }
+
+// 移除实况覆盖层
+
+  // 亮色主题（背景偏亮时使用深色文字）
+.card-info.theme-light {
+    background: rgba(255,255,255,0.28);
+    border-color: rgba(255,255,255,0.4);
+    .file-name { color: #111827; text-shadow: none; }
+    .file-meta { color: #374151; text-shadow: none; }
+  }
+.card-info.theme-dark {
+    // 保持默认深色文字样式
   }
 }
 
@@ -3049,19 +3196,23 @@ onUnmounted(() => {
     backdrop-filter: blur(4px);
   }
   
-  // 移动端悬停时显示操作按钮
-  .file-card:hover .card-actions {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
+  // 桌面端：不通过 hover 显示操作按钮
+  // 只能通过右键 (long-pressed 类) 显示
+  @media (hover: hover) and (pointer: fine) {
+    .file-card:hover .card-actions { 
+      opacity: 0 !important; 
+      visibility: hidden !important; 
+      pointer-events: none !important; 
+    }
+    .file-card.long-pressed .card-actions { 
+      opacity: 1 !important; 
+      visibility: visible !important; 
+      pointer-events: auto !important; 
+    }
   }
   
-  // 移动端触摸时显示操作按钮
-  .file-card:active .card-actions {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-  }
+  // 移动端：触摸时也不显示操作按钮
+  // 只能通过长按1秒 (long-pressed 类) 显示
 }
 
 // 小屏手机 (320px - 479px)
@@ -3487,6 +3638,7 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: 9;
   display: flex;
   flex-direction: row;
   justify-content: center;
@@ -3572,19 +3724,8 @@ onUnmounted(() => {
   }
 }
 
-// 文件卡片悬停时显示操作按钮
-.file-card:hover .card-actions {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
-
-// 移动端触摸时显示操作按钮
-.file-card:active .card-actions {
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-}
+// 桌面端和移动端：都不通过 hover 或 active 显示操作按钮
+// 只能通过右键（桌面端）或长按1秒（移动端）显示
 
 // 移动端文件操作按钮优化
 @media (max-width: 768px) {
@@ -3608,74 +3749,11 @@ onUnmounted(() => {
     }
   }
   
-  .card-actions {
-    display: none !important; // 在移动端完全隐藏card-actions
-  }
+  // 移动端：使用卡片内操作层，不使用 context-menu
+  .context-menu { display: none !important; }
+  .file-card.long-pressed .card-actions { opacity: 1; visibility: visible; pointer-events: auto; }
   
-  // 移动端统一使用context-menu
-  .context-menu {
-    position: fixed;
-    z-index: 9999;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%);
-    backdrop-filter: blur(12px);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    padding: 8px 0;
-    min-width: 160px;
-    max-width: 200px;
-    
-    .context-menu-item {
-      padding: 12px 16px;
-      font-size: 14px;
-      font-weight: 500;
-      color: #606266;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      transition: all 0.3s ease;
-      cursor: pointer;
-      
-      &:hover {
-        background: rgba(64, 158, 255, 0.1);
-        color: #409eff;
-      }
-      
-      &.danger {
-        color: #f56c6c;
-        
-        &:hover {
-          background: rgba(245, 108, 108, 0.1);
-          color: #f56c6c;
-        }
-      }
-      
-      .el-icon {
-        font-size: 16px;
-        flex-shrink: 0;
-      }
-    }
-    
-    .context-menu-divider {
-      height: 1px;
-      background: rgba(0, 0, 0, 0.1);
-      margin: 4px 0;
-    }
-  }
-  
-  // 移动端悬停时显示操作按钮
-  .file-card:hover .card-actions {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-  }
-  
-  // 移动端触摸时显示操作按钮
-  .file-card:active .card-actions {
-    opacity: 1;
-    visibility: visible;
-    pointer-events: auto;
-  }
+  // 移动端：不通过 hover 或 active 显示操作按钮，只通过长按1秒
 }
 
 @media (max-width: 480px) {

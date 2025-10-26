@@ -44,6 +44,15 @@
       style="display: none"
       @change="handleFileSelect"
     />
+    <!-- 实况专用选择输入（可一次性选择 HEIC+MOV 或 GIF/WebP） -->
+    <input
+      ref="liveFileInputRef"
+      type="file"
+      multiple
+      accept=".heic,.mov,.gif,.webp,image/heic,video/quicktime,image/gif,image/webp"
+      style="display: none"
+      @change="handleLiveSelect"
+    />
     
     <!-- 上传进度列表 -->
     <div v-if="uploadList.length > 0" class="upload-list">
@@ -126,6 +135,31 @@
         <span class="stats-value error">{{ uploadStats.error }}</span>
       </div>
     </div>
+
+    <!-- 实况上传队列（Live Jobs） -->
+    <div v-if="liveJobs.length > 0" class="live-jobs">
+      <div class="live-jobs-header">
+        <h4>实况处理队列</h4>
+      </div>
+      <div class="live-jobs-items">
+        <div
+          v-for="job in liveJobs"
+          :key="job.id"
+          class="live-job-item"
+        >
+          <div class="job-info">
+            <div class="job-id">任务 {{ job.id }}</div>
+            <div class="job-status">{{ statusText(job.status) }}</div>
+          </div>
+          <el-progress :percentage="Math.max(0, Math.min(100, job.progress || 0))" :stroke-width="6" />
+          <div class="job-actions">
+            <el-button size="small" type="danger" @click="cancelLiveJob(job.id)">取消</el-button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    
   </div>
 </template>
 
@@ -161,10 +195,28 @@ const filesStore = useFilesStore()
 
 const dropZoneRef = ref<HTMLElement>()
 const fileInputRef = ref<HTMLInputElement>()
+const liveFileInputRef = ref<HTMLInputElement>()
 const isDragOver = ref(false)
 const isUploading = ref(false)
 const uploadProgress = ref(0)
 const uploadList = ref<UploadItem[]>([])
+const liveJobs = ref<Array<{ id: string, status: string, progress: number, assetId?: number }>>([])
+const liveControllers: Record<string, AbortController> = {}
+const jobTimers: Record<string, number> = {}
+
+// 规范化后端返回的 jobId，兼容字符串/数字/对象形态
+const normalizeJobId = (raw: any): string | null => {
+  if (raw == null) return null
+  const t = typeof raw
+  if (t === 'string' || t === 'number') return String(raw)
+  if (t === 'object') {
+    if (raw.id != null) return String(raw.id)
+    if (raw.jobId != null) return String(raw.jobId)
+    if (raw.value != null) return String(raw.value)
+    if (raw.data != null) return normalizeJobId(raw.data)
+  }
+  return null
+}
 
 // 系统设置
 const systemSettings = ref({
@@ -279,6 +331,11 @@ const triggerFileInput = () => {
   fileInputRef.value?.click()
 }
 
+// 触发实况选择
+const triggerLiveInput = () => {
+  liveFileInputRef.value?.click()
+}
+
 // 处理文件选择
 const handleFileSelect = async (e: Event) => {
   const target = e.target as HTMLInputElement
@@ -289,7 +346,97 @@ const handleFileSelect = async (e: Event) => {
   target.value = ''
 }
 
-// 处理文件
+// 处理实况选择（整批发送到 /live-media/upload）
+const handleLiveSelect = async (e: Event) => {
+  const target = e.target as HTMLInputElement
+  const files = Array.from(target.files || [])
+  if (!files.length) return
+  try {
+    isUploading.value = true
+    uploadProgress.value = 0
+    const formData = new FormData()
+    for (const f of files) formData.append('files', f)
+    // 传递当前文件夹ID到后端用于实况归属
+    if (filesStore.currentFolder) formData.append('folder_id', String(filesStore.currentFolder))
+    const resp = await api.post('/live-media/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress: (pe) => { if (pe.total) uploadProgress.value = Math.round((pe.loaded * 100) / pe.total) }
+    })
+    console.log('Live upload response:', resp.data)
+    const jobId = normalizeJobId(resp.data?.jobId)
+    if (jobId) {
+      ElMessage.success('实况上传已受理，开始处理...')
+      startJobPolling(jobId)
+    } else {
+      ElMessage.warning('后端未返回 jobId，已受理但无法跟踪进度')
+      try { console.warn('live-media/upload no jobId payload:', resp.data) } catch {}
+      emit('upload-success')
+    }
+  } catch (err: any) {
+    ElMessage.error(err.response?.data?.message || '实况上传失败')
+  } finally {
+    isUploading.value = false
+    uploadProgress.value = 0
+    target.value = ''
+  }
+}
+
+// 批量创建 live 任务
+const createLiveJob = async (batch: File[]) => {
+  try {
+    const fd = new FormData()
+    for (const f of batch) fd.append('files', f)
+    if (filesStore.currentFolder) fd.append('folder_id', String(filesStore.currentFolder))
+    const controller = new AbortController()
+    const resp = await api.post('/live-media/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' }, signal: controller.signal as any })
+    console.log('Live upload response (batch):', resp.data)
+    const jobId = normalizeJobId(resp.data?.jobId)
+    if (jobId) { liveControllers[jobId] = controller; startJobPolling(jobId) }
+    else ElMessage.warning('后端未返回 jobId，已受理但无法跟踪进度')
+  } catch {}
+}
+
+const startJobPolling = (jobId: string) => {
+  liveJobs.value.push({ id: jobId, status: 'queued', progress: 0 })
+  if (jobTimers[jobId]) {
+    window.clearInterval(jobTimers[jobId])
+    delete jobTimers[jobId]
+  }
+  const jobIdEncoded = encodeURIComponent(String(jobId))
+  jobTimers[jobId] = window.setInterval(async () => {
+    try {
+      const { data } = await api.get(`/live-media/jobs/${jobIdEncoded}`)
+      const idx = liveJobs.value.findIndex(j => j.id === jobId)
+      if (idx !== -1) liveJobs.value[idx] = { id: data.id, status: data.status, progress: data.progress || 0, assetId: data.assetId }
+      if (data.status === 'completed') {
+        window.clearInterval(jobTimers[jobId])
+        delete jobTimers[jobId]
+        ElMessage.success('实况处理完成')
+        emit('upload-success')
+      } else if (data.status === 'failed') {
+        window.clearInterval(jobTimers[jobId])
+        delete jobTimers[jobId]
+        ElMessage.error('实况处理失败')
+      }
+    } catch {}
+  }, 1200)
+}
+
+const cancelLiveJob = async (jobId: string) => {
+  try {
+    const c = liveControllers[jobId]
+    if (c) { try { c.abort() } catch {} delete liveControllers[jobId] }
+    await api.delete(`/live-media/jobs/${encodeURIComponent(jobId)}`)
+    const idx = liveJobs.value.findIndex(j => j.id === jobId)
+    if (idx !== -1) liveJobs.value.splice(idx, 1)
+    ElMessage.success('已取消')
+    emit('upload-success')
+  } catch (e:any) {
+    ElMessage.error(e.response?.data?.message || '取消失败')
+  }
+}
+
+// 处理文件（混合多选：普通与实况并行）
 const processFiles = async (files: File[]) => {
   if (files.length === 0) return
   
@@ -297,9 +444,52 @@ const processFiles = async (files: File[]) => {
   const validFiles = files.filter(validateFile)
   if (validFiles.length === 0) return
   
-  // 创建上传项目
-  for (const file of validFiles) {
-    // 标记live basename
+  // 分组
+  const heics: File[] = []
+  const movs: File[] = []
+  const anims: File[] = [] // gif/webp
+  const mayJpgs: File[] = []
+  const others: File[] = []
+  for (const f of validFiles) {
+    const name = f.name.toLowerCase()
+    if (name.endsWith('.heic')) heics.push(f)
+    else if (name.endsWith('.mov')) movs.push(f)
+    else if (name.endsWith('.gif') || name.endsWith('.webp')) anims.push(f)
+    else if (name.endsWith('.jpg') || name.endsWith('.jpeg')) mayJpgs.push(f)
+    else others.push(f)
+  }
+  
+  const toBase = (n: string) => n.replace(/\.[^.]+$/, '').toLowerCase()
+  const movMap = new Map<string, File>()
+  movs.forEach(m => movMap.set(toBase(m.name), m))
+
+  // heic+mov 配对并发起 live 任务
+  const usedMovs = new Set<string>()
+  for (const h of heics) {
+    const base = toBase(h.name)
+    const m = movMap.get(base)
+    if (m) {
+      await createLiveJob([h, m])
+      usedMovs.add(m.name)
+    } else {
+      others.push(h)
+    }
+  }
+  // 未配对 mov 走普通上传
+  movs.forEach(m => { if (!usedMovs.has(m.name)) others.push(m) })
+
+  // 动图单文件作为 live 任务
+  for (const a of anims) await createLiveJob([a])
+
+  // JPG Motion Photo 轻量检测：读首尾各 256KB，命中关键字则走 live
+  for (const jpg of mayJpgs) {
+    const isMotion = await detectMotionPhoto(jpg)
+    if (isMotion) await createLiveJob([jpg])
+    else others.push(jpg)
+  }
+
+  // 普通文件加入队列
+  for (const file of others) {
     const base = file.name.replace(/\.[^.]+$/, '')
     const preview = await createFilePreview(file)
     const uploadItem: UploadItem = {
@@ -313,8 +503,41 @@ const processFiles = async (files: File[]) => {
     uploadList.value.push(uploadItem)
   }
   
-  // 开始上传
+  // 开始普通上传
   await startUpload()
+}
+
+async function detectMotionPhoto(file: File): Promise<boolean> {
+  // 更稳健的检测：在文件头、尾以及中部多点采样查找 'ftyp' 或常见标记
+  const decoder = new TextDecoder()
+  const readChunk = (start: number, length: number) => new Promise<ArrayBuffer>((resolve, reject) => {
+    const blob = file.slice(start, Math.min(file.size, start + length))
+    const fr = new FileReader()
+    fr.onload = () => resolve(fr.result as ArrayBuffer)
+    fr.onerror = reject
+    fr.readAsArrayBuffer(blob)
+  })
+
+  const sampleSize = 512 * 1024 // 512KB 采样块
+  const positions: number[] = [
+    0, // 文件头
+    Math.max(0, Math.floor(file.size * 0.25) - sampleSize / 2),
+    Math.max(0, Math.floor(file.size * 0.5) - sampleSize / 2),
+    Math.max(0, Math.floor(file.size * 0.75) - sampleSize / 2),
+    Math.max(0, file.size - sampleSize) // 文件尾
+  ]
+
+  try {
+    for (const pos of positions) {
+      const buf = await readChunk(pos, sampleSize)
+      const text = decoder.decode(new Uint8Array(buf))
+      if (/G(Camera|Image)|MicroVideo|MotionPhoto/i.test(text)) return true
+      if (text.indexOf('ftyp') !== -1) return true // MP4 box 标记
+    }
+  } catch (_) {
+    // 忽略读取失败，按未检测到处理
+  }
+  return false
 }
 
 // 开始上传
@@ -347,7 +570,7 @@ const uploadSingleFile = async (item: UploadItem) => {
     
     const formData = new FormData()
     formData.append('file', item.file)
-    // 传递实况图配对信息
+    // 传递实况图配对信息（普通通道保留兼容）
     const isImage = item.file.type.startsWith('image/')
     const isVideo = item.file.type.startsWith('video/')
     if ((item as any).liveBasename && (isImage || isVideo)) {
@@ -360,7 +583,7 @@ const uploadSingleFile = async (item: UploadItem) => {
       formData.append('folder_id', filesStore.currentFolder.toString())
     }
     
-    // 直接调用API上传，而不是通过store的uploadFiles方法
+    // 直接调用API上传
     const response = await api.post('/files/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
@@ -400,6 +623,14 @@ const removeFromList = (id: string) => {
   if (index > -1) {
     uploadList.value.splice(index, 1)
   }
+}
+
+const statusText = (s: string) => {
+  if (s === 'queued') return '排队中'
+  if (s === 'processing') return '处理中'
+  if (s === 'completed') return '已完成'
+  if (s === 'failed') return '失败'
+  return s
 }
 
 // 清空上传列表
@@ -862,6 +1093,58 @@ onMounted(() => {
   }
 }
 
+.live-jobs {
+  margin-top: 16px;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+
+  .live-jobs-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+
+    h4 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      color: #2c3e50;
+    }
+  }
+
+  .live-jobs-items {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    .live-job-item {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid #eef2f7;
+      border-radius: 10px;
+      background: #fafbfc;
+
+      .job-info {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+
+        .job-id { font-weight: 600; color: #374151; }
+        .job-status { font-size: 12px; color: #6b7280; }
+      }
+    }
+  }
+}
+
+.live-upload-helper {
+  margin-top: 12px;
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -1036,77 +1319,6 @@ onMounted(() => {
       .stats-content {
         .stats-value {
           font-size: 16px;
-        }
-      }
-    }
-  }
-}
-
-// 响应式设计
-@media (max-width: 768px) {
-  .drop-zone {
-    padding: 30px 16px;
-  }
-  
-  .upload-tips {
-    flex-direction: column;
-    gap: 8px;
-  }
-  
-  .upload-stats {
-    flex-direction: column;
-    gap: 12px;
-  }
-}
-
-@media (max-width: 480px) {
-  .file-uploader {
-    .drop-zone {
-      padding: 30px 16px;
-      border-radius: 10px;
-      
-      .drop-content {
-        .upload-icon {
-          font-size: 40px;
-        }
-        
-        .upload-title {
-          font-size: 16px;
-          margin-bottom: 6px;
-        }
-        
-        .upload-subtitle {
-          font-size: 13px;
-          margin-bottom: 12px;
-        }
-        
-        .upload-tips {
-          gap: 6px;
-          
-          .tip-item {
-            font-size: 11px;
-            padding: 4px 8px;
-            border-radius: 4px;
-          }
-        }
-      }
-      
-      .uploading-content {
-        .loading-icon {
-          font-size: 32px;
-        }
-        
-        .uploading-title {
-          font-size: 14px;
-        }
-        
-        .upload-progress {
-          max-width: 250px;
-          margin-top: 12px;
-          
-          .progress-text {
-            font-size: 13px;
-          }
         }
       }
     }
