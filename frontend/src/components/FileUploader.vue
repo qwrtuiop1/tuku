@@ -40,7 +40,7 @@
       ref="fileInputRef"
       type="file"
       multiple
-      accept="image/*,video/*,.heic,.heif,.mov"
+      :accept="computedAccept"
       style="display: none"
       @change="handleFileSelect"
     />
@@ -221,12 +221,20 @@ const normalizeJobId = (raw: any): string | null => {
 // 系统设置
 const systemSettings = ref({
   maxFileSize: 100, // 默认100MB
-  maxUploadFiles: 10 // 默认10个文件
+  maxUploadFiles: 10, // 默认10个文件
+  allowedVideoTypes: ['mp4','webm','mov'] as string[]
 })
 
 // 计算属性
 const maxFileSizeMB = computed(() => systemSettings.value.maxFileSize)
 const maxFileSizeBytes = computed(() => systemSettings.value.maxFileSize * 1024 * 1024)
+
+// 生成 accept 列表
+const computedAccept = computed(() => {
+  const videoExts = (systemSettings.value.allowedVideoTypes || []).map(v => `.${v}`)
+  const parts = ['image/*', 'video/*', ...videoExts, '.heic', '.heif']
+  return parts.join(',')
+})
 
 // 上传统计
 const uploadStats = computed(() => {
@@ -247,7 +255,10 @@ const fetchSystemSettings = async () => {
     
     systemSettings.value = {
       maxFileSize: systemInfo.max_file_size || 100,
-      maxUploadFiles: systemInfo.max_upload_files || 10
+      maxUploadFiles: systemInfo.max_upload_files || 10,
+      allowedVideoTypes: Array.isArray(systemInfo.allowed_video_types) && systemInfo.allowed_video_types.length
+        ? systemInfo.allowed_video_types
+        : ['mp4','webm','mov','mkv','m4v','flv','wmv','mpeg','mpg','3gp','ts','m2ts','ogv']
     }
     console.log('更新后的系统设置:', systemSettings.value)
   } catch (error) {
@@ -281,25 +292,42 @@ const createFilePreview = (file: File): Promise<string> => {
 // 验证文件
 const validateFile = (file: File): boolean => {
   const maxSize = maxFileSizeBytes.value
-  const allowedTypes = [
-    'image/jpeg',
-    'image/png',
-    'image/gif',
-    'image/webp',
-    'image/svg+xml',
-    'image/heic',
-    'image/heif',
-    'video/mp4',
-    'video/webm',
-    'video/quicktime'
+  // 基础图片类型 + HEIC/HEIF
+  const imageTypes = [
+    'image/jpeg','image/png','image/gif','image/webp','image/svg+xml','image/heic','image/heif'
   ]
+  // 将允许的视频扩展映射为常见MIME
+  const extToMime: Record<string,string[]> = {
+    mp4: ['video/mp4','video/x-m4v'],
+    m4v: ['video/x-m4v','video/mp4'],
+    webm: ['video/webm'],
+    mov: ['video/quicktime'],
+    avi: ['video/x-msvideo'],
+    mkv: ['video/x-matroska','video/webm'],
+    flv: ['video/x-flv'],
+    wmv: ['video/x-ms-wmv'],
+    mpeg: ['video/mpeg'],
+    mpg: ['video/mpeg'],
+    '3gp': ['video/3gpp'],
+    ts: ['video/mp2t'],
+    m2ts: ['video/mp2t'],
+    ogv: ['video/ogg']
+  }
+  const videoMimes = new Set<string>()
+  for (const ext of systemSettings.value.allowedVideoTypes || []) {
+    const list = extToMime[ext.toLowerCase()] || []
+    for (const m of list) videoMimes.add(m)
+  }
+  // 兜底允许常见三种
+  ;['video/mp4','video/webm','video/quicktime'].forEach(m => videoMimes.add(m))
+  const allowedTypes = new Set<string>([...imageTypes, ...Array.from(videoMimes)])
   
   if (file.size > maxSize) {
     ElMessage.error(`文件 ${file.name} 超过${maxFileSizeMB.value}MB限制`)
     return false
   }
   
-  if (!allowedTypes.includes(file.type)) {
+  if (!allowedTypes.has(file.type)) {
     ElMessage.error(`不支持的文件类型: ${file.type}`)
     return false
   }

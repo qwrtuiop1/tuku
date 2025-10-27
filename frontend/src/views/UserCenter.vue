@@ -40,7 +40,7 @@
                     :show-file-list="false"
                     :before-upload="beforeAvatarUpload"
                     :on-success="handleAvatarSuccess"
-                    :on-error="handleAvatarError"
+                    :on-error="handleAvatarUploadError"
                     accept="image/*"
                   >
                     <el-button type="primary" size="small" circle>
@@ -69,7 +69,7 @@
               <el-button 
                 type="text" 
                 size="small" 
-                @click="refreshStorageInfo"
+                @click="() => refreshStorageInfo(true)"
                 :loading="refreshingStorage"
               >
                 <el-icon><Refresh /></el-icon>
@@ -1285,6 +1285,11 @@ const handleAvatarSuccess = (response: any) => {
   } else {
     ElMessage.error(response.message || '头像上传失败')
   }
+}
+
+// 上传组件错误处理
+const handleAvatarUploadError = (_error: any, _uploadFile: any, _uploadFiles: any) => {
+  ElMessage.error('头像上传失败')
 }
 
 // 头像加载错误处理

@@ -1010,20 +1010,27 @@ router.get('/preview/:id', authenticateToken, asyncHandler(async (req, res) => {
 
   // 设置正确的Content-Type
   const mimeType = mime.lookup(filePath) || 'application/octet-stream';
-  res.setHeader('Content-Type', mimeType);
-  
-  // 设置CORS头
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Content-Length, Cache-Control, Last-Modified, ETag');
-  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
-  
-  // 设置缓存头
-  res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1年缓存
-  
-  res.sendFile(filePath);
+
+  // 使用流式输出，显式设置 Content-Length，避免部分反代/HTTP2 下的协议问题
+  const stat = await fs.stat(filePath);
+  res.writeHead(200, {
+    'Content-Type': mimeType,
+    'Content-Length': stat.size,
+    // CORS 头
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+    'Access-Control-Expose-Headers': 'Content-Type, Content-Length, Cache-Control, Last-Modified, ETag',
+    // 跨源资源策略/嵌入策略，避免浏览器阻断跨域图片/视频
+    'Cross-Origin-Resource-Policy': 'cross-origin',
+    'Cross-Origin-Embedder-Policy': 'unsafe-none',
+    'Cross-Origin-Opener-Policy': 'unsafe-none',
+    // 建议以内联方式展示
+    'Content-Disposition': `inline; filename="${path.basename(filePath)}"`,
+    // 禁止中间层对二进制进行转换/注入
+    'Cache-Control': 'public, max-age=31536000, immutable, no-transform'
+  });
+  fs.createReadStream(filePath).pipe(res);
 }));
 
 // 头像上传

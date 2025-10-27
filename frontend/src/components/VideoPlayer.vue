@@ -78,52 +78,7 @@
       </div>
     </div>
     
-    <!-- 视频信息 -->
-    <div class="video-info">
-      <div class="info-header">
-        <h3>{{ videoName }}</h3>
-        <el-tag type="primary">视频</el-tag>
-      </div>
-      
-      <div class="info-grid">
-        <div class="info-item">
-          <span class="label">文件名:</span>
-          <span class="value">{{ videoName }}</span>
-        </div>
-        <div class="info-item">
-          <span class="label">时长:</span>
-          <span class="value">{{ formatTime(duration) }}</span>
-        </div>
-        <div class="info-item">
-          <span class="label">文件大小:</span>
-          <span class="value">{{ formatFileSize(videoSize) }}</span>
-        </div>
-        <div class="info-item">
-          <span class="label">文件类型:</span>
-          <span class="value">{{ mimeType }}</span>
-        </div>
-        <div class="info-item">
-          <span class="label">上传时间:</span>
-          <span class="value">{{ formatTime(uploadTime) }}</span>
-        </div>
-      </div>
-    </div>
     
-    <!-- 操作按钮 -->
-    <div class="player-actions">
-      <el-button type="primary" @click="downloadVideo">
-        <el-icon><Download /></el-icon>
-        下载视频
-      </el-button>
-      <el-button @click="openInNewWindow">
-        <el-icon><Share /></el-icon>
-        在新窗口打开
-      </el-button>
-      <el-button @click="copyVideoUrl">
-        <el-icon><Link /></el-icon>
-        复制链接
-      </el-button>
-    </div>
   </div>
 </template>
 
@@ -135,13 +90,10 @@ import {
   VideoPlay,
   VideoPause,
   FullScreen,
-  Download,
-  Share,
-  Link,
   Microphone,
   Mute
 } from '@element-plus/icons-vue'
-import { getFilePreviewUrl, downloadFile as downloadFileUtil, copyToClipboard, formatTime, formatFileSize } from '@/utils/helpers'
+import { getFilePreviewUrl, formatTime } from '@/utils/helpers'
 
 interface VideoItem {
   id: number
@@ -185,10 +137,7 @@ const videoRef = ref<HTMLVideoElement>()
 // 计算属性
 const videoUrl = computed(() => getFilePreviewUrl(props.video.id))
 const posterUrl = computed(() => props.video.thumbnail_path ? getFilePreviewUrl(props.video.id) : undefined)
-const videoName = computed(() => props.video.original_name)
-const videoSize = computed(() => props.video.file_size)
-const mimeType = computed(() => props.video.mime_type)
-const uploadTime = computed(() => props.video.created_at)
+// 详情与操作区已移除
 
 // 方法
 const onLoadStart = () => {
@@ -286,29 +235,7 @@ const seekTo = (event: MouseEvent) => {
   }
 }
 
-const downloadVideo = () => {
-  try {
-    downloadFileUtil(props.video.id, props.video.original_name)
-    ElMessage.success('开始下载视频')
-  } catch (error) {
-    ElMessage.error('下载失败')
-  }
-}
-
-const openInNewWindow = () => {
-  window.open(videoUrl.value, '_blank')
-}
-
-const copyVideoUrl = async () => {
-  const url = `${window.location.origin}${videoUrl.value}`
-  const success = await copyToClipboard(url)
-  
-  if (success) {
-    ElMessage.success('链接已复制到剪贴板')
-  } else {
-    ElMessage.error('复制失败')
-  }
-}
+// 下载与复制链接按钮已移除
 
 // 键盘快捷键
 const handleKeydown = (event: KeyboardEvent) => {
@@ -580,15 +507,6 @@ onUnmounted(() => {
   }
 }
 
-.player-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  padding: 20px;
-  border-top: 1px solid #e4e7ed;
-  background: #f5f7fa;
-}
-
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -596,22 +514,7 @@ onUnmounted(() => {
 
 // 响应式设计
 @media (max-width: 768px) {
-  .video-info {
-    padding: 16px;
-    
-    .info-grid {
-      grid-template-columns: 1fr;
-      gap: 8px;
-    }
-  }
   
-  .player-actions {
-    flex-direction: column;
-    
-    .el-button {
-      width: 100%;
-    }
-  }
   
   .custom-controls {
     padding: 12px;

@@ -76,11 +76,7 @@
               <el-icon><FullScreen /></el-icon>
             </el-button>
           </el-tooltip>
-          <el-tooltip content="在新窗口打开" placement="top">
-            <el-button @click="openInNewWindow">
-              <el-icon><Share /></el-icon>
-            </el-button>
-          </el-tooltip>
+          
           <el-tooltip content="下载" placement="top">
             <el-button @click="downloadImage">
               <el-icon><Download /></el-icon>
@@ -120,7 +116,6 @@ import {
   ZoomOut,
   FullScreen,
   View,
-  Share,
   Download,
   ArrowLeft,
   ArrowRight
@@ -323,9 +318,7 @@ const toggleFullscreen = () => {
   }
 }
 
-const openInNewWindow = () => {
-  window.open(imageUrl.value, '_blank')
-}
+
 
 const downloadImage = () => {
   try {

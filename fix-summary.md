@@ -115,3 +115,11 @@ app.use('/api/files/avatar', express.static(path.join(process.env.UPLOAD_PATH ||
 
 
 
+
+
+
+
+
+
+
+

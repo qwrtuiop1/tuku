@@ -38,7 +38,7 @@
     
     <!-- 预览内容 + 详情 -->
     <div class="preview-layout">
-      <div class="preview-content">
+      <div class="preview-content" ref="previewContainer">
         <FilePreview 
           v-if="currentFile"
           :key="currentFile?.id || currentIndex"
@@ -79,53 +79,40 @@
           </div>
         </div>
         <div class="details-actions">
-          <el-button @click="downloadCurrentFile" class="gray-btn">
-            <el-icon><Download /></el-icon>
-            下载
-          </el-button>
-          <el-button @click="shareCurrentFile" class="gray-btn">
-            <el-icon><Share /></el-icon>
-            分享
-          </el-button>
-          <el-button @click="openInNewWindow" class="gray-btn">
-            <el-icon><Link /></el-icon>
-            新窗口
-          </el-button>
+          <div class="action-item">
+            <el-button @click="downloadCurrentFile" class="gray-btn">
+              <el-icon><Download /></el-icon>
+              下载
+            </el-button>
+          </div>
+          <div class="action-item" v-if="systemStore.sharingEnabled">
+            <el-button @click="shareCurrentFile" class="gray-btn">
+              <el-icon><Share /></el-icon>
+              分享
+            </el-button>
+          </div>
+          <div class="action-item">
+            <el-button @click="toggleFullscreen" class="gray-btn">
+              <el-icon><FullScreen /></el-icon>
+              全屏
+            </el-button>
+          </div>
         </div>
       </aside>
     </div>
     
-    <!-- 底部操作栏 -->
-    <div class="preview-footer">
-      <div class="file-info">
-        <span class="file-name">{{ currentFile?.original_name }}</span>
-        <span class="file-size">{{ formatFileSize(currentFile?.file_size || 0) }}</span>
-      </div>
-      
-      <div class="footer-actions">
-        <el-button @click="downloadCurrentFile">
-          <el-icon><Download /></el-icon>
-          下载
-        </el-button>
-        <el-button @click="shareCurrentFile">
-          <el-icon><Share /></el-icon>
-          分享
-        </el-button>
-        <el-button @click="openInNewWindow">
-          <el-icon><Link /></el-icon>
-          新窗口
-        </el-button>
-      </div>
-    </div>
+    <!-- 底部信息栏已移除，统一在详情面板展示 -->
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, ArrowRight, Download, Share, Link } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Download, Share, FullScreen } from '@element-plus/icons-vue'
 import FilePreview from './FilePreview.vue'
 import { formatFileSize, getFilePreviewUrl, downloadFile as downloadFileUtil } from '@/utils/helpers'
+import { useSystemStore } from '@/stores/system'
+import api from '@/utils/api'
 
 interface FileItem {
   id: number
@@ -182,7 +169,24 @@ const dialogTitle = computed(() => {
   return '文件预览'
 })
 
+// 系统设置（分享状态）
+const systemStore = useSystemStore()
+onMounted(() => { if (!systemStore.loaded) systemStore.loadShareStatus() })
+
 // 方法
+const previewContainer = ref<HTMLElement | null>(null)
+
+const toggleFullscreen = () => {
+  const el: any = previewContainer.value || document.documentElement
+  const isFs: any = (document as any).fullscreenElement || (document as any).webkitFullscreenElement
+  if (!isFs) {
+    const rfs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen
+    if (rfs) rfs.call(el)
+  } else {
+    const exit = (document as any).exitFullscreen || (document as any).webkitExitFullscreen || (document as any).msExitFullscreen
+    if (exit) exit.call(document)
+  }
+}
 const handleClose = () => {
   visible.value = false
 }
@@ -212,23 +216,32 @@ const downloadCurrentFile = () => {
   }
 }
 
-const shareCurrentFile = () => {
-  if (currentFile.value) {
-    const url = `${window.location.origin}${getFilePreviewUrl(currentFile.value.id)}`
-    navigator.clipboard.writeText(url).then(() => {
-      ElMessage.success('链接已复制到剪贴板')
-    }).catch(() => {
-      ElMessage.error('复制失败')
+const shareCurrentFile = async () => {
+  if (!currentFile.value) return
+  if (!systemStore.sharingEnabled) {
+    ElMessage.error('分享功能已关闭')
+    return
+  }
+  try {
+    const { data } = await api.post('/share', {
+      file_id: currentFile.value.id,
+      allowPreview: true,
+      allowDownload: true,
+      expireInHours: null
     })
+    if (data && data.success && data.token) {
+      const shareUrl = `${window.location.origin}/share/${data.token}`
+      await navigator.clipboard.writeText(shareUrl)
+      ElMessage.success('公开分享链接已复制')
+    } else {
+      ElMessage.error('生成分享链接失败')
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '生成分享链接失败')
   }
 }
 
-const openInNewWindow = () => {
-  if (currentFile.value) {
-    const url = getFilePreviewUrl(currentFile.value.id)
-    window.open(url, '_blank')
-  }
-}
+
 
 const handleFileDeleted = (fileId: number) => {
   emit('file-deleted', fileId)
@@ -488,8 +501,23 @@ watch(() => props.file, (newFile) => {
   padding: 12px 16px;
   border-top: 1px solid #ececec;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  
+  /* 统一按钮尺寸与宽度 */
+  :deep(.el-button) {
+    width: 100%;
+    height: 36px;
+    border-radius: 8px;
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  :deep(.el-button .el-icon) {
+    font-size: 14px;
+    margin-right: 6px;
+  }
 }
 
 .gray-btn {
@@ -511,7 +539,7 @@ watch(() => props.file, (newFile) => {
   background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
   border-top: 1px solid rgba(228, 231, 237, 0.6);
   backdrop-filter: blur(8px);
-  
+
   .file-info {
     display: flex;
     flex-direction: column;
@@ -540,42 +568,6 @@ watch(() => props.file, (newFile) => {
     }
   }
   
-  .footer-actions {
-    display: flex;
-    gap: 12px;
-    flex-shrink: 0;
-    
-    .el-button {
-      padding: 10px 16px;
-      border-radius: 12px;
-      font-weight: 500;
-      transition: all 0.3s ease;
-      background: rgba(255, 255, 255, 0.8);
-      border: 1px solid rgba(0, 0, 0, 0.1);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      
-      &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-      }
-      
-      &.el-button--primary {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-color: transparent;
-        color: white;
-        
-        &:hover {
-          background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
-          box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
-        }
-      }
-      
-      .el-icon {
-        font-size: 16px;
-        margin-right: 6px;
-      }
-    }
-  }
 }
 
 // 响应式设计
@@ -661,35 +653,74 @@ watch(() => props.file, (newFile) => {
       }
     }
     
-    .footer-actions {
-      justify-content: center;
-      gap: 8px;
-      
-      .el-button {
-        flex: 1;
-        padding: 8px 12px;
-        font-size: 13px;
-        border-radius: 10px;
-        
-        .el-icon {
-          font-size: 14px;
-          margin-right: 4px;
-        }
-      }
+    /* 精简后无操作按钮 */
+  }
+}
+
+// 平板端响应式 (≤1024px)
+@media (max-width: 1024px) {
+  .preview-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+  }
+  
+  .details-panel {
+    border-left: none;
+    border-top: 1px solid #e5e7eb;
+    min-width: unset;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  
+  .details-header {
+    padding: 12px 20px;
+  }
+  
+  .details-title {
+    font-size: 13px;
+  }
+  
+  .details-type {
+    font-size: 11px;
+  }
+  
+  .details-list {
+    padding: 10px 20px;
+    gap: 8px;
+  }
+  
+  .detail-item {
+    grid-template-columns: 80px 1fr;
+  }
+  
+  .detail-item .label {
+    font-size: 11px;
+  }
+  
+  .detail-item .value {
+    font-size: 11px;
+  }
+  
+  .details-actions {
+    padding: 10px 20px;
+    gap: 8px;
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: 1fr; /* 保底 */
+    
+    :deep(.el-button) {
+      height: 34px;
+      font-size: 13px;
+    }
+    
+    :deep(.el-button .el-icon) {
+      font-size: 13px;
+      margin-right: 5px;
     }
   }
 }
 
-@media (max-width: 1024px) {
-  .preview-layout {
-    grid-template-columns: 1fr;
-  }
-  .details-panel {
-    border-left: none;
-    border-top: 1px solid #e5e7eb;
-  }
-}
-
+// 小屏幕手机端响应式 (≤480px)
 @media (max-width: 480px) {
   .enhanced-preview-dialog {
     :deep(.el-dialog) {
@@ -753,6 +784,57 @@ watch(() => props.file, (newFile) => {
     }
   }
   
+  .details-panel {
+    max-height: 250px;
+  }
+  
+  .details-header {
+    padding: 10px 16px;
+  }
+  
+  .details-title {
+    font-size: 12px;
+  }
+  
+  .details-type {
+    font-size: 10px;
+  }
+  
+  .details-list {
+    padding: 8px 16px;
+    gap: 6px;
+  }
+  
+  .detail-item {
+    grid-template-columns: 70px 1fr;
+  }
+  
+  .detail-item .label {
+    font-size: 10px;
+  }
+  
+  .detail-item .value {
+    font-size: 10px;
+  }
+  
+  .details-actions {
+    padding: 8px 16px;
+    gap: 6px;
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: 1fr; /* 保底 */
+    
+    :deep(.el-button) {
+      height: 32px;
+      font-size: 12px;
+    }
+    
+    :deep(.el-button .el-icon) {
+      font-size: 12px;
+      margin-right: 4px;
+    }
+  }
+  
   .preview-footer {
     padding: 10px 16px;
     gap: 12px;
@@ -766,24 +848,10 @@ watch(() => props.file, (newFile) => {
         font-size: 11px;
       }
     }
-    
-    .footer-actions {
-      gap: 6px;
-      
-      .el-button {
-        padding: 6px 10px;
-        font-size: 12px;
-        border-radius: 8px;
-        
-        .el-icon {
-          font-size: 12px;
-          margin-right: 3px;
-        }
-      }
-    }
   }
 }
 
+// 超小屏幕手机端响应式 (≤320px)
 @media (max-width: 320px) {
   .enhanced-preview-dialog {
     :deep(.el-dialog) {
@@ -847,6 +915,54 @@ watch(() => props.file, (newFile) => {
     }
   }
   
+  .details-panel {
+    max-height: 200px;
+  }
+  
+  .details-header {
+    padding: 8px 12px;
+  }
+  
+  .details-title {
+    font-size: 11px;
+  }
+  
+  .details-type {
+    font-size: 9px;
+  }
+  
+  .details-list {
+    padding: 6px 12px;
+    gap: 5px;
+  }
+  
+  .detail-item {
+    grid-template-columns: 60px 1fr;
+  }
+  
+  .detail-item .label {
+    font-size: 9px;
+  }
+  
+  .detail-item .value {
+    font-size: 9px;
+  }
+  
+  .details-actions {
+    padding: 6px 12px;
+    gap: 4px;
+    
+    :deep(.el-button) {
+      height: 28px;
+      font-size: 10px;
+    }
+    
+    :deep(.el-button .el-icon) {
+      font-size: 10px;
+      margin-right: 3px;
+    }
+  }
+  
   .preview-footer {
     padding: 8px 12px;
     gap: 10px;
@@ -858,21 +974,6 @@ watch(() => props.file, (newFile) => {
       
       .file-size {
         font-size: 10px;
-      }
-    }
-    
-    .footer-actions {
-      gap: 4px;
-      
-      .el-button {
-        padding: 5px 8px;
-        font-size: 11px;
-        border-radius: 6px;
-        
-        .el-icon {
-          font-size: 10px;
-          margin-right: 2px;
-        }
       }
     }
   }

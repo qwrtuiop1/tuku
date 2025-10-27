@@ -12,6 +12,7 @@ const adminRoutes = require('./routes/admin');
 const avatarRoutes = require('./routes/avatars');
 const systemRoutes = require('./routes/system');
 const liveMediaRoutes = require('./routes/liveMedia');
+const shareRoutes = require('./routes/share');
 const nginxConfigRoutes = require('./routes/nginxConfig');
 const { errorHandler } = require('./middleware/errorHandler');
 const { authenticateToken } = require('./middleware/auth');
@@ -152,13 +153,11 @@ app.use(express.urlencoded({ extended: true, limit: '2gb' }));
 // 静态文件服务 - 必须在认证中间件之前
 app.use('/uploads', express.static(process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage', {
   setHeaders: (res, path) => {
+    // 仅设置与跨源资源策略/缓存相关的安全头，避免重复设置 CORS 头导致浏览器报错
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
     res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Content-Length, Cache-Control, Last-Modified, ETag');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable, no-transform');
   }
 }));
 
@@ -192,6 +191,7 @@ app.use('/api/files/avatar', express.static(path.join(process.env.UPLOAD_PATH ||
 // 文件路由 - 必须在头像静态服务之后
 app.use('/api/files', authenticateToken, fileRoutes);
 app.use('/api/live-media', authenticateToken, liveMediaRoutes);
+app.use('/api/share', shareRoutes); // 公开分享，无需认证
 
 // 健康检查
 app.get('/api/health', (req, res) => {

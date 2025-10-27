@@ -477,10 +477,10 @@
                 <el-table-column prop="username" label="用户名" width="140">
                   <template #default="{ row }">
                     <div class="user-info">
-                      <el-avatar :size="32" :src="row.avatar_url">
+                      <el-avatar :size="32" :src="row.avatar_url" shape="circle">
                         {{ row.username?.charAt(0).toUpperCase() }}
                       </el-avatar>
-                      <span class="username-text">{{ row.username || '未知用户' }}</span>
+                      <span class="username-text" :title="row.username || '未知用户'">{{ row.username || '未知用户' }}</span>
                     </div>
                   </template>
                 </el-table-column>
@@ -536,7 +536,7 @@
                       <el-button 
                         type="text" 
                         size="small" 
-                        @click="toggleMenu(row)"
+                        @click.stop="toggleMenu(row)"
                         :class="{ 'menu-open': isMenuOpen(row) }">
                         <el-icon><MoreFilled /></el-icon>
                       </el-button>
@@ -826,6 +826,10 @@
                 <el-form-item label="双因素认证">
                   <el-switch v-model="systemSettings.enableTwoFactor" active-text="启用" inactive-text="关闭" />
                 </el-form-item>
+                <el-form-item label="启用分享功能">
+                  <el-switch v-model="systemSettings.sharingEnabled" active-text="开启" inactive-text="关闭" />
+                  <div class="form-description">关闭后：所有分享链接立即失效，历史链接永久不可用；再次开启后需要重新生成新链接</div>
+                </el-form-item>
 
                 <!-- 存储设置 -->
                 <el-divider content-position="left">
@@ -922,6 +926,16 @@
                     <el-checkbox label="webm">WebM</el-checkbox>
                     <el-checkbox label="mov">MOV</el-checkbox>
                     <el-checkbox label="avi">AVI</el-checkbox>
+                    <el-checkbox label="mkv">MKV</el-checkbox>
+                    <el-checkbox label="m4v">M4V</el-checkbox>
+                    <el-checkbox label="flv">FLV</el-checkbox>
+                    <el-checkbox label="wmv">WMV</el-checkbox>
+                    <el-checkbox label="mpeg">MPEG</el-checkbox>
+                    <el-checkbox label="mpg">MPG</el-checkbox>
+                    <el-checkbox label="3gp">3GP</el-checkbox>
+                    <el-checkbox label="ts">TS</el-checkbox>
+                    <el-checkbox label="m2ts">M2TS</el-checkbox>
+                    <el-checkbox label="ogv">OGV</el-checkbox>
                   </el-checkbox-group>
                   <div class="form-description">选择允许上传的视频格式</div>
                 </el-form-item>
@@ -1305,7 +1319,7 @@
                     trigger="click"
                     :hide-on-click="true"
                   >
-                    <el-button type="primary" size="small">
+                    <el-button type="primary" size="small" @click.stop>
                       操作 <el-icon><ArrowDown /></el-icon>
                     </el-button>
                     <template #dropdown>
@@ -2533,6 +2547,9 @@ const systemSettings = reactive({
   lockoutDuration: 15,
   sessionTimeout: 60,
   enableTwoFactor: false,
+  // 分享设置
+  sharingEnabled: true,
+  shareDisabledAt: '' as string | '' ,
   // 通知设置
   enableMaintenanceNotification: false
 })
@@ -2813,6 +2830,9 @@ const fetchSystemSettings = async () => {
     systemSettings.lockoutDuration = parseInt(settings.lockout_duration?.value) || 15
     systemSettings.sessionTimeout = parseInt(settings.session_timeout?.value) || 60
     systemSettings.enableTwoFactor = settings.enable_two_factor?.value === 'true'
+    // 分享设置
+    systemSettings.sharingEnabled = settings.sharing_enabled?.value !== 'false'
+    systemSettings.shareDisabledAt = settings.share_disabled_at?.value || ''
 
     // 通知设置
     systemSettings.enableMaintenanceNotification = settings.enable_maintenance_notification?.value === 'true'
@@ -2979,6 +2999,13 @@ onMounted(() => {
 // 处理用户卡片点击事件
 const handleUserCardClick = async (user: User, evt?: MouseEvent) => {
   try {
+    // 如果点击的是操作下拉或按钮，不触发人机验证/详情
+    if (evt) {
+      const target = evt.target as HTMLElement
+      if (target.closest('.el-dropdown') || target.closest('.el-dropdown-menu') || target.closest('.el-button')) {
+        return
+      }
+    }
     // 显示人机验证
     const captchaResult = await showCaptcha()
     if (!captchaResult) {
@@ -3084,6 +3111,10 @@ const handleUserAction = async (command: string, user: User) => {
 
 // 表格行点击（Element Plus会传 row, column, event）
 const handleTableRowClick = async (row: User, _column: any, event: MouseEvent) => {
+  // 操作列或点击在下拉/按钮上时，不触发
+  if (_column && (_column.fixed === 'right' || _column.label === '操作')) return
+  const target = event.target as HTMLElement
+  if (target.closest('.el-dropdown') || target.closest('.el-dropdown-menu') || target.closest('.el-button')) return
   await handleUserCardClick(row, event)
 }
 
@@ -3297,7 +3328,7 @@ const showUserStats = async (user: User) => {
       // 后端返回的数据结构: {user: {...}, dataStats: {...}, storage: {...}}
       const { user: userData, dataStats, storage } = response.data
       
-      // 确保存储信息是从后端实时获取的真实数据
+      // 确保存储信息是从后端实时获取的真实数据（兼容不同字段名）
       userStats.value = {
         // 用户基本信息
         username: userData.username,
@@ -3306,8 +3337,8 @@ const showUserStats = async (user: User) => {
         status: userData.status,
         created_at: userData.created_at,
         // 存储信息
-        used_storage: storage.used_storage || 0,
-        storage_limit: storage.storage_limit || 0,
+        used_storage: (storage.used_storage ?? storage.used ?? 0),
+        storage_limit: (storage.storage_limit ?? storage.limit ?? 0),
         file_count: storage.file_count || 0,
         // 统计数据
         login_count: dataStats.login_count || 0,
@@ -3321,12 +3352,12 @@ const showUserStats = async (user: User) => {
       console.log('=== showUserStats 成功完成 ===')
     } else if (response.data.success) {
       console.log('API返回成功（旧格式），开始处理数据')
-      // 确保存储信息是从后端实时获取的真实数据
+      // 确保存储信息是从后端实时获取的真实数据（兼容旧格式字段名）
       userStats.value = {
         ...response.data,
         // 确保存储相关字段存在且有值
-        used_storage: response.data.used_storage || 0,
-        storage_limit: response.data.storage_limit || 0,
+        used_storage: (response.data.used_storage ?? response.data.used ?? 0),
+        storage_limit: (response.data.storage_limit ?? response.data.limit ?? 0),
         file_count: response.data.file_count || 0,
         // 其他统计信息
         login_count: response.data.login_count || 0,
@@ -3843,7 +3874,15 @@ const saveSystemSettings = async () => {
         { type: 'warning', confirmButtonText: '确认开启', cancelButtonText: '取消' }
       )
     }
-    const settings = {
+    // 探测后端是否支持分享设置（向后兼容旧后端）
+    let shareApiSupported = true
+    try {
+      await api.get('/system/share-status', { timeout: 3000 })
+    } catch (_) {
+      shareApiSupported = false
+    }
+
+    const settings: Record<string, string> = {
       system_name: systemSettings.systemName.trim(),
       enable_registration: systemSettings.allowRegistration.toString(),
       maintenance_mode: systemSettings.maintenanceMode.toString(),
@@ -3875,10 +3914,18 @@ const saveSystemSettings = async () => {
       // 通知设置
       enable_maintenance_notification: systemSettings.enableMaintenanceNotification.toString()
     }
-    
+    // 仅当后端支持时再提交分享设置，避免旧后端校验失败
+    if (shareApiSupported) {
+      settings['sharing_enabled'] = systemSettings.sharingEnabled.toString()
+      if (systemSettings.sharingEnabled === false) {
+        settings['share_disabled_at'] = new Date().toISOString().slice(0,19).replace('T',' ')
+      }
+    }
     await api.put('/admin/settings', { settings })
     ElMessage.success('系统设置保存成功')
     prevMaintenanceMode.value = systemSettings.maintenanceMode
+    // 全站强制刷新，确保加载最新系统设置
+    setTimeout(() => { window.location.reload() }, 800)
     
     // 发送全局事件通知其他组件设置已更新
     window.dispatchEvent(new CustomEvent('system-settings-changed', {
@@ -4676,16 +4723,43 @@ onUnmounted(() => {
         display: flex;
         align-items: center;
         gap: 8px;
+        max-width: 100%;
+        min-width: 0;
         
         :deep(.el-avatar) {
           border-radius: 50% !important;
           overflow: hidden !important;
+          width: 32px !important;
+          height: 32px !important;
+        }
+        :deep(.el-avatar--circle) {
+          border-radius: 50% !important;
+          width: 32px !important;
+          height: 32px !important;
+          overflow: hidden !important;
+        }
+        :deep(.el-avatar img) {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: cover !important;
+          border-radius: 50% !important;
+          display: block !important;
+        }
+        :deep(.el-avatar__img) {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: cover !important;
+          border-radius: 50% !important;
+          display: block !important;
         }
         
         .username-text {
               font-weight: 500;
           color: #303133;
-          max-width: 120px;
+          max-width: 100px;
+          flex: 1 1 auto;
+          min-width: 0;
+          display: inline-block;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;

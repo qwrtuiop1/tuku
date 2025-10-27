@@ -49,6 +49,12 @@
             <span>仪表盘</span>
           </el-menu-item>
           
+          <!-- 个人资料 -->
+          <el-menu-item index="/user-center">
+            <el-icon><User /></el-icon>
+            <span>个人资料</span>
+          </el-menu-item>
+          
           <!-- 管理员专用菜单 -->
           <el-menu-item v-if="authStore.isAdmin" index="/admin">
             <el-icon><Setting /></el-icon>
@@ -150,7 +156,7 @@
           </div>
           
           <!-- 桌面端用户头像和菜单 -->
-          <el-dropdown v-if="!isMobile" @command="handleUserCommand" placement="bottom-end">
+          <el-dropdown v-if="!isMobile" @command="handleUserCommand" placement="bottom-end" @visible-change="handleDesktopUserMenuVisibleChange">
             <div class="desktop-user-info">
               <el-avatar :size="32" :src="authStore.user?.avatar_url">
                 {{ authStore.user?.username?.charAt(0).toUpperCase() }}
@@ -359,8 +365,8 @@
         
         <div 
           class="nav-item" 
-          :class="{ active: $route.path === '/profile' }"
-          @click="$router.push('/profile')"
+          :class="{ active: $route.path === '/user-center' }"
+          @click="$router.push('/user-center')"
         >
           <el-icon class="nav-icon"><User /></el-icon>
           <span class="nav-text">我的</span>
@@ -417,6 +423,8 @@ const notificationCheckInterval = ref(null)
 const notificationsDialogVisible = ref(false)
 const detailNotification = ref<any>(null)
 const eventSource = ref<EventSource | null>(null)
+const configVersion = ref<string | null>(null)
+let configPoller: any = null
 
 // 检测屏幕尺寸
 const checkScreenSize = () => {
@@ -445,7 +453,7 @@ const breadcrumbs = computed(() => {
     '/': { name: '文件管理', path: '/' },
     '/dashboard': { name: '仪表盘', path: '/dashboard' },
     '/admin': { name: '管理控制台', path: '/admin' },
-    '/profile': { name: '个人资料', path: '/profile' },
+    '/user-center': { name: '个人资料', path: '/user-center' },
     '/settings': { name: '系统设置', path: '/settings' }
   }
   
@@ -492,7 +500,7 @@ const handleUserCommand = async (command: string) => {
   
   switch (command) {
     case 'profile':
-      router.push('/profile')
+      router.push('/user-center')
       break
     case 'settings':
       if (authStore.isAdmin) {
@@ -530,8 +538,18 @@ const toggleMobileUserMenu = () => {
 }
 
 // 处理移动端用户菜单显示状态变化
-const handleMobileUserMenuVisibleChange = (visible: boolean) => {
+const handleMobileUserMenuVisibleChange = async (visible: boolean) => {
   mobileUserMenuVisible.value = visible
+  if (visible) {
+    try { await authStore.checkAuth() } catch {}
+  }
+}
+
+// 桌面端用户菜单显示状态变化（用于实时刷新用户用量等信息）
+const handleDesktopUserMenuVisibleChange = async (visible: boolean) => {
+  if (visible) {
+    try { await authStore.checkAuth() } catch {}
+  }
 }
 
 // 触摸手势处理
@@ -592,6 +610,15 @@ const fetchSystemSettings = async () => {
     // 使用公共接口获取系统信息，而不是管理员接口
     const response = await api.get('/system/info')
     const systemInfo = response.data
+    // 保存配置版本并缓存到 sessionStorage
+    if (systemInfo?.config_version) {
+      const prev = sessionStorage.getItem('config_version')
+      configVersion.value = String(systemInfo.config_version)
+      sessionStorage.setItem('config_version', configVersion.value)
+      if (prev && prev !== configVersion.value) {
+        window.location.reload()
+      }
+    }
     
     // 使用默认动画设置，因为公共接口不包含动画设置
     animationEnabled.value = true
@@ -942,6 +969,8 @@ onMounted(() => {
   
   // 添加全局事件监听
   window.addEventListener('system-settings-changed', handleSystemSettingsChange as EventListener)
+  // 启动配置版本轮询（30秒）
+  configPoller = setInterval(fetchSystemSettings, 30000)
 })
 
 onUnmounted(() => {
@@ -953,6 +982,7 @@ onUnmounted(() => {
   
   // 关闭 SSE 连接
   closeSSE()
+  if (configPoller) { clearInterval(configPoller); configPoller = null }
   
   // 移除触摸事件监听
   if (isMobile.value) {

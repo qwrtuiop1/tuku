@@ -174,6 +174,47 @@ router.get('/:id/stream/:label.mp4', authenticateToken, asyncHandler(async (req,
   await streamFile(req, res, rows[0].mp4_path, 'video/mp4');
 }));
 
+// 原件下载（图片类：Android Motion Photo 原始JPEG、GIF/WebP 动图原图；iOS Live Photo 原图请使用 /original-image 与 /original-video）
+router.get('/:id/original', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const id = parseInt(req.params.id, 10);
+  const asset = await liveMediaService.getAssetById(id, userId);
+  if (!asset) return res.status(404).json({ message: '资源不存在' });
+  // motion_photo 与 animated 均存 original_image_path
+  if (asset.original_image_path && (asset.kind === 'motion_photo' || asset.kind === 'animated')) {
+    const full = path.isAbsolute(asset.original_image_path) ? asset.original_image_path : path.join(BASE_STORAGE, asset.original_image_path);
+    if (!await fs.pathExists(full)) return res.status(404).json({ message: '原件不存在' });
+    return res.download(full, path.basename(full));
+  }
+  // live_photo 需要分别下载图片与视频
+  if (asset.kind === 'live_photo') {
+    return res.status(400).json({ message: '该资源包含图像与视频，请分别下载', image: `/api/live-media/${id}/original-image`, video: `/api/live-media/${id}/original-video` });
+  }
+  return res.status(404).json({ message: '无可用原件' });
+}));
+
+// iOS Live Photo 原始 HEIC 下载或其他含 original_image_path 的资源
+router.get('/:id/original-image', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const id = parseInt(req.params.id, 10);
+  const asset = await liveMediaService.getAssetById(id, userId);
+  if (!asset || !asset.original_image_path) return res.status(404).json({ message: '原图不存在' });
+  const full = path.isAbsolute(asset.original_image_path) ? asset.original_image_path : path.join(BASE_STORAGE, asset.original_image_path);
+  if (!await fs.pathExists(full)) return res.status(404).json({ message: '原图不存在' });
+  return res.download(full, path.basename(full));
+}));
+
+// iOS Live Photo 原始 MOV 下载
+router.get('/:id/original-video', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const id = parseInt(req.params.id, 10);
+  const asset = await liveMediaService.getAssetById(id, userId);
+  if (!asset || !asset.original_video_path) return res.status(404).json({ message: '原始视频不存在' });
+  const full = path.isAbsolute(asset.original_video_path) ? asset.original_video_path : path.join(BASE_STORAGE, asset.original_video_path);
+  if (!await fs.pathExists(full)) return res.status(404).json({ message: '原始视频不存在' });
+  return res.download(full, path.basename(full));
+}));
+
 // 任务状态查询
 router.get('/jobs/:id', authenticateToken, asyncHandler(async (req, res) => {
   const job = await liveMediaService.getJob(req.params.id, req.user.id);

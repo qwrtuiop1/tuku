@@ -1,7 +1,7 @@
 <template>
   <div class="live-media-card" @mouseenter="onHover(true)" @mouseleave="onHover(false)" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
     <div class="poster-wrapper">
-      <img v-if="asset.poster_url" :src="asset.poster_url" class="poster" :alt="label" @load="onPosterLoad" crossOrigin="anonymous" />
+      <img v-if="asset.poster_url" :src="posterSrc" class="poster" :alt="label" @load="onPosterLoad" crossOrigin="anonymous" />
       <video v-if="inView && previewing && source" ref="videoRef" class="preview" :src="source.src" muted playsinline :loop="isLooping" :poster="asset.poster_url" @ended="handleEnded"></video>
       <div class="badge">LIVE</div>
     </div>
@@ -9,7 +9,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import type { LiveMediaAsset } from '@/utils/liveMedia'
 import { pickBestSource, prefersReducedMotion } from '@/utils/liveMedia'
 
@@ -20,6 +20,12 @@ const videoRef = ref<HTMLVideoElement>()
 const source = pickBestSource(props.asset)
 const label = `${props.asset.kind}`
 const isLooping = ref(false)
+const posterTs = ref(0)
+const posterSrc = computed(() => {
+  if (!props.asset.poster_url) return ''
+  const sep = props.asset.poster_url.includes('?') ? '&' : '?'
+  return `${props.asset.poster_url}${sep}t=${posterTs.value}`
+})
 const emit = defineEmits<{ 'bg-theme': ['light' | 'dark'] }>()
 
 let hoverTimer: number | null = null
@@ -46,6 +52,7 @@ const stopPreview = () => {
     videoRef.value.pause()
     videoRef.value.currentTime = 0
   }
+  posterTs.value = Date.now()
 }
 
 const handleEnded = () => {

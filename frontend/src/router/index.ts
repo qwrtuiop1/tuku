@@ -95,6 +95,24 @@ const routes = [
         }
       },
       {
+        path: '/live-share',
+        name: 'LiveShare',
+        component: () => import('@/views/LiveShare.vue'),
+        meta: {
+          title: '动图分享',
+          requiresAuth: false
+        }
+      },
+      {
+        path: '/share/:token',
+        name: 'ShareViewer',
+        component: () => import('@/views/ShareViewer.vue'),
+        meta: {
+          title: '文件分享',
+          requiresAuth: false
+        }
+      },
+      {
         path: '/dashboard',
         name: 'Dashboard',
         component: () => import('@/views/Dashboard.vue'),

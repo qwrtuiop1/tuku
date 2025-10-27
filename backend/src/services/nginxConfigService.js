@@ -234,6 +234,10 @@ class NginxConfigManager {
     try {
       const currentLimitGB = await this.getCurrentFileSizeLimit();
       const config = await this.readNginxConfig();
+      if (!config) {
+        console.log('Nginx配置不可访问，跳过自动更新');
+        return false;
+      }
       
       // 检查当前配置中的限制
       const currentConfigMatch = config.match(/client_max_body_size\s+(\d+)[GMK]?/);

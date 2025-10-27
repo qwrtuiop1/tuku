@@ -1116,6 +1116,9 @@ router.put('/settings', [
     'session_timeout': { type: 'string', required: false },
     'enable_two_factor': { type: 'string', required: false },
     'password_complexity': { type: 'string', required: false },
+    // 分享设置
+    'sharing_enabled': { type: 'string', required: false },
+    'share_disabled_at': { type: 'string', required: false },
     
     // 通知设置
     'enable_email_notification': { type: 'string', required: false },
@@ -1146,6 +1149,7 @@ router.put('/settings', [
     'enable_animation': { type: 'string', required: false },
     'logo_url': { type: 'string', maxLength: 500, required: false },
     'favicon_url': { type: 'string', maxLength: 500, required: false },
+    'custom_css': { type: 'string', required: false },
     
     // 维护设置
     'maintenance_mode': { type: 'string', required: false }, // 前端传递 'true'/'false'
@@ -1214,28 +1218,27 @@ router.put('/settings', [
     oldSettingsMap[setting.setting_key] = setting.setting_value;
   });
   
-  // 更新设置
-  const updatePromises = [];
+  // 更新设置（若不存在则插入）
   for (const [key, value] of Object.entries(settings)) {
     let processedValue = value;
-    
     // 特殊处理：将MB值转换为字节值
     if (key === 'max_file_size' || key === 'max_storage_per_user') {
       const mbValue = parseInt(value);
       if (!isNaN(mbValue) && mbValue > 0) {
-        processedValue = (mbValue * 1024 * 1024).toString(); // 转换为字节
+        processedValue = (mbValue * 1024 * 1024).toString();
       }
     }
-    
-    updatePromises.push(
-      pool.execute(
-        'UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?',
-        [processedValue, key]
-      )
+    const [result] = await pool.execute(
+      'UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?',
+      [processedValue, key]
     );
+    if (!result || result.affectedRows === 0) {
+      await pool.execute(
+        'INSERT INTO system_settings (setting_key, setting_value, description, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())',
+        [key, processedValue, null]
+      );
+    }
   }
-  
-  await Promise.all(updatePromises);
   
   // 记录操作日志
   const changes = [];
@@ -1261,6 +1264,19 @@ router.put('/settings', [
       // 日志记录失败不影响主流程，继续执行
     }
   }
+  // 更新全局配置版本（用于前端强制刷新）
+  try {
+    const version = new Date().toISOString();
+    const [vr] = await pool.execute(
+      'UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?',[version,'config_version']
+    );
+    if (!vr || vr.affectedRows === 0) {
+      await pool.execute(
+        'INSERT INTO system_settings (setting_key, setting_value, description, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())',
+        ['config_version', version, '前端配置版本号']
+      );
+    }
+  } catch (_) {}
   
   res.json({ 
     message: '设置更新成功',

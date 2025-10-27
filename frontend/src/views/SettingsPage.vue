@@ -116,11 +116,20 @@
                 
                 <el-form-item label="允许的视频类型">
                   <el-checkbox-group v-model="storageSettings.allowedVideoTypes" class="checkbox-group">
-                    <el-checkbox label="mp4">MP4</el-checkbox>
-                    <el-checkbox label="webm">WebM</el-checkbox>
-                    <el-checkbox label="mov">MOV</el-checkbox>
-                    <el-checkbox label="avi">AVI</el-checkbox>
-                    <el-checkbox label="mkv">MKV</el-checkbox>
+                      <el-checkbox label="mp4">MP4</el-checkbox>
+                      <el-checkbox label="webm">WebM</el-checkbox>
+                      <el-checkbox label="mov">MOV</el-checkbox>
+                      <el-checkbox label="avi">AVI</el-checkbox>
+                      <el-checkbox label="mkv">MKV</el-checkbox>
+                      <el-checkbox label="m4v">M4V</el-checkbox>
+                      <el-checkbox label="flv">FLV</el-checkbox>
+                      <el-checkbox label="wmv">WMV</el-checkbox>
+                      <el-checkbox label="mpeg">MPEG</el-checkbox>
+                      <el-checkbox label="mpg">MPG</el-checkbox>
+                      <el-checkbox label="3gp">3GP</el-checkbox>
+                      <el-checkbox label="ts">TS</el-checkbox>
+                      <el-checkbox label="m2ts">M2TS</el-checkbox>
+                      <el-checkbox label="ogv">OGV</el-checkbox>
                   </el-checkbox-group>
                   <div class="field-description">选择允许上传的视频格式</div>
                 </el-form-item>
@@ -218,6 +227,15 @@
                     <span class="unit">分钟</span>
                   </div>
                   <div class="field-description">用户会话的超时时间</div>
+                </el-form-item>
+                
+                <el-form-item label="启用分享功能">
+                  <el-switch 
+                    v-model="securitySettings.sharingEnabled"
+                    active-text="开启"
+                    inactive-text="关闭"
+                  />
+                  <div class="field-description">关闭后：所有分享链接立即失效，已有链接永久不可用；再次开启后需要重新生成分享链接</div>
                 </el-form-item>
                 
                 <div class="form-actions">
@@ -963,6 +981,17 @@
                     <div class="field-description">用户会话的超时时间</div>
                   </el-form-item>
                 </div>
+
+                <div class="form-group">
+                  <el-form-item label="启用分享功能">
+                    <el-switch 
+                      v-model="securitySettings.sharingEnabled"
+                      active-text="开启"
+                      inactive-text="关闭"
+                    />
+                    <div class="field-description">关闭后：所有分享链接立即失效，已有链接永久不可用；再次开启后需要重新生成分享链接</div>
+                  </el-form-item>
+                </div>
                 
                 <div class="form-actions">
                   <div class="button-container">
@@ -1572,7 +1601,8 @@ const securitySettings = reactive({
   enableLoginLock: true,
   maxLoginAttempts: 5,
   lockoutDuration: 15,
-  sessionTimeout: 120
+  sessionTimeout: 120,
+  sharingEnabled: true
 })
 
 // 通知设置
@@ -1686,8 +1716,8 @@ const maintenanceRules: FormRules = {
 }
 
 // 方法
-const handleTabSelect = (index: string) => {
-  activeTab.value = index
+const handleTabSelect = (name: string | number) => {
+  activeTab.value = String(name)
 }
 
 const refreshSettings = async () => {
@@ -1729,6 +1759,7 @@ const fetchSettings = async () => {
     securitySettings.maxLoginAttempts = parseInt(settings.max_login_attempts?.value) || 5
     securitySettings.lockoutDuration = parseInt(settings.lockout_duration?.value) || 15
     securitySettings.sessionTimeout = parseInt(settings.session_timeout?.value) || 120
+    securitySettings.sharingEnabled = settings.sharing_enabled?.value !== 'false'
     
     // 更新通知设置
     notificationSettings.enableEmailNotification = settings.enable_email_notification?.value === 'true'
@@ -1832,12 +1863,17 @@ const saveSecuritySettings = async () => {
     await securityFormRef.value.validate()
     saving.value = true
     
-    const settings = {
+    const settings: Record<string, string> = {
       min_password_length: securitySettings.minPasswordLength.toString(),
       enable_login_lock: securitySettings.enableLoginLock.toString(),
       max_login_attempts: securitySettings.maxLoginAttempts.toString(),
       lockout_duration: securitySettings.lockoutDuration.toString(),
-      session_timeout: securitySettings.sessionTimeout.toString()
+      session_timeout: securitySettings.sessionTimeout.toString(),
+      sharing_enabled: securitySettings.sharingEnabled.toString()
+    }
+    // 关闭分享功能时永久作废现有分享链接
+    if (securitySettings.sharingEnabled === false) {
+      settings['share_disabled_at'] = new Date().toISOString().slice(0,19).replace('T',' ')
     }
     
     await api.put('/admin/settings', { settings })
@@ -1986,8 +2022,16 @@ const saveIntegrationSettings = async () => {
   }
 }
 
+const toBool = (val: string | number | boolean): boolean => {
+  if (typeof val === 'boolean') return val
+  if (typeof val === 'string') return val === 'true' || val === '1'
+  if (typeof val === 'number') return val === 1
+  return false
+}
+
 // 处理QQ登录开关变化
-const handleQQLoginToggle = (value: boolean) => {
+const handleQQLoginToggle = (val: string | number | boolean) => {
+  const value = toBool(val)
   if (!value) {
     integrationSettings.qqAppId = ''
     integrationSettings.qqAppKey = ''
@@ -1995,7 +2039,8 @@ const handleQQLoginToggle = (value: boolean) => {
 }
 
 // 处理微信登录开关变化
-const handleWechatLoginToggle = (value: boolean) => {
+const handleWechatLoginToggle = (val: string | number | boolean) => {
+  const value = toBool(val)
   if (!value) {
     integrationSettings.wechatAppId = ''
     integrationSettings.wechatAppSecret = ''
@@ -2151,7 +2196,8 @@ const resetNotificationSettings = async () => {
 }
 
 // 维护设置相关方法
-const handleMaintenanceModeToggle = (value: boolean) => {
+const handleMaintenanceModeToggle = (val: string | number | boolean) => {
+  const value = toBool(val)
   if (value) {
     ElMessage.warning('开启维护模式后，非管理员用户将无法访问系统')
   }

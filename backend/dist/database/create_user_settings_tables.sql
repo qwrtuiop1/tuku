@@ -66,3 +66,10 @@ SELECT id, TRUE, TRUE, TRUE FROM users;
 
 
 
+
+
+
+
+
+
+

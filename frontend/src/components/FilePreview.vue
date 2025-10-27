@@ -31,24 +31,7 @@
         </div>
       </div>
       
-      <!-- 图片信息 -->
-      <div class="image-info">
-        <h3>{{ file.original_name }}</h3>
-        <div class="info-grid">
-          <div class="info-item">
-            <span class="label">文件大小:</span>
-            <span class="value">{{ formatFileSize(file.file_size) }}</span>
-          </div>
-          <div class="info-item">
-            <span class="label">文件类型:</span>
-            <span class="value">{{ file.mime_type }}</span>
-          </div>
-          <div class="info-item">
-            <span class="label">上传时间:</span>
-            <span class="value">{{ formatTime(file.created_at) }}</span>
-          </div>
-        </div>
-      </div>
+      <!-- 图片信息已移除，统一在详情面板展示 -->
     </div>
     
     <!-- 视频预览 -->
@@ -67,21 +50,7 @@
       <p>无法预览此类型的文件</p>
     </div>
     
-    <!-- 操作按钮 -->
-    <div class="preview-actions">
-      <el-button type="primary" @click="downloadFile">
-        <el-icon><Download /></el-icon>
-        下载
-      </el-button>
-      <el-button @click="copyFileUrl">
-        <el-icon><Link /></el-icon>
-        复制链接
-      </el-button>
-      <el-button type="danger" @click="deleteFile">
-        <el-icon><Delete /></el-icon>
-        删除
-      </el-button>
-    </div>
+    <!-- 操作按钮（移除：统一在父级详情面板显示，避免重复） -->
   </div>
 </template>
 
@@ -328,11 +297,7 @@ const toggleFullscreen = () => {
   }
 }
 
-// 在新窗口打开
-const openInNewWindow = () => {
-  const url = getFilePreviewUrl(props.file.id)
-  window.open(url, '_blank')
-}
+
 
 // 下载文件
 const downloadFile = () => {

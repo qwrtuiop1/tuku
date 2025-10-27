@@ -229,8 +229,10 @@
         <p class="loading-text">正在加载文件...</p>
       </div>
       
+      <!-- 视图区域带淡入淡出，避免切换文件夹时残影 -->
       <!-- 网格视图（实况专用） -->
-      <div v-else-if="viewMode === 'grid' && onlyLive" class="file-grid">
+      <transition name="fade-fast" mode="out-in" v-else-if="viewMode === 'grid' && onlyLive">
+      <div class="file-grid" :key="`live-${filesStore.currentFolder || 'root'}`">
         <div 
           v-for="asset in liveAssets" 
           :key="asset.id"
@@ -254,7 +256,7 @@
             <div class="file-meta">
               <span>
                 {{ asset.duration_ms ? Math.round(asset.duration_ms/1000) + 's' : '实况' }}
-                <template v-if="asset.created_at"> • {{ formatTime(asset.created_at) }}</template>
+                <template v-if="getLiveCreatedAt(asset)"> • {{ formatTime(getLiveCreatedAt(asset)!) }}</template>
               </span>
             </div>
           </div>
@@ -263,6 +265,10 @@
               <el-icon><View /></el-icon>
               <span>预览</span>
             </el-button>
+            <el-button type="text" size="small" @click.stop="downloadLiveOriginal(asset)" class="action-btn">
+              <el-icon><Download /></el-icon>
+              <span>下载原件</span>
+            </el-button>
             <el-button type="text" size="small" @click.stop="deleteLiveAsset(asset.id)" class="action-btn danger">
               <el-icon><Delete /></el-icon>
               <span>删除</span>
@@ -270,9 +276,11 @@
           </div>
         </div>
       </div>
+      </transition>
 
       <!-- 网格视图（常规文件 + 实况资源） -->
-      <div v-else-if="viewMode === 'grid'" class="file-grid">
+      <transition name="fade-fast" mode="out-in" v-else-if="viewMode === 'grid'">
+      <div class="file-grid" :key="`grid-${filesStore.currentFolder || 'root'}`">
         <div 
           v-for="item in paginatedFiles" 
           :key="item.id"
@@ -297,7 +305,7 @@
           <div class="card-checkbox" @click.stop @touchstart.stop @touchend.stop>
             <el-checkbox 
               :model-value="selectedFiles.includes(item.id)"
-              @change="(checked) => toggleFileSelection(item.id, $event)"
+              @change="() => toggleFileSelection(item.id)"
               @click.stop
             />
           </div>
@@ -339,7 +347,11 @@
               <el-icon><Download /></el-icon>
               <span>下载</span>
             </el-button>
-            <el-button v-if="!item.isFolder && !item.isLive" type="text" size="small" @click.stop="shareFileAction(item)" class="action-btn">
+            <el-button v-else-if="item.isLive" type="text" size="small" @click.stop="downloadLiveOriginal(item.liveAsset)" class="action-btn">
+              <el-icon><Download /></el-icon>
+              <span>下载原件</span>
+            </el-button>
+            <el-button v-if="systemStore.sharingEnabled && !item.isFolder && !item.isLive" type="text" size="small" @click.stop="shareFileAction(item)" class="action-btn">
               <el-icon><Share /></el-icon>
               <span>分享</span>
             </el-button>
@@ -354,9 +366,11 @@
           </div>
         </div>
       </div>
+      </transition>
       
       <!-- 列表视图 -->
-      <div v-else-if="viewMode === 'list'" class="file-list">
+      <transition name="fade-fast" mode="out-in" v-else-if="viewMode === 'list'">
+      <div class="file-list" :key="`list-${filesStore.currentFolder || 'root'}`">
         <el-table 
           :data="paginatedFiles" 
           @row-click="handleItemClick"
@@ -399,7 +413,7 @@
                   <el-icon><Download /></el-icon>
                   下载
                 </el-button>
-                <el-button v-if="!row.isFolder" type="text" size="small" @click="shareFileAction(row)" class="action-btn">
+                <el-button v-if="systemStore.sharingEnabled && !row.isFolder" type="text" size="small" @click="shareFileAction(row)" class="action-btn">
                   <el-icon><Share /></el-icon>
                   分享
                 </el-button>
@@ -416,6 +430,7 @@
           </el-table-column>
         </el-table>
       </div>
+      </transition>
       
       <!-- 分页 -->
       <div v-if="allItems.length > 0 && totalPages > 1" class="pagination">
@@ -514,9 +529,21 @@
         </div>
         
         <div class="share-options">
-          <el-checkbox v-model="shareOptions.allowDownload">允许下载</el-checkbox>
-          <el-checkbox v-model="shareOptions.allowPreview">允许预览</el-checkbox>
-          <el-checkbox v-model="shareOptions.expireIn24h">24小时后过期</el-checkbox>
+          <div class="share-row">
+            <el-checkbox v-model="shareOptions.allowDownload">允许下载</el-checkbox>
+            <el-checkbox v-model="shareOptions.allowPreview">允许预览</el-checkbox>
+          </div>
+          <div class="share-row">
+            <span class="ttl-label">生存时间</span>
+            <el-select v-model="shareOptions.ttlPreset" placeholder="请选择">
+              <el-option label="1 小时" :value="'1h'" />
+              <el-option label="24 小时" :value="'24h'" />
+              <el-option label="7 天" :value="'7d'" />
+              <el-option label="自定义(小时)" :value="'custom'" />
+              <el-option label="永不过期" :value="'never'" />
+            </el-select>
+            <el-input-number v-if="shareOptions.ttlPreset==='custom'" v-model="shareOptions.ttlHours" :min="1" :max="24*365" />
+          </div>
         </div>
       </div>
       
@@ -586,6 +613,7 @@ import {
 } from '@element-plus/icons-vue'
 import { useFilesStore } from '@/stores/files'
 import { useAuthStore } from '@/stores/auth'
+import { useSystemStore } from '@/stores/system'
 import { formatFileSize, formatTime, getFilePreviewUrl, downloadFile as downloadFileUtil, copyToClipboard } from '@/utils/helpers'
 import FileUploader from '@/components/FileUploader.vue'
 import FilePreview from '@/components/FilePreview.vue'
@@ -600,6 +628,8 @@ import api from '@/utils/api'
 import type { LiveMediaAsset } from '@/utils/liveMedia'
 
 const router = useRouter()
+const systemStore = useSystemStore()
+onMounted(() => { if (!systemStore.loaded) systemStore.loadShareStatus() })
 const filesStore = useFilesStore()
 const authStore = useAuthStore()
 
@@ -608,14 +638,14 @@ const showUploadDialog = ref(false)
 const showCreateFolderDialog = ref(false)
 const showPreviewDialog = ref(false)
 const showShareDialog = ref(false)
-const previewFile = ref(null)
+const previewFile = ref<any | undefined>(undefined)
 const previewFileIndex = ref(0)
-const shareFile = ref(null)
+const shareFile = ref<any | null>(null)
 const quickPreviewFile = ref(null)
 const showQuickPreviewDialog = ref(false)
-const quickPreviewTimer = ref(null)
+const quickPreviewTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const shareUrl = ref('')
-const contextFile = ref(null)
+const contextFile = ref<any | null>(null)
 const showContextMenu = ref(false)
 const contextMenuPosition = ref({ x: 0, y: 0 })
 const folderFormRef = ref<InstanceType<typeof ElForm>>()
@@ -715,7 +745,8 @@ const folderRules = {
 const shareOptions = reactive({
   allowDownload: true,
   allowPreview: true,
-  expireIn24h: false
+  ttlPreset: '24h',
+  ttlHours: 24
 })
 
 // 计算属性
@@ -872,10 +903,16 @@ const goToRootFolder = () => {
 }
 
 const goToFolder = async (folderId: number) => {
+  // 预清空 + 打开加载态，旧内容立即消失
+  filesStore.loading = true
+  filesStore.files = [] as any
+  filesStore.folders = [] as any
   filesStore.currentFolder = folderId
   await updateFolderPath(folderId)
-  filesStore.fetchFiles(1)
-  filesStore.fetchFolders()
+  await Promise.all([
+    filesStore.fetchFiles(1),
+    filesStore.fetchFolders()
+  ])
 }
 
 const updateFolderPath = async (folderId: number) => {
@@ -924,7 +961,7 @@ const getLongPressDelay = () => {
 }
 
 // 移动端长按功能
-const longPressTimer = ref<NodeJS.Timeout | null>(null)
+const longPressTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const longPressDelay = ref(800) // 动态长按延迟时间
 const isLongPressing = ref(false) // 长按状态标识
 const longPressItem = ref<any>(null) // 长按的项目
@@ -982,16 +1019,19 @@ const handleTouchStart = (event: TouchEvent) => {
       if (fileCard) {
         const itemId = fileCard.getAttribute('data-item-id')
         // 根据itemId找到对应的item
-        const allItems = filesStore.folders.map(folder => ({
-          ...folder,
-          isFolder: true,
-          original_name: folder.folder_name
-        })).concat(filesStore.files.map(file => ({
-          ...file,
-          isFolder: false
-        })))
-        
-        const item = allItems.find(item => item.id == itemId)
+        const allItems = [
+          ...(filesStore.folders as any[]).map(folder => ({
+            ...folder,
+            isFolder: true,
+            original_name: folder.folder_name
+          })),
+          ...(filesStore.files as any[]).map(file => ({
+            ...file,
+            isFolder: false
+          }))
+        ] as any[]
+        const numericId = Number(itemId)
+        const item = allItems.find((item: any) => item.id === numericId)
         if (item) {
           handleLongPress(item)
         }
@@ -1250,7 +1290,7 @@ const resetLongPressState = () => {
 }
 
 // 自动重置长按状态的定时器
-const autoResetTimer = ref<NodeJS.Timeout | null>(null)
+const autoResetTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 const startAutoResetTimer = () => {
   // 清除之前的定时器
@@ -1263,6 +1303,27 @@ const startAutoResetTimer = () => {
     resetLongPressState()
   }, 5000)
 }
+
+// 全局点击/触摸：点击卡片以外或非操作区时，立即隐藏操作区（移动端与桌面端一致）
+const handleGlobalPointerDown = (event: Event) => {
+  const target = event.target as HTMLElement
+  // 如果没有任何卡片处于长按显示状态，跳过
+  if (!longPressedCards.value || longPressedCards.value.size === 0) return
+  // 在操作按钮区域内点击时，不隐藏
+  if (target.closest('.card-actions')) return
+  // 其余任意位置点击，立即隐藏
+  resetLongPressState()
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', handleGlobalPointerDown)
+  document.addEventListener('touchstart', handleGlobalPointerDown, { passive: true })
+})
+
+onUnmounted(() => {
+  document.removeEventListener('mousedown', handleGlobalPointerDown)
+  document.removeEventListener('touchstart', handleGlobalPointerDown)
+})
 
 const handleItemClick = async (item: any, event?: Event) => {
   // 如果点击的是checkbox区域，不处理点击事件
@@ -1430,7 +1491,7 @@ const getRowClassName = ({ row }: { row: any }) => {
 }
 
 // 桌面端鼠标事件处理
-const rightClickTimer = ref<NodeJS.Timeout | null>(null)
+const rightClickTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const rightClickDelay = 500 // 右键长按延迟时间
 
 const handleMouseDown = (event: MouseEvent, item: any) => {
@@ -1494,6 +1555,10 @@ const enterContextFolder = async () => {
 }
 
 const shareContextFile = () => {
+  if (!systemStore.sharingEnabled) {
+    ElMessage.error('分享功能已关闭')
+    return
+  }
   if (contextFile.value) {
     shareFile.value = contextFile.value
     showShareDialog.value = true
@@ -1519,7 +1584,12 @@ const copyFileUrl = async () => {
 const downloadFile = (file: any) => {
   try {
     if ((file as any).isLive) {
-      ElMessage.warning('实况暂不支持打包下载，请在预览中播放或右键另存为')
+      const asset = (file as any).liveAsset as LiveMediaAsset | undefined
+      if (asset) {
+        downloadLiveOriginal(asset)
+        return
+      }
+      ElMessage.warning('该资源当前不支持直接下载')
       return
     }
     downloadFileUtil(file.id, file.original_name)
@@ -1529,7 +1599,51 @@ const downloadFile = (file: any) => {
   }
 }
 
+// 下载实况“原件”
+const downloadLiveOriginal = async (asset: LiveMediaAsset) => {
+  try {
+    // iOS Live Photo：分别下载原图与原视频
+    if (asset.kind === 'live_photo') {
+      await downloadFromApi(`/live-media/${asset.id}/original-image`, `live_${asset.id}`)
+      await downloadFromApi(`/live-media/${asset.id}/original-video`, `live_${asset.id}`)
+      ElMessage.success('已开始下载原件（图像与视频）')
+      return
+    }
+    // Android Motion Photo / GIF / WebP：下载原始图像容器
+    await downloadFromApi(`/live-media/${asset.id}/original`, `${asset.kind}_${asset.id}`)
+    ElMessage.success('已开始下载原件')
+  } catch (_) {
+    ElMessage.error('原件下载失败')
+  }
+}
+
+const downloadFromApi = async (endpoint: string, basename: string) => {
+  const res = await api.get(endpoint, { responseType: 'blob', timeout: 600000 })
+  const contentType = res.headers['content-type'] || ''
+  const disposition = res.headers['content-disposition'] || ''
+  let filename = basename
+  const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(disposition)
+  if (match) {
+    filename = decodeURIComponent(match[1] || match[2] || basename)
+  } else {
+    const ext = contentType.includes('jpeg') ? 'jpg' : contentType.includes('heic') ? 'heic' : contentType.includes('gif') ? 'gif' : contentType.includes('webp') ? 'webp' : contentType.includes('quicktime') ? 'mov' : ''
+    filename = ext ? `${basename}.${ext}` : basename
+  }
+  const url = URL.createObjectURL(res.data)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 const shareFileAction = (file: any) => {
+  if (!systemStore.sharingEnabled) {
+    ElMessage.error('分享功能已关闭')
+    return
+  }
   shareFile.value = file
   showShareDialog.value = true
 }
@@ -1623,16 +1737,19 @@ const batchDelete = async () => {
   const liveToDelete: number[] = []
     
   // 获取所有项目信息（含合并的实况项）
-    const allItems = filesStore.folders.map(folder => ({
-      ...folder,
-      isFolder: true,
-      original_name: folder.folder_name,
-      file_size: 0,
-      file_type: 'folder'
-    })).concat(filesStore.files.map(file => ({
-      ...file,
-      isFolder: false
-    })))
+    const allItems = [
+      ...(filesStore.folders as any[]).map(folder => ({
+        ...folder,
+        isFolder: true,
+        original_name: folder.folder_name,
+        file_size: 0,
+        file_type: 'folder'
+      })),
+      ...(filesStore.files as any[]).map(file => ({
+        ...file,
+        isFolder: false
+      }))
+    ] as any[]
     
     // 分类选中的项目
     for (const itemId of selectedFiles.value) {
@@ -1681,15 +1798,40 @@ const batchDelete = async () => {
 }
 
 // 分享功能
-const generateShareLink = () => {
+const generateShareLink = async () => {
+  if (!systemStore.sharingEnabled) {
+    ElMessage.error('分享功能已关闭')
+    return
+  }
   if (!shareFile.value) return
-  
-  // 生成分享链接
-  const baseUrl = window.location.origin
-  const shareId = Math.random().toString(36).substr(2, 9)
-  shareUrl.value = `${baseUrl}/share/${shareId}`
-  
-  ElMessage.success('分享链接已生成')
+  try {
+    let expireInHours: number | null = null
+    if (shareOptions.ttlPreset === '1h') expireInHours = 1
+    else if (shareOptions.ttlPreset === '24h') expireInHours = 24
+    else if (shareOptions.ttlPreset === '7d') expireInHours = 24*7
+    else if (shareOptions.ttlPreset === 'custom') expireInHours = Math.max(1, Number(shareOptions.ttlHours || 0))
+    else if (shareOptions.ttlPreset === 'never') expireInHours = null
+    const { data } = await api.post('/share', {
+      file_id: shareFile.value.id,
+      allowPreview: !!shareOptions.allowPreview,
+      allowDownload: !!shareOptions.allowDownload,
+      expireInHours
+    })
+    if (data && data.success && data.token) {
+      const baseUrl = window.location.origin
+      shareUrl.value = `${baseUrl}/share/${data.token}`
+      if (data.expires_at) {
+        ElMessage.success(`分享链接已生成，将在 ${new Date(data.expires_at).toLocaleString()} 过期`)
+      } else {
+        ElMessage.success('分享链接已生成（永不过期）')
+      }
+    } else {
+      ElMessage.error('生成分享链接失败')
+    }
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || '生成分享链接失败'
+    ElMessage.error(msg)
+  }
 }
 
 const copyShareUrl = async () => {
@@ -1791,7 +1933,7 @@ const fetchLiveAssets = async () => {
 }
 
 // 监听“仅实况”切换
-watch(onlyLive, async () => {
+watch(onlyLive, async (val) => {
   // 切换筛选时，同步刷新实况数据（当前文件夹上下文）
   await fetchLiveAssets()
   try { localStorage.setItem('onlyLive', val ? '1' : '0') } catch {}
@@ -1810,6 +1952,10 @@ const openLiveFullscreen = (asset: LiveMediaAsset) => {
 const openLivePreview = (asset: LiveMediaAsset) => {
   currentLiveAsset.value = asset
   showLivePreview.value = true
+}
+
+const getLiveCreatedAt = (asset: any): string | null => {
+  return asset?.created_at || null
 }
 
 const toggleOnlyLive = () => {
@@ -1835,6 +1981,14 @@ const deleteLiveAsset = async (assetId: number) => {
     if (index !== -1) {
       liveAssets.value.splice(index, 1)
     }
+    // 清理选中状态（合并视图下实况项的 id 形如 `live_12`）
+    const selectedKey = `live_${assetId}`
+    const selIndex = selectedFiles.value.indexOf(selectedKey as any)
+    if (selIndex !== -1) {
+      selectedFiles.value.splice(selIndex, 1)
+    }
+    // 保险刷新一次实况数据，确保与后端完全同步并触发所有依赖计算
+    await fetchLiveAssets()
     ElMessage.success('实况已删除')
   } catch (e) {
     if (e !== 'cancel') ElMessage.error('删除失败')
@@ -2685,6 +2839,10 @@ const deleteLiveAsset = async (assetId: number) => {
   .files-page {
     padding: 32px; // 超大屏使用更大的内边距
   }
+  
+  // 视图切换淡入淡出，减少切换文件夹的残影
+  .fade-fast-enter-active, .fade-fast-leave-active { transition: opacity .12s ease; }
+  .fade-fast-enter-from, .fade-fast-leave-to { opacity: 0; }
   
   .unified-toolbar {
     padding: 16px 20px;
