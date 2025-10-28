@@ -54,6 +54,7 @@
           <el-card class="admin-nav-card">
             <el-menu
               v-model="activeSection"
+              :default-active="activeSection"
               class="admin-menu"
               @select="handleSectionSelect"
             >
