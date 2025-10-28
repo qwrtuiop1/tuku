@@ -1951,6 +1951,10 @@
               <span class="value">{{ selectedUserStats?.username }}</span>
             </div>
             <div class="stats-item">
+              <span class="label">用户ID：</span>
+              <span class="value">{{ selectedUserStats?.id }}</span>
+            </div>
+            <div class="stats-item">
               <span class="label">邮箱：</span>
               <span class="value">{{ selectedUserStats?.email }}</span>
             </div>
@@ -2719,7 +2723,6 @@ const setupSyncScroll = () => {
     })
   })
 }
-
 // 方法
 
 // 存储统计数据
@@ -3507,7 +3510,6 @@ const resetSelectedUserPassword = async () => {
     ElMessage.error('重置密码失败，请重试')
   }
 }
-
 // 获取验证码剩余时间
 const getVerificationTimeLeft = () => {
   if (!passwordVerificationExpiry.value) return '0:00'
@@ -3560,6 +3562,11 @@ const showUserStats = async (user: User) => {
       console.log('API返回成功，开始处理数据')
       // 后端返回的数据结构: {user: {...}, dataStats: {...}, storage: {...}}
       const { user: userData, dataStats, storage } = response.data
+      // 使用后端实时用户信息更新悬浮窗基本信息（含用户ID）
+      selectedUserStats.value = {
+        ...(selectedUserStats.value || {} as any),
+        ...userData
+      } as any
       
       // 确保存储信息是从后端实时获取的真实数据（兼容不同字段名）
       userStats.value = {
@@ -3599,6 +3606,16 @@ const showUserStats = async (user: User) => {
         last_login: response.data.last_login || null,
         password: response.data.password || null
       }
+      // 如果旧格式包含基本用户信息，也尽量刷新选中用户数据
+      try {
+        const maybeUser = response.data.user || response.data
+        if (maybeUser && (maybeUser.id || maybeUser.username)) {
+          selectedUserStats.value = {
+            ...(selectedUserStats.value || {} as any),
+            ...maybeUser
+          } as any
+        }
+      } catch {}
       
       console.log('用户统计数据设置完成:', userStats.value)
       console.log('=== showUserStats 成功完成 ===')
@@ -4301,7 +4318,6 @@ const handleResize = () => {
     adjustTableWidth()
   }, 100)
 }
-
 // 生命周期
 onMounted(async () => {
   try {

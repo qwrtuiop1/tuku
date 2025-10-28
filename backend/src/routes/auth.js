@@ -2219,6 +2219,16 @@ router.post('/epass/unbind', authenticateToken, asyncHandler(async (req, res) =>
   return res.json({ success: true, message: 'EPass已解绑' })
 }))
 
+// 解绑 QQ（清空 qq_openid 与 qq_unionid）
+router.post('/qq/unbind', authenticateToken, asyncHandler(async (req, res) => {
+  try {
+    await pool.execute('UPDATE users SET qq_openid = NULL, qq_unionid = NULL WHERE id = ?', [req.user.id])
+    return res.json({ success: true, message: 'QQ已解绑' })
+  } catch (e) {
+    return res.status(500).json({ success: false, message: '解绑失败' })
+  }
+}))
+
 router.get('/bindings', authenticateToken, asyncHandler(async (req, res) => {
   let rows
   try {
@@ -2285,7 +2295,14 @@ router.post('/email/unbind', authenticateToken, asyncHandler(async (req, res) =>
         await pool.execute('UPDATE users SET email = ? WHERE id = ?', [placeholder, req.user.id])
         return res.json({ success: true, message: '邮箱已解绑' })
       } catch (e2) {
-        return res.status(500).json({ success: false, message: '解绑失败' })
+        // 占位邮箱可能触发唯一索引冲突，添加随机后缀兜底
+        try {
+          const placeholder2 = `unbound_${req.user.id}_${Date.now()}_${Math.random().toString(36).slice(2,8)}@unbind.local`
+          await pool.execute('UPDATE users SET email = ? WHERE id = ?', [placeholder2, req.user.id])
+          return res.json({ success: true, message: '邮箱已解绑' })
+        } catch {
+          return res.status(500).json({ success: false, message: '解绑失败' })
+        }
       }
     }
     return res.status(500).json({ success: false, message: '解绑失败' })

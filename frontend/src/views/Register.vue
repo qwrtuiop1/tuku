@@ -7,12 +7,7 @@
           <el-icon class="logo-icon"><Picture /></el-icon>
           <span class="logo-text">图库系统</span>
         </div>
-        <div class="nav-actions">
-          <el-button type="text" @click="goToLogin">
-            <el-icon><User /></el-icon>
-            登录
-          </el-button>
-        </div>
+        
       </div>
     </div>
 
@@ -341,7 +336,7 @@ const ensureGeetest = async (): Promise<boolean> => {
   })
 }
 
-const runHumanVerification = async (): Promise<boolean> => {
+async function runHumanVerification(): Promise<boolean> {
   if (!geetestCaptchaId) return true
   const ok = await ensureGeetest()
   if (!ok || !geetestHandler) return false

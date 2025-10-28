@@ -7,12 +7,7 @@
           <el-icon class="logo-icon"><Picture /></el-icon>
           <span class="logo-text">图库系统</span>
         </div>
-        <div class="nav-actions">
-          <el-button type="text" @click="goToRegister">
-            <el-icon><UserFilled /></el-icon>
-            注册
-          </el-button>
-        </div>
+        
       </div>
     </div>
 

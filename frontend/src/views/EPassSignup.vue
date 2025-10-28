@@ -6,6 +6,9 @@
           <el-icon class="logo-icon"><Picture /></el-icon>
           <span class="logo-text">图库系统</span>
         </div>
+        <div class="nav-actions">
+          <el-button class="back-login-btn" @click="goToLogin" type="default">返回登录</el-button>
+        </div>
       </div>
     </div>
 
@@ -99,9 +102,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
 import api from '@/utils/api'
 import { useEmailCode } from '@/composables/useEmailCode'
 import { Picture, Upload, View, Platform } from '@element-plus/icons-vue'
+
+const router = useRouter()
 
 const formRef = ref()
 const form = ref({
@@ -245,6 +251,7 @@ const submit = async () => {
 
 const openTerms = () => { window.open('/terms', '_blank') }
 const openPrivacy = () => { window.open('/privacy', '_blank') }
+const goToLogin = () => { router.push('/login') }
 </script>
 
 <style scoped>
@@ -254,6 +261,9 @@ const openPrivacy = () => { window.open('/privacy', '_blank') }
 .nav-logo { display:flex; align-items:center; gap:10px; color:#e5e7eb; }
 .logo-icon { color:#e5e7eb; font-size:20px; }
 .logo-text { font-weight:600; letter-spacing:0.5px; }
+.nav-actions { display:flex; align-items:center; }
+.back-login-btn { border: 1px solid #2a2f3a; background: linear-gradient(180deg, #ffffff, #f5f6f8); color: #111827; height: 32px; padding: 0 12px; border-radius: 8px; }
+.back-login-btn:hover { background: linear-gradient(180deg, #f5f6f8, #eceff3); border-color: #343a46; }
 
 .login-content { display:flex; align-items:center; justify-content:center; gap:24px; max-width:1200px; width:100%; margin: 24px auto; padding: 0 16px; min-height: calc(100vh - 120px); }
 .login-box { width: clamp(420px, 40%, 620px); flex: 0 0 auto; background: rgba(17,19,23,0.98); border:1px solid #272b34; border-radius:16px; padding:24px; color:#e5e7eb; box-shadow: 0 14px 38px rgba(0,0,0,0.35); }

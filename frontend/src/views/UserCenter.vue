@@ -193,17 +193,9 @@
                     <el-input 
                       v-model="profileForm.username" 
                       placeholder="请输入用户名"
-                      :disabled="true"
+                      :disabled="false"
                     />
-                    <div class="form-hint">用户名不可修改</div>
-                  </el-form-item>
-
-                  <el-form-item label="邮箱地址" prop="email">
-                    <el-input 
-                      v-model="profileForm.email" 
-                      placeholder="请输入邮箱地址"
-                    />
-                      <div class="form-hint">用于接收系统通知和找回密码</div>
+                    <div class="form-hint">支持中文、字母、数字、下划线与空格</div>
                   </el-form-item>
 
                   <el-form-item label="昵称" prop="display_name">
@@ -334,6 +326,50 @@
                       </div>
                     </el-form-item>
                   </el-form>
+                </div>
+
+                <div class="security-section">
+                  <h4>第三方账号绑定</h4>
+                  <div class="bindings-list">
+                    <div class="binding-item">
+                      <div class="binding-info">
+                        <div class="binding-name">QQ 登录</div>
+                        <div class="binding-status" :class="{ on: bindings.qq, off: !bindings.qq }">
+                          {{ bindings.qq ? '已绑定' : '未绑定' }}
+                        </div>
+                      </div>
+                      <div class="binding-actions">
+                        <el-button v-if="!bindings.qq" size="small" type="primary" @click="bindQQ">去绑定</el-button>
+                        <el-button v-else size="small" type="default" @click="unbindQQ">解绑</el-button>
+                      </div>
+                    </div>
+
+                    <div class="binding-item">
+                      <div class="binding-info">
+                        <div class="binding-name">邮箱</div>
+                        <div class="binding-status" :class="{ on: !!bindings.email, off: !bindings.email }">
+                          {{ bindings.email ? bindings.email : '未绑定' }}
+                        </div>
+                      </div>
+                      <div class="binding-actions">
+                        <el-button v-if="bindings.email" size="small" type="default" @click="unbindEmail">解绑</el-button>
+                        <el-button v-else size="small" @click="goProfileEmail">去设置</el-button>
+                      </div>
+                    </div>
+
+                    <div class="binding-item">
+                      <div class="binding-info">
+                        <div class="binding-name">E通行证</div>
+                        <div class="binding-status" :class="{ on: bindings.epass, off: !bindings.epass }">
+                          {{ bindings.epass ? '已绑定' : '未绑定' }}
+                        </div>
+                      </div>
+                      <div class="binding-actions">
+                        <el-button v-if="!bindings.epass" size="small" type="primary" @click="bindEPass">去绑定</el-button>
+                        <el-button v-else size="small" type="default" @click="unbindEPass">解绑</el-button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </el-tab-pane>
 
@@ -581,6 +617,115 @@ const quickSettings = reactive({
   autoRefresh: true,
   notifications: true
 })
+
+// 绑定状态
+const bindings = reactive({
+  qq: false,
+  qqOpenId: null as string | null,
+  qqUnionId: null as string | null,
+  qqNickname: '',
+  qqAvatar: '',
+  qqNumber: null as string | null,
+  epass: false,
+  epassId: null as number | string | null,
+  email: null as string | null
+})
+
+const loadBindings = async () => {
+  try {
+    const res = await api.get('/auth/bindings')
+    if (res.data?.success) {
+      Object.assign(bindings, res.data.bindings || {})
+    }
+  } catch {}
+}
+
+const bindQQ = async () => {
+  try {
+    const resp = await api.get('/auth/qq/auth')
+    if (resp.data?.success && resp.data.authUrl) {
+      window.location.href = resp.data.authUrl
+    } else {
+      ElMessage.error(resp.data?.message || 'QQ绑定暂不可用')
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.message || 'QQ绑定失败')
+  }
+}
+
+const bindEPass = () => {
+  try {
+    const state = 'bind'
+    try { sessionStorage.setItem('epass_state', state) } catch {}
+    const clientId = 'euser-gallery'
+    const redirectUri = `${window.location.origin}/auth/callback`
+    const scope = 'read'
+    const params = new URLSearchParams({
+      client_id: clientId,
+      response_type: 'token',
+      redirect_uri: redirectUri,
+      scope,
+      state
+    })
+    const authorizeUrl = `https://account.emoera.com/oauth/authorize?${params.toString()}`
+    window.location.href = authorizeUrl
+  } catch (e: any) {
+    ElMessage.error(e?.message || 'E通行证绑定失败')
+  }
+}
+
+const unbindEPass = async () => {
+  try {
+    const ok = await ElMessageBox.confirm('确定要解绑 E通行证 吗？', '确认操作', { type: 'warning' }).then(() => true).catch(() => false)
+    if (!ok) return
+    const resp = await api.post('/auth/epass/unbind')
+    if (resp.data?.success) {
+      ElMessage.success('已解绑 E通行证')
+      await loadBindings()
+    } else {
+      ElMessage.error(resp.data?.message || '解绑失败')
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.message || '解绑失败')
+  }
+}
+
+const unbindEmail = async () => {
+  try {
+    const ok = await ElMessageBox.confirm('确定要解绑邮箱吗？', '确认操作', { type: 'warning' }).then(() => true).catch(() => false)
+    if (!ok) return
+    const resp = await api.post('/auth/email/unbind')
+    if (resp.data?.success) {
+      ElMessage.success('邮箱已解绑')
+      await loadBindings()
+      await loadUserSettingsFromServer()
+    } else {
+      ElMessage.error(resp.data?.message || '解绑失败')
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.message || '解绑失败')
+  }
+}
+
+const goProfileEmail = () => {
+  activeTab.value = 'profile'
+}
+
+const unbindQQ = async () => {
+  try {
+    const ok = await ElMessageBox.confirm('确定要解绑 QQ 吗？', '确认操作', { type: 'warning' }).then(() => true).catch(() => false)
+    if (!ok) return
+    const resp = await api.post('/auth/qq/unbind')
+    if (resp.data?.success) {
+      ElMessage.success('QQ已解绑')
+      await loadBindings()
+    } else {
+      ElMessage.error(resp.data?.message || '解绑失败')
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.message || '解绑失败')
+  }
+}
 
 // 自动刷新相关
 const refreshInterval = ref<NodeJS.Timeout | null>(null)
@@ -1429,6 +1574,9 @@ onMounted(async () => {
     
     // 检查存储警告
     checkStorageWarning()
+
+    // 加载账号绑定状态
+    await loadBindings()
     
   } catch (error) {
     ElMessage.error('页面加载失败，请刷新重试')
@@ -1931,6 +2079,59 @@ onUnmounted(() => {
             cursor: not-allowed;
           }
         }
+      }
+
+      .bindings-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .binding-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 12px;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        background: #fafafa;
+      }
+
+      .binding-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .binding-name {
+        font-weight: 600;
+        color: #111827;
+      }
+
+      .binding-status {
+        font-size: 12px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid #e5e7eb;
+        color: #6b7280;
+      }
+
+      .binding-status.on {
+        color: #065f46;
+        background: #ecfdf5;
+        border-color: #a7f3d0;
+      }
+
+      .binding-status.off {
+        color: #92400e;
+        background: #fffbeb;
+        border-color: #fcd34d;
+      }
+
+      .binding-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
       }
     }
 

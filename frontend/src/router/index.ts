@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import Register from '@/views/Register.vue'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage } from 'element-plus'
 
@@ -61,7 +62,7 @@ const routes = [
   {
     path: '/register',
     name: 'Register',
-    component: () => import('@/views/Register.vue'),
+    component: Register,
     meta: { 
       title: '注册',
       requiresAuth: false 

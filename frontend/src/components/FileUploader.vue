@@ -40,7 +40,7 @@
       ref="fileInputRef"
       type="file"
       multiple
-      :accept="computedAccept"
+      :accept="computedUnifiedAccept"
       style="display: none"
       @change="handleFileSelect"
     />
@@ -236,6 +236,24 @@ const computedAccept = computed(() => {
   return parts.join(',')
 })
 
+const computedVideoAccept = computed(() => {
+  const videoExts = (systemSettings.value.allowedVideoTypes || []).map(v => `.${v}`)
+  const videoMimes = ['video/*','video/mp4','video/quicktime','video/webm','video/x-matroska','video/x-msvideo']
+  return [...videoMimes, ...videoExts]
+})
+
+const computedUnifiedAccept = computed(() => {
+  const imageMimes = ['image/*','image/heic','image/heif']
+  const imageExts = ['.heic','.heif','.jpg','.jpeg','.png','.gif','.webp']
+  const videoList = computedVideoAccept.value
+  const videoExtsOnly = (systemSettings.value.allowedVideoTypes || []).map(v => `.${v}`)
+  // 移动端更偏好将视频列在前面，提高可见性（特别是 iOS 照片选择器）
+  return [...videoList, ...videoExtsOnly, ...imageMimes, ...imageExts].join(',')
+})
+
+const isMobile = computed(() => /Android|webOS|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent))
+const isIOS = computed(() => /iPhone|iPad|iPod/i.test(navigator.userAgent))
+
 // 上传统计
 const uploadStats = computed(() => {
   const total = uploadList.value.length
@@ -356,8 +374,16 @@ const handleDrop = async (e: DragEvent) => {
 
 // 触发文件选择
 const triggerFileInput = () => {
+  // 在 iOS/移动端点击前强制设置一次 accept，确保顺序与列表生效
+  if (fileInputRef.value) {
+    fileInputRef.value.accept = computedUnifiedAccept.value
+  }
   fileInputRef.value?.click()
 }
+
+// 移动端统一入口：直接使用统一 accept 调起一次选择
+const triggerImageInput = () => { fileInputRef.value?.click() }
+const triggerVideoInput = () => { fileInputRef.value?.click() }
 
 // 触发实况选择
 const triggerLiveInput = () => {
