@@ -245,12 +245,18 @@ const shareCurrentFile = async () => {
     reviewStatus.value = null
     publicShareUrl.value = ''
     // 先发起审核，不立刻拿公开链接
+    console.log('[share-debug] submit review', {
+      file_id: currentFile.value.id,
+      allowPreview: true,
+      allowDownload: true
+    })
     const { data } = await api.post('/share/review', {
       file_id: currentFile.value.id,
       allowPreview: true,
       allowDownload: true,
       expireInHours: null
     })
+    console.log('[share-debug] review created', data)
     if (data && data.success && data.review_id) {
       reviewId.value = data.review_id
       startReviewPolling()
@@ -271,6 +277,10 @@ function startReviewPolling() {
   reviewPoller = setInterval(async () => {
     try {
       const { data } = await api.get(`/share/review/${reviewId.value}/status`)
+      console.log('[share-debug] review status', data)
+      if (Array.isArray(data.debug) && data.debug.length) {
+        data.debug.forEach((e:any) => console.log('[share-debug] step', e))
+      }
       reviewStatus.value = { status: data.status, review_progress: data.review_progress || 0, review_reason: data.review_reason }
       if (data.status === 'approved' && data.share_token) {
         publicShareUrl.value = `${window.location.origin}/share/${data.share_token}`

@@ -1126,6 +1126,12 @@
                 <el-form-item label="模型名称">
                   <el-input v-model="moderationForm.model" placeholder="例如 Pro/deepseek-ai/DeepSeek-V3.2-Exp" />
                 </el-form-item>
+                <el-form-item label="AI等待时长">
+                  <div class="strict-row">
+                    <el-input v-model.number="moderationForm.httpTimeoutMs" placeholder="默认 20000 (20秒)" />
+                    <span class="strict-value">ms</span>
+                  </div>
+                </el-form-item>
                 <el-form-item label="严格度">
                   <div class="strict-row">
                     <el-slider v-model="moderationForm.strictness" :min="0" :max="100" />
@@ -1135,8 +1141,15 @@
                 <el-form-item label="图片启发式">
                   <el-switch v-model="moderationForm.imageHeuristic" />
                 </el-form-item>
-                <el-form-item label="最大图片字节">
-                  <el-input v-model.number="moderationForm.maxImageBytes" placeholder="默认 524288 (512KB)" />
+                <el-form-item label="最大图片大小">
+                  <div style="display:flex; gap:8px; align-items:center; width:100%">
+                    <el-input v-model.number="maxImageSizeValue" placeholder="数值" style="flex:1" />
+                    <el-select v-model="maxImageSizeUnit" style="width:100px">
+                      <el-option label="MB" value="MB" />
+                      <el-option label="KB" value="KB" />
+                      <el-option label="B" value="B" />
+                    </el-select>
+                  </div>
                 </el-form-item>
                 <el-form-item label="OCR API URL">
                   <el-input v-model="moderationForm.ocrApiUrl" placeholder="可选：用于图片文字审核" />
@@ -2258,9 +2271,26 @@ const moderationForm = reactive({
   model: '',
   strictness: 70,
   maxImageBytes: 524288,
+  httpTimeoutMs: 20000,
   imageHeuristic: true,
   ocrApiUrl: '',
   ocrApiKey: ''
+})
+// 最大图片大小（数值/单位）派生字段
+const maxImageSizeUnit = ref('MB' as 'MB' | 'KB' | 'B')
+const maxImageSizeValue = computed<number>({
+  get() {
+    const bytes = Number(moderationForm.maxImageBytes || 0)
+    if (maxImageSizeUnit.value === 'KB') return Math.round(bytes / 1024)
+    if (maxImageSizeUnit.value === 'B') return bytes
+    return Math.round(bytes / (1024 * 1024))
+  },
+  set(v: number) {
+    const n = Number(v || 0)
+    if (maxImageSizeUnit.value === 'KB') moderationForm.maxImageBytes = Math.max(0, Math.round(n * 1024))
+    else if (maxImageSizeUnit.value === 'B') moderationForm.maxImageBytes = Math.max(0, Math.round(n))
+    else moderationForm.maxImageBytes = Math.max(0, Math.round(n * 1024 * 1024))
+  }
 })
 const moderationLoading = ref(false)
 const moderationSaving = ref(false)
@@ -2276,6 +2306,13 @@ const loadModeration = async () => {
     moderationForm.model = data.model || ''
     moderationForm.strictness = Number.isFinite(Number(data.strictness)) ? Number(data.strictness) : 70
     moderationForm.maxImageBytes = Number.isFinite(Number(data.maxImageBytes)) ? Number(data.maxImageBytes) : 524288
+    moderationForm.httpTimeoutMs = Number.isFinite(Number(data.httpTimeoutMs)) ? Number(data.httpTimeoutMs) : 20000
+    // 根据当前值回推初始单位（优先MB，再KB，否则B）
+    try {
+      if (moderationForm.maxImageBytes % (1024*1024) === 0) maxImageSizeUnit.value = 'MB'
+      else if (moderationForm.maxImageBytes % 1024 === 0) maxImageSizeUnit.value = 'KB'
+      else maxImageSizeUnit.value = 'B'
+    } catch {}
     moderationForm.imageHeuristic = data.imageHeuristic !== false
     moderationForm.ocrApiUrl = data.ocrApiUrl || ''
     moderationForm.ocrApiKey = data.ocrApiKey || ''
