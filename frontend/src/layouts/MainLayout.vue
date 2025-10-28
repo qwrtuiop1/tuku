@@ -1273,13 +1273,14 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  transition: margin-left 0.3s ease;
+  overflow-x: hidden;
+  overflow-y: auto;
+  transition: padding-left 0.3s ease, padding-right 0.3s ease;
   background: #f7f7f7; // 灰阶背景
   
   // 当侧边栏折叠时调整margin
   &.sidebar-collapsed {
-    margin-left: 64px;
+    /* 留空，具体在各断点中用 padding 调整左右留白 */
   }
 }
 
@@ -1532,7 +1533,7 @@ onUnmounted(() => {
 .page-content {
   flex: 1;
   padding: 16px 0; // 只保留上下内边距，移除左右内边距，让页面组件自己控制
-  overflow-y: auto;
+  overflow: visible;
   background: transparent; // 移除背景色，由main-content提供
 }
 
@@ -1606,16 +1607,16 @@ onUnmounted(() => {
 // 桌面端默认样式 (1200px+)
 @media (min-width: 1200px) {
   .main-content {
-    margin-left: 220px;
-    margin-right: 220px; // 右边距与左边距完全相同
-    padding-left: 0px;
-    padding-right: 0px; // 移除右边距，保持左右一致
+    padding-left: 220px;
+    padding-right: 220px; // 右留白与左留白完全相同
+    margin-left: 0;
+    margin-right: 0; // 移除外边距以让滚动条在最右侧
     
     &.sidebar-collapsed {
-      margin-left: 84px;
-      margin-right: 84px; // 右边距与左边距完全相同
-      padding-left: 0px;
-      padding-right: 0px; // 移除右边距，保持左右一致
+      padding-left: 84px;
+      padding-right: 84px; // 右留白与左留白完全相同
+      margin-left: 0;
+      margin-right: 0; // 移除外边距以让滚动条在最右侧
     }
   }
   
@@ -1640,16 +1641,16 @@ onUnmounted(() => {
 // 超大屏 (1920px+)
 @media (min-width: 1920px) {
   .main-content {
-    margin-left: 250px;
-    margin-right: 250px; // 右边距与左边距完全相同
-    padding-left: 0px;
-    padding-right: 0px; // 移除右边距，保持左右一致
+    padding-left: 250px;
+    padding-right: 250px; // 右留白与左留白完全相同
+    margin-left: 0;
+    margin-right: 0; // 移除外边距以让滚动条在最右侧
     
     &.sidebar-collapsed {
-      margin-left: 110px;
-      margin-right: 110px; // 右边距与左边距完全相同
-      padding-left: 0px;
-      padding-right: 0px; // 移除右边距，保持左右一致
+      padding-left: 110px;
+      padding-right: 110px; // 右留白与左留白完全相同
+      margin-left: 0;
+      margin-right: 0; // 移除外边距以让滚动条在最右侧
     }
   }
   
@@ -1676,16 +1677,16 @@ onUnmounted(() => {
 // 大屏桌面 (1440px - 1919px)
 @media (min-width: 1440px) and (max-width: 1919px) {
   .main-content {
-    margin-left: 235px;
-    margin-right: 235px; // 右边距与左边距完全相同
-    padding-left: 0px;
-    padding-right: 0px; // 移除右边距，保持左右一致
+    padding-left: 235px;
+    padding-right: 235px; // 右留白与左留白完全相同
+    margin-left: 0;
+    margin-right: 0; // 移除外边距以让滚动条在最右侧
     
     &.sidebar-collapsed {
-      margin-left: 95px;
-      margin-right: 95px; // 右边距与左边距完全相同
-      padding-left: 0px;
-      padding-right: 0px; // 移除右边距，保持左右一致
+      padding-left: 95px;
+      padding-right: 95px; // 右留白与左留白完全相同
+      margin-left: 0;
+      margin-right: 0; // 移除外边距以让滚动条在最右侧
     }
   }
   
@@ -1712,16 +1713,16 @@ onUnmounted(() => {
 // 桌面端 (1200px - 1439px)
 @media (min-width: 1200px) and (max-width: 1439px) {
   .main-content {
-    margin-left: 220px;
-    margin-right: 220px; // 右边距与左边距完全相同
-    padding-left: 0px;
-    padding-right: 0px; // 移除右边距，保持左右一致
+    padding-left: 220px;
+    padding-right: 220px; // 右留白与左留白完全相同
+    margin-left: 0;
+    margin-right: 0; // 移除外边距以让滚动条在最右侧
     
     &.sidebar-collapsed {
-      margin-left: 84px;
-      margin-right: 84px; // 右边距与左边距完全相同
-      padding-left: 0px;
-      padding-right: 0px; // 移除右边距，保持左右一致
+      padding-left: 84px;
+      padding-right: 84px; // 右留白与左留白完全相同
+      margin-left: 0;
+      margin-right: 0; // 移除外边距以让滚动条在最右侧
     }
   }
   
@@ -1748,16 +1749,16 @@ onUnmounted(() => {
 // 平板横屏/小屏笔记本 (1024px - 1199px)
 @media (min-width: 1024px) and (max-width: 1199px) {
   .main-content {
-    margin-left: 195px;
-    margin-right: 195px; // 右边距与左边距完全相同
-    padding-left: 0px;
-    padding-right: 0px; // 移除右边距，保持左右一致
+    padding-left: 195px;
+    padding-right: 195px; // 右留白与左留白完全相同
+    margin-left: 0;
+    margin-right: 0; // 移除外边距以让滚动条在最右侧
     
     &.sidebar-collapsed {
-      margin-left: 79px;
-      margin-right: 79px; // 右边距与左边距完全相同
-      padding-left: 0px;
-      padding-right: 0px; // 移除右边距，保持左右一致
+      padding-left: 79px;
+      padding-right: 79px; // 右留白与左留白完全相同
+      margin-left: 0;
+      margin-right: 0; // 移除外边距以让滚动条在最右侧
     }
   }
   
