@@ -95,9 +95,9 @@
             </el-button>
           </div>
           <div class="social-btn-wrapper">
-            <el-button class="social-btn wechat-btn" @click="handleWeChatLogin">
+            <el-button class="social-btn wechat-btn" @click="handleEPassLogin">
               <el-icon><User /></el-icon>
-              微信登录
+              E通行证登录
             </el-button>
           </div>
         </div>
@@ -365,9 +365,30 @@ const handleQQLogin = async () => {
   }
 }
 
-// 微信登录处理（暂未实现）
-const handleWeChatLogin = () => {
-  ElMessage.info('微信登录功能开发中...')
+// E通行证（EPass）隐式授权登录
+const handleEPassLogin = async () => {
+  try {
+    // 生成随机state并保存到会话，用于CSRF防护与可选绑定流程
+    const arr = new Uint8Array(16)
+    if (window.crypto?.getRandomValues) window.crypto.getRandomValues(arr)
+    const state = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
+    try { sessionStorage.setItem('epass_state', state) } catch {}
+
+    const clientId = 'euser-gallery'
+    const redirectUri = `${window.location.origin}/auth/callback`
+    const scope = 'read'
+    const params = new URLSearchParams({
+      client_id: clientId,
+      response_type: 'token',
+      redirect_uri: redirectUri,
+      scope,
+      state
+    })
+    const authorizeUrl = `https://account.emoera.com/oauth/authorize?${params.toString()}`
+    window.location.href = authorizeUrl
+  } catch (e: any) {
+    ElMessage.error(e?.message || 'E通行证登录初始化失败')
+  }
 }
 
 onMounted(() => {

@@ -1848,6 +1848,7 @@ router.post('/send-verification-code', [
 
 // QQ登录相关路由
 const qqOAuthService = require('../services/qqOAuthService');
+const epassService = require('../services/epassService');
 
 // 获取QQ登录授权URL
 router.get('/qq/auth', asyncHandler(async (req, res) => {
@@ -2105,6 +2106,102 @@ router.get('/qq/callback', asyncHandler(async (req, res) => {
 module.exports = router;
 
 // ===== 在 router 初始化并导出后，再追加EPass与绑定状态路由 =====
+// EPass 隐式登录回调：接收 accessToken 并登录/绑定/或返回注册需求
+router.post('/epass/callback', asyncHandler(async (req, res) => {
+  const { accessToken, state = '' } = req.body || {}
+  if (!accessToken) return res.status(400).json({ success: false, message: '缺少accessToken' })
+  try {
+    // 拉取EPass用户信息
+    const info = await epassService.getUserInfo(accessToken)
+
+    // 绑定流程
+    if (state === 'bind') {
+      if (!req.headers.authorization) {
+        return res.status(401).json({ success: false, message: '未登录，无法绑定' })
+      }
+      const jwt = require('jsonwebtoken')
+      const raw = req.headers.authorization.replace(/^Bearer\s+/i, '')
+      const decoded = jwt.verify(raw, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback')
+      const userId = decoded.userId
+      // 唯一性校验
+      const [exist] = await pool.execute('SELECT id FROM users WHERE epass_id = ?', [info.epassId])
+      if (exist.length > 0) return res.status(409).json({ success: false, message: '该通行证已绑定其他账号' })
+      await pool.execute('UPDATE users SET epass_id = ? WHERE id = ?', [info.epassId, userId])
+      return res.json({ success: true, message: 'EPass绑定成功' })
+    }
+
+    // 登录：查找已有用户
+    let [users] = await pool.execute('SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, created_at FROM users WHERE epass_id = ?', [info.epassId])
+    if (users.length === 0) {
+      // 首次：返回补注册所需信息
+      const jwt = require('jsonwebtoken')
+      const tempPayload = { typ: 'epass_signup', epassId: info.epassId, username: info.username || '', avatar: info.avatar || '', email: info.email || '' }
+      const tempToken = jwt.sign(tempPayload, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback', { expiresIn: '30m' })
+      return res.json({ success: true, signup_required: true, tempToken, epass: { username: info.username || '', avatar: info.avatar || '', email: info.email || '' } })
+    }
+    const user = users[0]
+    // 更新登录统计
+    await pool.execute('UPDATE users SET last_login = NOW(), login_count = COALESCE(login_count, 0) + 1 WHERE id = ?', [user.id])
+    await pool.execute('INSERT INTO user_login_logs (user_id, login_time, ip_address, user_agent, login_method, success) VALUES (?, NOW(), ?, ?, ?, ?)', [user.id, req.ip || req.connection.remoteAddress || 'unknown', req.get('User-Agent') || 'unknown', 'epass', true])
+
+    // 恢复用户偏好与通知设置
+    let userPreferences = { defaultView: 'grid' }
+    let userNotificationSettings = { emailNotifications: true, storageWarnings: true, securityAlerts: true }
+    try {
+      const [preferences] = await pool.execute('SELECT default_view FROM user_preferences WHERE user_id = ?', [user.id])
+      if (preferences.length > 0) userPreferences = preferences[0]
+      const [notifications] = await pool.execute('SELECT email_notifications, storage_warnings, security_alerts FROM user_notification_settings WHERE user_id = ?', [user.id])
+      if (notifications.length > 0) {
+        userNotificationSettings = { emailNotifications: notifications[0].email_notifications, storageWarnings: notifications[0].storage_warnings, securityAlerts: notifications[0].security_alerts }
+      }
+    } catch {}
+
+    const token = generateToken(user.id, '30d')
+    return res.json({ success: true, message: 'EPass登录成功', token, user: { id: user.id, username: user.username, email: user.email, role: user.role, status: user.status, storage_limit: user.storage_limit || 1073741824, used_storage: user.used_storage || 0, avatar_url: user.avatar_url || '', nickname: info.username || '', bio: '', created_at: user.created_at }, settings: { preferences: userPreferences, notifications: userNotificationSettings } })
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e.message || 'EPass登录失败，请重试' })
+  }
+}))
+
+// 完成 EPass 首次登录的注册
+router.post('/epass/complete-signup', [
+  body('tempToken').notEmpty().withMessage('缺少临时令牌'),
+  body('username').isLength({ min: 2, max: 20 }).matches(/^[\u4e00-\u9fa5a-zA-Z0-9_\s]+$/),
+  body('password').isLength({ min: 6 }).withMessage('密码长度至少6个字符'),
+  body('email').isEmail().withMessage('请输入有效的邮箱地址'),
+  body('emailCode').isLength({ min: 6, max: 6 }).withMessage('验证码必须是6位')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) return res.status(400).json({ success: false, message: '参数错误', errors: errors.array() })
+  const { tempToken, username, password, email, emailCode, acceptAgreements } = req.body
+  if (!acceptAgreements) return res.status(400).json({ success: false, message: '请先阅读并同意用户协议与隐私政策' })
+  const codeResult = verifyCode(email, emailCode, 'verify_email')
+  if (!codeResult.valid) return res.status(400).json({ success: false, message: codeResult.message || '邮箱验证码无效' })
+  const jwt = require('jsonwebtoken')
+  let payload
+  try {
+    payload = jwt.verify(tempToken, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback')
+    if (payload.typ !== 'epass_signup') throw new Error('invalid token')
+  } catch {
+    return res.status(400).json({ success: false, message: '临时令牌无效或已过期' })
+  }
+  const { epassId, username: nick, avatar, email: preEmail } = payload
+  // 唯一性校验
+  const [u1] = await pool.execute('SELECT id FROM users WHERE username = ?', [username])
+  if (u1.length > 0) return res.status(400).json({ success: false, message: '用户名已存在' })
+  const [u2] = await pool.execute('SELECT id FROM users WHERE email = ?', [email])
+  if (u2.length > 0) return res.status(400).json({ success: false, message: '邮箱已被使用' })
+  const [u3] = await pool.execute('SELECT id FROM users WHERE epass_id = ?', [epassId])
+  if (u3.length > 0) return res.status(409).json({ success: false, message: '该通行证已绑定其他账号' })
+  // 创建用户
+  const bcrypt = require('bcryptjs')
+  const passwordHash = await bcrypt.hash(password, 10)
+  const [result] = await pool.execute('INSERT INTO users (username, email, password_hash, role, status, epass_id, third_party_type, avatar_url, last_login, login_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())', [username, email, passwordHash, 'user', 'active', epassId, 'epass', avatar || '', 1])
+  const userId = result.insertId
+  await pool.execute('INSERT INTO user_login_logs (user_id, login_time, ip_address, user_agent, login_method, success) VALUES (?, NOW(), ?, ?, ?, ?)', [userId, req.ip || req.connection.remoteAddress || 'unknown', req.get('User-Agent') || 'unknown', 'epass', true])
+  const token = generateToken(userId, '30d')
+  return res.json({ success: true, message: '注册并登录成功', token })
+}))
 router.post('/epass/bind', authenticateToken, asyncHandler(async (req, res) => {
   const { epassId } = req.body || {}
   if (!epassId) return res.status(400).json({ success: false, message: '缺少epassId' })

@@ -13,6 +13,15 @@ const routes = [
     }
   },
   {
+    path: '/auth/callback',
+    name: 'EPassCallback',
+    component: () => import('@/views/EPassCallback.vue'),
+    meta: { 
+      title: 'E通行证登录回调',
+      requiresAuth: false 
+    }
+  },
+  {
     path: '/auth/qq/callback',
     name: 'QQCallback',
     component: () => import('@/views/QQCallback.vue'),
@@ -37,6 +46,15 @@ const routes = [
     component: () => import('@/views/QQSignup.vue'),
     meta: {
       title: 'QQ用户注册',
+      requiresAuth: false
+    }
+  },
+  {
+    path: '/auth/epass/signup',
+    name: 'EPassSignup',
+    component: () => import('@/views/EPassSignup.vue'),
+    meta: {
+      title: 'E通行证用户注册',
       requiresAuth: false
     }
   },
@@ -187,7 +205,7 @@ router.beforeEach(async (to, from, next) => {
   document.title = to.meta.title ? `${to.meta.title} - 图库系统` : '图库系统'
   
   // 检查维护模式（除了登录、注册、维护页面本身）
-  if (!['Login', 'Register', 'Maintenance', 'QQCallback'].includes(to.name as string)) {
+  if (!['Login', 'Register', 'Maintenance', 'QQCallback', 'EPassCallback', 'EPassSignup'].includes(to.name as string)) {
     try {
       // 获取当前token
       const token = localStorage.getItem('token') || sessionStorage.getItem('token')
