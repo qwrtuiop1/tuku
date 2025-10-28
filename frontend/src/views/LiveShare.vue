@@ -96,10 +96,15 @@ onUnmounted(() => { if (poller) { clearInterval(poller); poller = null } })
 <style scoped>
 .live-share { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f5f7fa; padding: 24px; }
 .player-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; width: 100%; max-width: 640px; box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
-.video-wrap, .poster-wrap { width: 100%; }
-video { width: 100%; border-radius: 8px; background: #000; }
-.poster-wrap img { width: 100%; border-radius: 8px; border: 1px solid #eee; }
+.video-wrap, .poster-wrap { width: 100%; display: flex; align-items: center; justify-content: center; }
+video { width: 100%; height: auto; max-height: 80vh; object-fit: contain; border-radius: 8px; background: #000; }
+.poster-wrap img { width: 100%; height: auto; max-height: 80vh; object-fit: contain; border-radius: 8px; border: 1px solid #eee; }
 .actions { margin-top: 10px; display: flex; justify-content: center; }
+:deep(.actions .el-button--primary) { background-color: #1f1f1f; border-color: #1f1f1f; color: #ffffff; }
+:deep(.actions .el-button--primary:hover),
+:deep(.actions .el-button--primary:focus) { background-color: #000000; border-color: #000000; color: #ffffff; }
+:deep(.actions .el-button--primary.is-disabled),
+:deep(.actions .el-button--primary[disabled]) { background-color: #eaeaea; border-color: #eaeaea; color: #9e9e9e; }
 .hint { margin-top: 8px; color: #6b7280; font-size: 12px; text-align: center; }
 </style>
 

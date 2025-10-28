@@ -5,9 +5,35 @@ const { pool } = require('../config/database');
 const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
+const moderationService = require('../services/moderationService');
 
 const router = express.Router();
 const BASE_STORAGE = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
+
+// 获取系统分享开关
+async function getShareSettings() {
+  try {
+    const [rows] = await pool.execute(
+      'SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?, ?)',
+      ['sharing_enabled', 'share_disabled_at']
+    );
+    const map = {};
+    rows.forEach(r => { map[r.setting_key] = r.setting_value });
+    return {
+      enabled: map.sharing_enabled !== 'false',
+      disabledAt: map.share_disabled_at ? new Date(map.share_disabled_at) : null
+    };
+  } catch (e) {
+    return { enabled: true, disabledAt: null };
+  }
+}
+
+// 简易本地启发式文本判定（兜底）
+function likelyNonCompliant(name = '', mime = '') {
+  const s = `${name} ${mime}`.toLowerCase();
+  const banned = ['违法','违规','暴恐','涉黄','赌博','诈骗','侵权','仇恨','辱骂','极端','恐怖','porn','sexual','nudity','xxx','rape','terror','gore','kill','abuse','weapon','drugs'];
+  return banned.some(k => s.includes(k));
+}
 
 // 解析物理文件路径，尽可能兼容历史与不同部署目录
 function resolveFilePath(rawPath) {
@@ -63,23 +89,142 @@ async function ensureShareTable() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
+  // 审核相关字段（幂等新增）
+  try { await pool.execute("ALTER TABLE file_shares ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'approved'"); } catch (_) {}
+  try { await pool.execute('ALTER TABLE file_shares ADD COLUMN review_progress INT NOT NULL DEFAULT 0'); } catch (_) {}
+  try { await pool.execute('ALTER TABLE file_shares ADD COLUMN review_reason VARCHAR(255) NULL'); } catch (_) {}
+  try { await pool.execute("ALTER TABLE file_shares ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"); } catch (_) {}
 }
 
-async function getShareSettings() {
+async function ensureReviewTable() {
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS file_share_reviews (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      file_id INT NOT NULL,
+      owner_user_id INT NOT NULL,
+      allow_preview TINYINT(1) DEFAULT 1,
+      allow_download TINYINT(1) DEFAULT 1,
+      expires_at DATETIME NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending_review',
+      review_progress INT NOT NULL DEFAULT 0,
+      review_reason VARCHAR(255) NULL,
+      share_token VARCHAR(64) NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+}
+
+async function simulateReview(token, file) {
+  const step = async (p) => pool.execute('UPDATE file_shares SET review_progress=?, updated_at=CURRENT_TIMESTAMP WHERE token=?', [p, token])
   try {
-    const [rows] = await pool.execute(
-      'SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (?, ?)',
-      ['sharing_enabled', 'share_disabled_at']
-    );
-    const map = {};
-    rows.forEach(r => { map[r.setting_key] = r.setting_value });
-    return {
-      enabled: map.sharing_enabled !== 'false',
-      disabledAt: map.share_disabled_at ? new Date(map.share_disabled_at) : null
+    await step(15); await new Promise(r => setTimeout(r, 200));
+    // 可选 OCR 文本
+    let ocrText = null;
+    try { ocrText = await moderationService.fetchOcrText(file) } catch (_) {}
+    await step(45); await new Promise(r => setTimeout(r, 200));
+    let decision = await moderationService.reviewFile(file, [ocrText].filter(Boolean)).catch(() => null)
+    if (!decision) {
+      decision = { approved: !likelyNonCompliant(file.original_name || '', file.mime_type || ''), reason: '本地启发式规则' }
+    }
+    await step(85); await new Promise(r => setTimeout(r, 150));
+    if (!decision.approved) {
+      await pool.execute("UPDATE file_shares SET status='rejected', review_progress=100, review_reason=? WHERE token=?", [decision.reason || '内容疑似不合规，请修改后重试', token])
+    } else {
+      await pool.execute("UPDATE file_shares SET status='approved', review_progress=100, review_reason=NULL WHERE token=?", [token])
+    }
+  } catch (_) {}
+}
+
+async function simulateReviewForReviewRow(reviewId, file, allowPreview, allowDownload, expiresAt) {
+  const step = async (p) => pool.execute('UPDATE file_share_reviews SET review_progress=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [p, reviewId])
+  try {
+    await step(15); await new Promise(r => setTimeout(r, 200));
+    let ocrText = null; try { ocrText = await require('../services/moderationService').fetchOcrText(file) } catch (_) {}
+    await step(45); await new Promise(r => setTimeout(r, 200));
+    let decision = await require('../services/moderationService').reviewFile(file, [ocrText].filter(Boolean)).catch(() => null)
+    if (!decision) { decision = { approved: !likelyNonCompliant(file.original_name || '', file.mime_type || ''), reason: '本地启发式规则' } }
+    await step(85); await new Promise(r => setTimeout(r, 150));
+    if (!decision.approved) {
+      await pool.execute("UPDATE file_share_reviews SET status='rejected', review_progress=100, review_reason=? WHERE id=?", [decision.reason || '内容疑似不合规，请修改后重试', reviewId])
+    } else {
+      // 审核通过：创建正式分享token
+      const token = uuidv4().replace(/-/g, '').slice(0, 24);
+      await ensureShareTable();
+      await pool.execute(
+        'INSERT INTO file_shares (token, file_id, owner_user_id, allow_preview, allow_download, expires_at, status, review_progress, review_reason) VALUES (?,?,?,?,?,?,?,?,?)',
+        [token, file.id, file.user_id, allowPreview ? 1 : 0, allowDownload ? 1 : 0, expiresAt ? expiresAt.toISOString().slice(0, 19).replace('T', ' ') : null, 'approved', 100, null]
+      );
+      await pool.execute("UPDATE file_share_reviews SET status='approved', review_progress=100, review_reason=NULL, share_token=? WHERE id=?", [token, reviewId])
+    }
+  } catch (_) {}
+}
+
+async function ensureLiveShareTables() {
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS live_media_share_reviews (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      asset_id INT NOT NULL,
+      owner_user_id INT NOT NULL,
+      allow_preview TINYINT(1) DEFAULT 1,
+      allow_download TINYINT(1) DEFAULT 1,
+      expires_at DATETIME NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending_review',
+      review_progress INT NOT NULL DEFAULT 0,
+      review_reason VARCHAR(255) NULL,
+      share_token VARCHAR(64) NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS live_media_shares (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      token VARCHAR(64) NOT NULL UNIQUE,
+      asset_id INT NOT NULL,
+      owner_user_id INT NOT NULL,
+      allow_preview TINYINT(1) DEFAULT 1,
+      allow_download TINYINT(1) DEFAULT 1,
+      expires_at DATETIME NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `);
+}
+
+function buildUploadsUrl(rel) {
+  const backendDomain = process.env.BACKEND_DOMAIN || 'https://tukubackend.vtart.cn';
+  return rel ? `${backendDomain}/uploads/${String(rel).replace(/^[\\/]+/, '')}` : null;
+}
+
+async function simulateLiveReviewRow(reviewId, asset, allowPreview, allowDownload, expiresAt) {
+  const step = async (p) => pool.execute('UPDATE live_media_share_reviews SET review_progress=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [p, reviewId])
+  try {
+    await step(15); await new Promise(r => setTimeout(r, 200));
+    // 构造伪文件行，优先使用 poster 进行审核
+    const pseudo = {
+      id: asset.id,
+      original_name: asset.kind || 'live',
+      mime_type: 'image/jpeg',
+      file_type: 'image',
+      file_path: asset.poster_path,
+      thumbnail_path: asset.poster_path
     };
-  } catch (e) {
-    return { enabled: true, disabledAt: null };
-  }
+    await step(45); await new Promise(r => setTimeout(r, 200));
+    let decision = await require('../services/moderationService').reviewFile(pseudo, []).catch(() => null)
+    if (!decision) { decision = { approved: true } }
+    await step(85); await new Promise(r => setTimeout(r, 150));
+    if (!decision.approved) {
+      await pool.execute("UPDATE live_media_share_reviews SET status='rejected', review_progress=100, review_reason=? WHERE id=?", [decision.reason || '内容疑似不合规，请修改后重试', reviewId])
+    } else {
+      // 通过后创建 live token
+      const token = uuidv4().replace(/-/g, '').slice(0, 24);
+      await pool.execute(
+        'INSERT INTO live_media_shares (token, asset_id, owner_user_id, allow_preview, allow_download, expires_at) VALUES (?,?,?,?,?,?)',
+        [token, asset.id, asset.owner_user_id, allowPreview ? 1 : 0, allowDownload ? 1 : 0, expiresAt ? expiresAt.toISOString().slice(0, 19).replace('T', ' ') : null]
+      );
+      await pool.execute("UPDATE live_media_share_reviews SET status='approved', review_progress=100, review_reason=NULL, share_token=? WHERE id=?", [token, reviewId])
+    }
+  } catch (_) {}
 }
 
 // 创建分享链接（需登录）
@@ -96,6 +241,7 @@ router.post('/', authenticateToken, asyncHandler(async (req, res) => {
   // 校验文件归属
   const [files] = await pool.execute('SELECT id, file_path, original_name, mime_type, file_size, file_type, created_at FROM files WHERE id=? AND user_id=?', [file_id, userId]);
   if (!files || files.length === 0) return res.status(404).json({ message: '文件不存在' });
+  const file = files[0];
 
   const token = uuidv4().replace(/-/g, '').slice(0, 24);
   const expiresAt = (expireInHours && Number(expireInHours) > 0)
@@ -103,11 +249,14 @@ router.post('/', authenticateToken, asyncHandler(async (req, res) => {
     : null;
 
   await pool.execute(
-    'INSERT INTO file_shares (token, file_id, owner_user_id, allow_preview, allow_download, expires_at) VALUES (?,?,?,?,?,?)',
-    [token, file_id, userId, allowPreview ? 1 : 0, allowDownload ? 1 : 0, expiresAt ? expiresAt.toISOString().slice(0, 19).replace('T', ' ') : null]
+    'INSERT INTO file_shares (token, file_id, owner_user_id, allow_preview, allow_download, expires_at, status, review_progress, review_reason) VALUES (?,?,?,?,?,?,?,?,?)',
+    [token, file_id, userId, allowPreview ? 1 : 0, allowDownload ? 1 : 0, expiresAt ? expiresAt.toISOString().slice(0, 19).replace('T', ' ') : null, 'pending_review', 5, null]
   );
 
-  res.json({ success: true, token, expires_at: expiresAt ? expiresAt.toISOString() : null });
+  // 异步启动审核模拟
+  setImmediate(() => { simulateReview(token, file) });
+
+  res.json({ success: true, token, expires_at: expiresAt ? expiresAt.toISOString() : null, status: 'pending_review', review_progress: 5 });
 }));
 
 async function getShareAndFile(token) {
@@ -120,6 +269,8 @@ async function getShareAndFile(token) {
   if (!settings.enabled) return null;
   if (settings.disabledAt && share.created_at && new Date(share.created_at) <= settings.disabledAt) return null;
   if (share.expires_at && new Date(share.expires_at) < new Date()) return null;
+  // 未审核通过前不公开
+  if (!share.status || share.status !== 'approved') return null;
   const [files] = await pool.execute('SELECT id, user_id, original_name, mime_type, file_size, file_type, file_path, thumbnail_path, created_at FROM files WHERE id=?', [share.file_id]);
   if (!files || files.length === 0) return null;
   return { share, file: files[0] };
@@ -153,6 +304,25 @@ router.get('/:token', asyncHandler(async (req, res) => {
     expires_in_seconds: expiresIn
   });
 }));
+
+// 分享审核状态
+router.get('/:token/status', authenticateToken, asyncHandler(async (req, res) => {
+  await ensureShareTable();
+  const token = req.params.token;
+  const [rows] = await pool.execute('SELECT token, owner_user_id, status, review_progress, review_reason, expires_at, created_at FROM file_shares WHERE token=?', [token]);
+  if (!rows || rows.length === 0) return res.status(404).json({ message: '不存在' });
+  const r = rows[0];
+  // 仅允许本人查询
+  if (String(r.owner_user_id) !== String(req.user.id)) return res.status(403).json({ message: '无权限' });
+  res.json({
+    token: r.token,
+    status: r.status || 'approved',
+    review_progress: r.review_progress || 0,
+    review_reason: r.review_reason || null,
+    expires_at: r.expires_at ? new Date(r.expires_at).toISOString() : null,
+    created_at: r.created_at ? new Date(r.created_at).toISOString() : null
+  })
+}))
 
 // 公共：视频流播放（支持范围请求）
 router.get('/:token/stream', asyncHandler(async (req, res) => {
@@ -257,6 +427,124 @@ router.get('/:token/download', asyncHandler(async (req, res) => {
   const full = await ensureFileExistsOrTryAlternatives(primary, raw);
   if (!full) return res.status(404).json({ message: '文件不存在' });
   return res.download(full, file.original_name || path.basename(full));
+}));
+
+// 发起审核（不立刻返回公开链接）
+router.post('/review', authenticateToken, asyncHandler(async (req, res) => {
+  const shareSettings = await getShareSettings();
+  if (!shareSettings.enabled) {
+    return res.status(403).json({ message: '分享功能已关闭' });
+  }
+  await ensureReviewTable();
+  const userId = req.user.id;
+  const { file_id, allowPreview, allowDownload, expireInHours } = req.body || {};
+  if (!file_id) return res.status(400).json({ message: '缺少 file_id' });
+
+  const [files] = await pool.execute('SELECT id, user_id, file_path, original_name, mime_type, file_size, file_type, created_at, thumbnail_path FROM files WHERE id=? AND user_id=?', [file_id, userId]);
+  if (!files || files.length === 0) return res.status(404).json({ message: '文件不存在' });
+  const file = files[0];
+  const expiresAt = (expireInHours && Number(expireInHours) > 0)
+    ? new Date(Date.now() + Number(expireInHours) * 3600 * 1000)
+    : null;
+
+  const [result] = await pool.execute(
+    'INSERT INTO file_share_reviews (file_id, owner_user_id, allow_preview, allow_download, expires_at, status, review_progress) VALUES (?,?,?,?,?,?,?)',
+    [file_id, userId, allowPreview ? 1 : 0, allowDownload ? 1 : 0, expiresAt ? expiresAt.toISOString().slice(0, 19).replace('T', ' ') : null, 'pending_review', 5]
+  );
+  const reviewId = result.insertId;
+  setImmediate(() => simulateReviewForReviewRow(reviewId, file, !!allowPreview, !!allowDownload, expiresAt));
+  res.json({ success: true, review_id: reviewId });
+}));
+
+// 审核状态轮询（返回share_token仅在通过后）
+router.get('/review/:id/status', authenticateToken, asyncHandler(async (req, res) => {
+  await ensureReviewTable();
+  const userId = req.user.id;
+  const id = parseInt(req.params.id, 10);
+  const [rows] = await pool.execute('SELECT id, file_id, owner_user_id, status, review_progress, review_reason, share_token, expires_at, created_at FROM file_share_reviews WHERE id=?', [id]);
+  if (!rows || rows.length === 0) return res.status(404).json({ message: '不存在' });
+  const r = rows[0];
+  if (String(r.owner_user_id) !== String(userId)) return res.status(403).json({ message: '无权限' });
+  res.json({
+    review_id: r.id,
+    status: r.status,
+    review_progress: r.review_progress,
+    review_reason: r.review_reason,
+    share_token: r.share_token || null,
+    expires_at: r.expires_at ? new Date(r.expires_at).toISOString() : null,
+    created_at: r.created_at ? new Date(r.created_at).toISOString() : null
+  });
+}));
+
+// 发起实况审核
+router.post('/review-live', authenticateToken, asyncHandler(async (req, res) => {
+  const shareSettings = await getShareSettings();
+  if (!shareSettings.enabled) {
+    return res.status(403).json({ message: '分享功能已关闭' });
+  }
+  await ensureLiveShareTables();
+  const userId = req.user.id;
+  const { asset_id, allowPreview, allowDownload, expireInHours } = req.body || {};
+  if (!asset_id) return res.status(400).json({ message: '缺少 asset_id' });
+  const [rows] = await pool.execute('SELECT * FROM live_media_assets WHERE id=? AND owner_user_id=?', [asset_id, userId]);
+  if (!rows || rows.length === 0) return res.status(404).json({ message: '实况资源不存在' });
+  const asset = rows[0];
+  const expiresAt = (expireInHours && Number(expireInHours) > 0)
+    ? new Date(Date.now() + Number(expireInHours) * 3600 * 1000)
+    : null;
+  const [result] = await pool.execute(
+    'INSERT INTO live_media_share_reviews (asset_id, owner_user_id, allow_preview, allow_download, expires_at, status, review_progress) VALUES (?,?,?,?,?,?,?)',
+    [asset_id, userId, allowPreview ? 1 : 0, allowDownload ? 1 : 0, expiresAt ? expiresAt.toISOString().slice(0, 19).replace('T', ' ') : null, 'pending_review', 5]
+  );
+  const reviewId = result.insertId;
+  setImmediate(() => simulateLiveReviewRow(reviewId, asset, !!allowPreview, !!allowDownload, expiresAt));
+  res.json({ success: true, review_id: reviewId });
+}));
+
+// 实况审核状态
+router.get('/review-live/:id/status', authenticateToken, asyncHandler(async (req, res) => {
+  await ensureLiveShareTables();
+  const userId = req.user.id;
+  const id = parseInt(req.params.id, 10);
+  const [rows] = await pool.execute('SELECT * FROM live_media_share_reviews WHERE id=?', [id]);
+  if (!rows || rows.length === 0) return res.status(404).json({ message: '不存在' });
+  const r = rows[0];
+  if (String(r.owner_user_id) !== String(userId)) return res.status(403).json({ message: '无权限' });
+  res.json({
+    review_id: r.id,
+    status: r.status,
+    review_progress: r.review_progress,
+    review_reason: r.review_reason,
+    share_token: r.share_token || null,
+    expires_at: r.expires_at ? new Date(r.expires_at).toISOString() : null,
+    created_at: r.created_at ? new Date(r.created_at).toISOString() : null
+  })
+}));
+
+// 公开：根据 token 获取实况信息
+router.get('/live/:token', asyncHandler(async (req, res) => {
+  await ensureLiveShareTables();
+  const token = req.params.token;
+  const [rows] = await pool.execute('SELECT * FROM live_media_shares WHERE token=?', [token]);
+  if (!rows || rows.length === 0) return res.status(404).json({ message: '分享不存在或已过期' });
+  const share = rows[0];
+  if (share.expires_at && new Date(share.expires_at) < new Date()) return res.status(404).json({ message: '分享不存在或已过期' });
+  const [assets] = await pool.execute('SELECT * FROM live_media_assets WHERE id=?', [share.asset_id]);
+  if (!assets || assets.length === 0) return res.status(404).json({ message: '资源不存在' });
+  const a = assets[0];
+  res.json({
+    success: true,
+    allow_preview: !!share.allow_preview,
+    allow_download: !!share.allow_download,
+    poster_url: buildUploadsUrl(a.poster_path),
+    video_mp4_url: buildUploadsUrl(a.video_mp4_path),
+    video_webm_url: buildUploadsUrl(a.video_webm_path),
+    kind: a.kind,
+    duration_ms: a.duration_ms,
+    width: a.width,
+    height: a.height,
+    fps: a.fps,
+  });
 }));
 
 module.exports = router;

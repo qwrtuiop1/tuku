@@ -24,9 +24,13 @@ REM 复制数据库文件
 echo 复制数据库文件...
 xcopy /E /I /Y database dist\database
 
-REM 创建压缩包
-echo 创建压缩包...
-powershell "Compress-Archive -Path dist\* -DestinationPath backend-dist-%date:~0,4%%date:~5,2%%date:~8,2%-%time:~0,2%%time:~3,2%%time:~6,2%.zip"
+REM 创建压缩包（可选）
+IF /I "%1"=="nozip" (
+  echo 跳过压缩，仅打包完成。
+) ELSE (
+  echo 创建压缩包...
+  powershell "Compress-Archive -Path dist\* -DestinationPath backend-dist-%date:~0,4%%date:~5,2%%date:~8,2%-%time:~0,2%%time:~3,2%%time:~6,2%.zip"
+)
 
 echo 打包完成！
-pause
+IF /I NOT "%1"=="nozip" pause

@@ -1307,14 +1307,25 @@ onUnmounted(() => {
     padding: 12px; // 增加内边距
     border-radius: 12px; // 增加圆角
     transition: all 0.3s ease;
+    color: #6f6f6f; // 默认中灰（图标随文字颜色）
     
     &:hover {
       background: #f2f2f2;
-      color: #1f1f1f;
+      color: #1f1f1f; // 悬停深灰
+    }
+
+    &:active {
+      color: #000000; // 按下黑色
+    }
+    
+    &.is-disabled,
+    &[disabled] {
+      color: #bfbfbf; // 禁用浅灰
     }
     
     :deep(.el-icon) {
       font-size: 24px; // 增大图标
+      color: currentColor; // 图标使用 currentColor，保持黑白灰
     }
   }
 

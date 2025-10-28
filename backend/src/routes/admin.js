@@ -1021,6 +1021,17 @@ router.get('/stats', authenticateToken, asyncHandler(async (req, res) => {
     FROM files
   `);
 
+  // 获取动图/实况统计
+  let liveCount = 0;
+  try {
+    const [liveStats] = await pool.execute(`
+      SELECT COUNT(*) as live_count FROM live_media_assets
+    `);
+    liveCount = Number(liveStats[0]?.live_count || 0);
+  } catch (_) {
+    liveCount = 0;
+  }
+
   // 获取文件夹统计
   const [folderStats] = await pool.execute(`
     SELECT 
@@ -1045,9 +1056,31 @@ router.get('/stats', authenticateToken, asyncHandler(async (req, res) => {
     file_growth: fileStats[0].file_growth,
     image_count: fileStats[0].image_count,
     video_count: fileStats[0].video_count,
+    live_count: liveCount,
     total_folders: folderStats[0].total_folders,
     folder_growth: folderStats[0].folder_growth,
     storage_growth: storageStats[0].storage_growth || 0
+  });
+}));
+
+// 存储分类细分（图片/视频/动图）
+router.get('/storage-breakdown', authenticateToken, asyncHandler(async (req, res) => {
+  const toNum = (v) => Number(v) || 0;
+  const [img] = await pool.execute(`
+    SELECT COUNT(*) as count, SUM(file_size) as bytes FROM files WHERE file_type='image'
+  `);
+  const [vid] = await pool.execute(`
+    SELECT COUNT(*) as count, SUM(file_size) as bytes FROM files WHERE file_type='video'
+  `);
+  let liveCount = 0;
+  try {
+    const [live] = await pool.execute(`SELECT COUNT(*) as count FROM live_media_assets`);
+    liveCount = toNum(live[0]?.count);
+  } catch (_) { liveCount = 0; }
+  res.json({
+    image: { count: toNum(img[0]?.count), bytes: toNum(img[0]?.bytes) },
+    video: { count: toNum(vid[0]?.count), bytes: toNum(vid[0]?.bytes) },
+    motion: { count: liveCount, bytes: null }
   });
 }));
 

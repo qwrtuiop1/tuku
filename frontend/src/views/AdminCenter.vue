@@ -77,6 +77,10 @@
                 <el-icon><Setting /></el-icon>
                 <span>系统设置</span>
               </el-menu-item>
+              <el-menu-item index="moderation">
+                <el-icon><CircleCheck /></el-icon>
+                <span>审核设置</span>
+              </el-menu-item>
             </el-menu>
           </el-card>
         </el-col>
@@ -125,22 +129,42 @@
                   </div>
                 </el-col>
                 
-                <el-col :xs="24" :sm="8" :md="8" :lg="8" :xl="8">
-                  <div class="stat-card storage-card">
-                    <div class="stat-icon storage">
-                      <el-icon><DataBoard /></el-icon>
+                <!-- 文件夹卡片（与动图卡片交换位置） -->
+                <el-col :xs="12" :sm="8" :md="8" :lg="8" :xl="8">
+                  <div class="stat-card folder-card">
+                    <div class="stat-icon folder">
+                      <el-icon><Folder /></el-icon>
                     </div>
                     <div class="stat-info">
-                      <div class="stat-value">{{ formatFileSize(systemStats.totalStorage) }}</div>
-                      <div class="stat-label">总存储量</div>
+                      <div class="stat-value">{{ systemStats.totalFolders || 0 }}</div>
+                      <div class="stat-label">文件夹</div>
                       <div class="stat-trend">
                         <el-icon class="trend-icon up"><ArrowUp /></el-icon>
-                        <span class="trend-text">已使用</span>
+                        <span class="trend-text">数据</span>
+                      </div>
+                    </div>
+                  </div>
+                </el-col>
+
+                <!-- 动图/实况卡片（替换原总存储卡片） -->
+                <el-col :xs="24" :sm="8" :md="8" :lg="8" :xl="8">
+                  <div class="stat-card motion-card">
+                    <div class="stat-icon motion">
+                      <el-icon><CircleCheck /></el-icon>
+                    </div>
+                    <div class="stat-info">
+                      <div class="stat-value">{{ systemStats.totalMotion || 0 }}</div>
+                      <div class="stat-label">动图/实况</div>
+                      <div class="stat-trend">
+                        <el-icon class="trend-icon up"><ArrowUp /></el-icon>
+                        <span class="trend-text">数据</span>
                       </div>
                     </div>
                   </div>
                 </el-col>
               </el-row>
+
+              
                 
               <!-- 快速操作 -->
               <div class="quick-actions">
@@ -664,7 +688,6 @@
                 </el-table-column>
               </el-table>
             </div>
-
             <!-- 存储管理 -->
             <div v-if="activeSection === 'storage'" class="admin-section">
               <div class="section-header">
@@ -1073,6 +1096,62 @@
                     <el-icon><View /></el-icon>
                     预览效果
                   </el-button>
+                </el-form-item>
+              </el-form>
+            </div>
+
+            <!-- 审核设置 -->
+            <div v-if="activeSection === 'moderation'" class="admin-section">
+              <div class="section-header">
+                <h3>审核设置</h3>
+                <p>配置内容审核开关、提供商与阈值（实时生效）</p>
+              </div>
+              <el-form :model="moderationForm" label-width="120px" class="moderation-form">
+                <el-form-item label="启用审核">
+                  <el-switch v-model="moderationForm.enable" />
+                </el-form-item>
+                <el-form-item label="提供商">
+                  <el-select v-model="moderationForm.provider" placeholder="选择提供商">
+                    <el-option label="SiliconFlow" value="siliconflow" />
+                    <el-option label="自研/通用接口" value="custom" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="API URL">
+                  <el-input v-model="moderationForm.apiUrl" placeholder="https://..." />
+                </el-form-item>
+                <el-form-item label="API Key">
+                  <el-input v-model="moderationForm.apiKey" placeholder="密钥" show-password />
+                </el-form-item>
+                <el-form-item label="模型名称">
+                  <el-input v-model="moderationForm.model" placeholder="例如 Pro/deepseek-ai/DeepSeek-V3.2-Exp" />
+                </el-form-item>
+                <el-form-item label="严格度">
+                  <div class="strict-row">
+                    <el-slider v-model="moderationForm.strictness" :min="0" :max="100" />
+                    <span class="strict-value">{{ moderationForm.strictness }}</span>
+                  </div>
+                </el-form-item>
+                <el-form-item label="图片启发式">
+                  <el-switch v-model="moderationForm.imageHeuristic" />
+                </el-form-item>
+                <el-form-item label="最大图片字节">
+                  <el-input v-model.number="moderationForm.maxImageBytes" placeholder="默认 524288 (512KB)" />
+                </el-form-item>
+                <el-form-item label="OCR API URL">
+                  <el-input v-model="moderationForm.ocrApiUrl" placeholder="可选：用于图片文字审核" />
+                </el-form-item>
+                <el-form-item label="OCR API Key">
+                  <el-input v-model="moderationForm.ocrApiKey" placeholder="可选" show-password />
+                </el-form-item>
+                <el-form-item>
+                  <div class="settings-actions">
+                    <div class="settings-action-item">
+                      <el-button type="primary" :loading="moderationSaving" @click="saveModeration" style="width: 100%">保存</el-button>
+                    </div>
+                    <div class="settings-action-item">
+                      <el-button :loading="moderationLoading" @click="loadModeration" style="width: 100%">重载</el-button>
+                    </div>
+                  </div>
                 </el-form-item>
               </el-form>
             </div>
@@ -1506,6 +1585,16 @@
               </div>
               
               <div class="storage-stat-card">
+                <div class="stat-icon motion">
+                  <el-icon><CircleCheck /></el-icon>
+                </div>
+                <div class="stat-info">
+                  <div class="stat-value">{{ systemStats.totalMotion || 0 }}</div>
+                  <div class="stat-label">动图/实况</div>
+                </div>
+              </div>
+
+              <div class="storage-stat-card">
                 <div class="stat-icon available">
                   <el-icon><CircleCheck /></el-icon>
                 </div>
@@ -1710,6 +1799,80 @@
                       </el-button>
                     </el-col>
                   </el-row>
+                </div>
+              </el-form>
+            </div>
+          </div>
+
+          <!-- 审核设置（移动端） -->
+          <div v-if="activeSection === 'moderation'" class="admin-section">
+            <div class="section-header">
+              <h3>审核设置</h3>
+              <p>配置内容审核（移动端）</p>
+            </div>
+            <div class="mobile-settings-form">
+              <el-form label-position="top" class="system-settings-form">
+                <div class="settings-group">
+                  <div class="group-title">
+                    <el-icon><CircleCheck /></el-icon>
+                    <span>基础</span>
+                  </div>
+                  <el-form-item label="启用审核">
+                    <el-switch v-model="moderationForm.enable" />
+                  </el-form-item>
+                  <el-form-item label="提供商">
+                    <el-select v-model="moderationForm.provider" placeholder="选择提供商">
+                      <el-option label="SiliconFlow" value="siliconflow" />
+                      <el-option label="自研/通用接口" value="custom" />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item label="API URL">
+                    <el-input v-model="moderationForm.apiUrl" placeholder="https://..." />
+                  </el-form-item>
+                  <el-form-item label="API Key">
+                    <el-input v-model="moderationForm.apiKey" placeholder="密钥" show-password />
+                  </el-form-item>
+                  <el-form-item label="模型名称">
+                    <el-input v-model="moderationForm.model" placeholder="例如 Pro/deepseek-ai/DeepSeek-V3.2-Exp" />
+                  </el-form-item>
+                </div>
+
+                <div class="settings-group">
+                  <div class="group-title">
+                    <el-icon><Tools /></el-icon>
+                    <span>策略</span>
+                  </div>
+                  <el-form-item label="严格度">
+                    <el-slider v-model="moderationForm.strictness" :min="0" :max="100" />
+                  </el-form-item>
+                  <el-form-item label="图片启发式">
+                    <el-switch v-model="moderationForm.imageHeuristic" />
+                  </el-form-item>
+                  <el-form-item label="最大图片字节">
+                    <el-input v-model.number="moderationForm.maxImageBytes" placeholder="默认 524288 (512KB)" />
+                  </el-form-item>
+                </div>
+
+                <div class="settings-group">
+                  <div class="group-title">
+                    <el-icon><Key /></el-icon>
+                    <span>OCR</span>
+                  </div>
+                  <el-form-item label="OCR API URL">
+                    <el-input v-model="moderationForm.ocrApiUrl" placeholder="可选：用于图片文字审核" />
+                  </el-form-item>
+                  <el-form-item label="OCR API Key">
+                    <el-input v-model="moderationForm.ocrApiKey" placeholder="可选" show-password />
+                  </el-form-item>
+                </div>
+
+                <div class="settings-actions">
+                  <div class="settings-action-item">
+                    <el-button type="primary" :loading="moderationSaving" @click="saveModeration" style="width: 100%">保存</el-button>
+                  </div>
+                  <div class="settings-action-item">
+                    <el-button :loading="moderationLoading" @click="loadModeration" style="width: 100%">重载</el-button>
+                  </div>
                 </div>
               </el-form>
             </div>
@@ -2009,6 +2172,7 @@ import {
   UserFilled,
   Document,
   Setting,
+  // ShieldCheck, // not exported, use CircleCheck instead
   Plus,
   Delete,
   ArrowDown,
@@ -2020,11 +2184,13 @@ import {
   MoreFilled,
   Key,
   CircleCheck,
+  Picture,
+  VideoCamera,
   DataAnalysis,
   Download,
   Refresh,
   Brush,
-  Picture,
+  // Picture,
   Star,
   Upload,
   Tools,
@@ -2077,6 +2243,57 @@ const ensureGeetest = async (): Promise<boolean> => {
     }
   })
 }
+
+// 审核设置表单
+const moderationForm = reactive({
+  enable: false,
+  provider: '',
+  apiUrl: '',
+  apiKey: '',
+  model: '',
+  strictness: 70,
+  maxImageBytes: 524288,
+  imageHeuristic: true,
+  ocrApiUrl: '',
+  ocrApiKey: ''
+})
+const moderationLoading = ref(false)
+const moderationSaving = ref(false)
+
+const loadModeration = async () => {
+  try {
+    moderationLoading.value = true
+    const { data } = await api.get('/system/moderation')
+    moderationForm.enable = !!data.enable
+    moderationForm.provider = data.provider || ''
+    moderationForm.apiUrl = data.apiUrl || ''
+    moderationForm.apiKey = data.apiKey || ''
+    moderationForm.model = data.model || ''
+    moderationForm.strictness = Number.isFinite(Number(data.strictness)) ? Number(data.strictness) : 70
+    moderationForm.maxImageBytes = Number.isFinite(Number(data.maxImageBytes)) ? Number(data.maxImageBytes) : 524288
+    moderationForm.imageHeuristic = data.imageHeuristic !== false
+    moderationForm.ocrApiUrl = data.ocrApiUrl || ''
+    moderationForm.ocrApiKey = data.ocrApiKey || ''
+  } catch (e:any) {
+    ElMessage.error('加载审核设置失败')
+  } finally {
+    moderationLoading.value = false
+  }
+}
+
+const saveModeration = async () => {
+  try {
+    moderationSaving.value = true
+    await api.put('/system/moderation', { ...moderationForm })
+    ElMessage.success('审核设置保存成功（全局5秒内生效）')
+  } catch (e:any) {
+    ElMessage.error(e?.response?.data?.message || '保存审核设置失败')
+  } finally {
+    moderationSaving.value = false
+  }
+}
+
+onMounted(() => { loadModeration().catch(()=>{}) })
 
 const showCaptcha = async (): Promise<boolean> => {
   if (!geetestCaptchaId) return true
@@ -2236,15 +2453,32 @@ const mobileTabs = ref([
   { key: 'users', label: '用户', icon: UserFilled },
   { key: 'logs', label: '日志', icon: Document },
   { key: 'storage', label: '存储', icon: Folder },
-  { key: 'settings', label: '设置', icon: Setting }
+  { key: 'settings', label: '设置', icon: Setting },
+  { key: 'moderation', label: '审核', icon: CircleCheck }
 ])
 
 // 系统统计数据
 const systemStats = reactive({
   totalUsers: 0,
   totalFiles: 0,
-  totalStorage: 0
+  totalStorage: 0,
+  totalMotion: 0,
+  totalFolders: 0
 })
+
+// 存储分类拆解（图片/视频/动图）
+const storageBreakdownImageCount = ref(0)
+const storageBreakdownImageBytes = ref(0)
+const storageBreakdownVideoCount = ref(0)
+const storageBreakdownVideoBytes = ref(0)
+const storageBreakdownMotionCount = ref(0)
+
+const imageCount = computed(() => storageBreakdownImageCount.value)
+const imageBytes = computed(() => storageBreakdownImageBytes.value)
+const videoCount = computed(() => storageBreakdownVideoCount.value)
+const videoBytes = computed(() => storageBreakdownVideoBytes.value)
+const motionCount = computed(() => storageBreakdownMotionCount.value)
+
 // 表格宽度调整
 const adjustTableWidth = () => {
   nextTick(() => {
@@ -2493,13 +2727,10 @@ const storageStats = reactive({
   usedStorage: 0,
   availableStorage: 0
 })
-
 // 用户数据
 const users = ref<User[]>([])
-
 // 日志数据
 const logs = ref<LogEntry[]>([])
-
 // 日志筛选
 const logFilter = reactive({
   level: '',
@@ -2730,6 +2961,8 @@ const fetchSystemStats = async () => {
     systemStats.totalUsers = Number(data.total_users) || 0
     systemStats.totalFiles = Number(data.total_files) || 0
     systemStats.totalStorage = Number(data.total_file_size) || 0
+    systemStats.totalMotion = Number(data.live_count) || 0
+    systemStats.totalFolders = Number(data.total_folders) || 0
   } catch (error: any) {
     throw error
   }
@@ -3290,7 +3523,6 @@ const getVerificationTimeLeft = () => {
   const seconds = Math.floor((diff % 60000) / 1000)
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
-
 // 显示用户统计
 const showUserStats = async (user: User) => {
   console.log('=== showUserStats 开始 ===')
@@ -4897,6 +5129,21 @@ onUnmounted(() => {
     }
   }
 }
+
+/* 审核设置样式（黑白灰） */
+.moderation-form {
+  --card-bg: #fff;
+  --text: #1f1f1f;
+  --muted: #6f6f6f;
+  --border: #e5e5e5;
+  --input-bg: #fafafa;
+}
+.moderation-form :deep(.el-form-item__label) { color: var(--muted); }
+.moderation-form :deep(.el-input__wrapper) { background: var(--input-bg); box-shadow: none; }
+.moderation-form :deep(.el-input__inner) { color: var(--text); }
+.moderation-form :deep(.el-select .el-input__wrapper) { background: var(--input-bg); box-shadow: none; }
+.moderation-form .strict-row { display: flex; align-items: center; gap: 12px; width: 100%; }
+.moderation-form .strict-value { color: var(--text); font-weight: 600; min-width: 28px; text-align: right; }
 // ==================== 移动端用户卡片样式优化 ====================
 .mobile-user-list {
   display: flex;
@@ -6336,6 +6583,22 @@ onUnmounted(() => {
       }
     }
   }
+  /* 移动端审核设置适配 */
+  .mobile-settings-form .system-settings-form {
+    .settings-group {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .group-title {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+      color: #1f1f1f;
+      :deep(.el-icon) { color: #1f1f1f; }
+    }
+    :deep(.el-form-item__label) { color: #6f6f6f; }
+  }
 }
 
 // 移动端内容区域
@@ -7751,7 +8014,6 @@ onUnmounted(() => {
     }
   }
 }
-
 // 用户统计对话框样式
 .user-stats-content {
   &.grayscale {
@@ -8552,7 +8814,6 @@ onUnmounted(() => {
   color: #2c3e50;
   font-weight: 600;
 }
-
 .user-profile-popover .storage-block {
   margin: 8px 16px 0 16px;
   padding: 12px;

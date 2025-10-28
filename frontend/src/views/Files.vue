@@ -234,7 +234,7 @@
       <transition name="fade-fast" mode="out-in" v-else-if="viewMode === 'grid' && onlyLive">
       <div class="file-grid" :key="`live-${filesStore.currentFolder || 'root'}`">
         <div 
-          v-for="asset in liveAssets" 
+          v-for="asset in filteredLiveAssets" 
           :key="asset.id"
           class="file-card"
           :class="{ 'selected': selectedFiles.includes(asset.id), 'is-live': true }"
@@ -523,9 +523,17 @@
             placeholder="生成分享链接..."
           >
             <template #append>
-              <el-button @click="copyShareUrl">复制</el-button>
+              <el-button @click="copyShareUrl" :disabled="!canCopyShare">复制</el-button>
             </template>
           </el-input>
+          <div v-if="shareStatus && shareStatus.status !== 'approved'" class="review-status">
+            <div class="status-row">
+              <span class="label">审核状态：</span>
+              <span class="value" :class="shareStatus.status">{{ shareStatusText }}</span>
+            </div>
+            <el-progress :percentage="shareStatus.review_progress || 0" :stroke-width="8" :show-text="true" />
+            <div v-if="shareStatus.review_reason" class="reason">{{ shareStatus.review_reason }}</div>
+          </div>
         </div>
         
         <div class="share-options">
@@ -549,7 +557,7 @@
       
       <template #footer>
         <el-button @click="showShareDialog = false">取消</el-button>
-        <el-button type="primary" @click="generateShareLink">生成链接</el-button>
+        <el-button type="primary" @click="generateShareLink" :loading="shareCreating">{{ shareStatus ? '重新提交' : '生成链接' }}</el-button>
       </template>
     </el-dialog>
 
@@ -583,7 +591,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, nextTick, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, ElForm } from 'element-plus'
 import {
@@ -726,39 +734,30 @@ const showLivePreview = ref(false)
 const liveTheme = ref<Record<number, 'light' | 'dark'>>({})
 const setLiveTheme = (id: number, t: 'light' | 'dark') => { liveTheme.value[id] = t }
 
-// 文件夹路径
-const folderPath = ref<Array<{id: number, name: string}>>([])
-
-// 文件夹表单
-const folderForm = reactive({
-  name: ''
-})
-
-const folderRules = {
-  name: [
-    { required: true, message: '请输入文件夹名称', trigger: 'blur' },
-    { min: 1, max: 50, message: '文件夹名称长度应在1-50个字符之间', trigger: 'blur' }
-  ]
+// 关键词解析：支持中文/英文类型关键字
+const parseTypeKeywords = (q: string) => {
+  const s = q.trim().toLowerCase()
+  const isImage = /^(.*)(图片|图像|image|img|photo|jpeg|jpg|png|gif|webp)(.*)$/.test(s)
+  const isVideo = /^(.*)(视频|video|mp4|webm|mov|avi)(.*)$/.test(s)
+  const isLive  = /^(.*)(实况|live\s?photo|live|动图|motion)(.*)$/.test(s)
+  return { isImage, isVideo, isLive }
 }
 
-// 分享选项
-const shareOptions = reactive({
-  allowDownload: true,
-  allowPreview: true,
-  ttlPreset: '24h',
-  ttlHours: 24
-})
-
-// 计算属性
+// 文件过滤（名称匹配 或 类型关键字匹配）
 const filteredFiles = computed(() => {
   let files = filesStore.files
-  
-  if (searchQuery.value) {
-    files = files.filter(file => 
-      file.original_name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    )
+  const q = searchQuery.value.trim().toLowerCase()
+  const { isImage, isVideo } = parseTypeKeywords(q)
+
+  if (q) {
+    files = files.filter(file => {
+      const nameMatch = (file.original_name || '').toLowerCase().includes(q)
+      const typeMatch = (isImage && file.file_type === 'image') || (isVideo && file.file_type === 'video')
+      return nameMatch || typeMatch
+    })
   }
   if (onlyLive.value) {
+    // 仅展示实况对应的源图片（若有标记）
     files = files.filter((f: any) => !f.isFolder && f.file_type === 'image' && f.live_video_id)
   }
   
@@ -780,27 +779,21 @@ const filteredFiles = computed(() => {
   })
 })
 
-// 过滤文件夹
-const filteredFolders = computed(() => {
-  let folders = filesStore.folders
-  
-  if (searchQuery.value) {
-    folders = folders.filter(folder => 
-      folder.folder_name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    )
-  }
-  
-  return folders.sort((a, b) => {
-    if (sortBy.value === 'name') {
-      return sortOrder.value === 'asc' 
-        ? a.folder_name.localeCompare(b.folder_name)
-        : b.folder_name.localeCompare(a.folder_name)
-    } else if (sortBy.value === 'date') {
-      return sortOrder.value === 'asc'
-        ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+// 实况过滤（名称/类型关键字）
+const filteredLiveAssets = computed(() => {
+  const list = liveAssets.value || []
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return list
+  const { isLive, isImage, isVideo } = parseTypeKeywords(q)
+  return list.filter(a => {
+    const name = (a.kind || '实况').toLowerCase()
+    const nameMatch = name.includes(q)
+    const typeMatch = isLive || false // 关键词命中"实况/动图/live/motion"则匹配
+    // 若用户搜"图片/视频"，不强行包含实况，除非名称本身命中
+    if (isImage || isVideo) {
+      return nameMatch
     }
-    return 0
+    return nameMatch || typeMatch
   })
 })
 
@@ -828,8 +821,8 @@ const allItems = computed(() => {
   })
 
   // 合并当前文件夹的实况（仅普通视图时，且 liveAssets 已按当前文件夹查询）
-  if (!onlyLive.value && liveAssets.value && liveAssets.value.length > 0) {
-    for (const asset of liveAssets.value) {
+  if (!onlyLive.value && filteredLiveAssets.value && filteredLiveAssets.value.length > 0) {
+    for (const asset of filteredLiveAssets.value) {
       items.push({
         id: `live_${asset.id}`,
         isFolder: false,
@@ -955,8 +948,8 @@ onUnmounted(() => {
 
 // 根据屏幕尺寸调整长按延迟
 const getLongPressDelay = () => {
-  if (isMobile.value) return 1000 // 移动端1秒
-  if (isTablet.value) return 1000 // 平板1秒
+  if (isMobile.value) return 1500 // 移动端1.5秒
+  if (isTablet.value) return 1500 // 平板1.5秒
   return 1000 // 桌面端1秒
 }
 
@@ -1599,7 +1592,7 @@ const downloadFile = (file: any) => {
   }
 }
 
-// 下载实况“原件”
+// 下载实况"原件"
 const downloadLiveOriginal = async (asset: LiveMediaAsset) => {
   try {
     // iOS Live Photo：分别下载原图与原视频
@@ -1805,6 +1798,10 @@ const generateShareLink = async () => {
   }
   if (!shareFile.value) return
   try {
+    shareCreating.value = true
+    shareUrl.value = ''
+    shareStatus.value = null
+    shareToken.value = null
     let expireInHours: number | null = null
     if (shareOptions.ttlPreset === '1h') expireInHours = 1
     else if (shareOptions.ttlPreset === '24h') expireInHours = 24
@@ -1818,21 +1815,43 @@ const generateShareLink = async () => {
       expireInHours
     })
     if (data && data.success && data.token) {
-      const baseUrl = window.location.origin
-      shareUrl.value = `${baseUrl}/share/${data.token}`
-      if (data.expires_at) {
-        ElMessage.success(`分享链接已生成，将在 ${new Date(data.expires_at).toLocaleString()} 过期`)
-      } else {
-        ElMessage.success('分享链接已生成（永不过期）')
-      }
+      shareToken.value = data.token
+      shareStatus.value = { status: data.status || 'pending_review', review_progress: data.review_progress || 0 }
+      startSharePolling()
+      ElMessage.success('已提交审核，请稍候...')
     } else {
       ElMessage.error('生成分享链接失败')
     }
   } catch (e: any) {
     const msg = e?.response?.data?.message || '生成分享链接失败'
     ElMessage.error(msg)
+  } finally {
+    shareCreating.value = false
   }
 }
+
+function startSharePolling() {
+  if (!shareToken.value) return
+  stopSharePolling()
+  sharePoller = setInterval(async () => {
+    try {
+      const { data } = await api.get(`/share/${shareToken.value}/status`)
+      shareStatus.value = { status: data.status, review_progress: data.review_progress || 0, review_reason: data.review_reason }
+      if (data.status === 'approved') {
+        const baseUrl = window.location.origin
+        shareUrl.value = `${baseUrl}/share/${shareToken.value}`
+        stopSharePolling()
+        ElMessage.success('审核通过，分享链接已生成')
+      } else if (data.status === 'rejected') {
+        stopSharePolling()
+        ElMessage.error(data.review_reason || '审核未通过')
+      }
+    } catch (_) {}
+  }, 1000)
+}
+function stopSharePolling() { if (sharePoller) { clearInterval(sharePoller); sharePoller = null } }
+// 关闭弹窗时停止轮询
+watch(showShareDialog, (v) => { if (!v) { stopSharePolling() } })
 
 const copyShareUrl = async () => {
   if (shareUrl.value) {
@@ -1932,7 +1951,7 @@ const fetchLiveAssets = async () => {
   }
 }
 
-// 监听“仅实况”切换
+// 监听"仅实况"切换
 watch(onlyLive, async (val) => {
   // 切换筛选时，同步刷新实况数据（当前文件夹上下文）
   await fetchLiveAssets()
@@ -1994,6 +2013,54 @@ const deleteLiveAsset = async (assetId: number) => {
     if (e !== 'cancel') ElMessage.error('删除失败')
   }
 }
+
+// 恢复模板依赖的状态
+const folderPath = ref<Array<{ id: number, name: string }>>([])
+const shareOptions = reactive({
+  allowDownload: true as boolean,
+  allowPreview: true as boolean,
+  ttlPreset: '24h' as '1h' | '24h' | '7d' | 'custom' | 'never',
+  ttlHours: 24 as number
+})
+const filteredFolders = computed(() => {
+  let folders = filesStore.folders
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    folders = folders.filter(folder => (folder.folder_name || '').toLowerCase().includes(q))
+  }
+  return folders.sort((a, b) => {
+    if (sortBy.value === 'name') {
+      return sortOrder.value === 'asc'
+        ? a.folder_name.localeCompare(b.folder_name)
+        : b.folder_name.localeCompare(a.folder_name)
+    } else if (sortBy.value === 'date') {
+      return sortOrder.value === 'asc'
+        ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    }
+    return 0
+  })
+})
+
+// 新建/重命名文件夹表单
+const folderForm = reactive({ name: '' })
+const folderRules = {
+  name: [
+    { required: true, message: '请输入文件夹名称', trigger: 'blur' },
+    { min: 1, max: 50, message: '文件夹名称长度应在1-50个字符之间', trigger: 'blur' }
+  ]
+}
+
+const shareCreating = ref(false)
+const shareToken = ref<string | null>(null)
+const shareStatus = ref<{ status: string, review_progress: number, review_reason?: string } | null>(null)
+let sharePoller: any = null
+const canCopyShare = computed(() => !!shareUrl.value && !!shareStatus.value && shareStatus.value.status === 'approved')
+const shareStatusText = computed(() => {
+  if (!shareStatus.value) return ''
+  const s = shareStatus.value.status
+  return s === 'pending_review' ? '审核中' : s === 'approved' ? '已通过' : s === 'rejected' ? '未通过' : s
+})
 </script>
 
 <style lang="scss" scoped>
@@ -4452,4 +4519,44 @@ const deleteLiveAsset = async (assetId: number) => {
     color: #6b7280 !important;
   }
 }
+
+// 在移动端/平板：仅长按显示操作按钮，并以2列栅格布局显示，按钮等分5:5
+@media (max-width: 1023px) {
+  .file-card .card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* 两列，5:5 等分 */
+    gap: 6px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .file-card .card-actions .action-btn {
+    width: 100%;
+    justify-content: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* 禁用 hover/active 触发，只有 long-pressed 才显示 */
+  .file-card:hover .card-actions,
+  .file-card:active .card-actions {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+  .file-card.long-pressed .card-actions {
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+}
+
+/* 审核状态样式 */
+.review-status { margin-top: 8px; }
+.review-status .status-row { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 6px; }
+.review-status .status-row .label { color: #6b7280; }
+.review-status .status-row .value { font-weight: 600; }
+.review-status .status-row .value.pending_review { color: #8a8a8a; }
+.review-status .status-row .value.approved { color: #16a34a; }
+.review-status .status-row .value.rejected { color: #dc2626; }
 </style>

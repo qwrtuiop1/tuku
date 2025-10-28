@@ -355,8 +355,9 @@ onMounted(() => {
 
 .file-type-badge {
   position: absolute;
-  top: 8px;
+  bottom: 8px;
   left: 8px;
+  top: auto;
   width: 24px;
   height: 24px;
   border-radius: 4px;
@@ -365,13 +366,14 @@ onMounted(() => {
   justify-content: center;
   color: white;
   font-size: 12px;
+  background: #000000; // 黑底
   
   &.image-badge {
-    background: rgba(103, 194, 58, 0.9);
+    background: #000000; // 黑底
   }
   
   &.video-badge {
-    background: rgba(64, 158, 255, 0.9);
+    background: #000000; // 黑底
   }
   
   &.unknown-badge {

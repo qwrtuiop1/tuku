@@ -158,6 +158,14 @@ app.use('/uploads', express.static(process.env.UPLOAD_PATH || '/www/wwwroot/tuku
     res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
     res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable, no-transform');
+    // 开发环境下由 Node 设置 CORS；生产环境交由 Nginx（避免重复/冲突）
+    const devCors = (process.env.NODE_ENV || '').toLowerCase() !== 'production' && (process.env.ENABLE_UPLOADS_CORS || 'true').toLowerCase() === 'true';
+    if (devCors) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    }
   }
 }));
 

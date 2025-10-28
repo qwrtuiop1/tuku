@@ -1237,10 +1237,53 @@ router.get('/stats', authenticateToken, asyncHandler(async (req, res) => {
           other_size: 0
         };
     
+    // 计算动图/实况（live_media_assets）数量与大小
+    let motionCount = 0;
+    let motionSize = 0;
+    try {
+      const [assets] = await pool.execute(
+        'SELECT poster_path, video_mp4_path, video_webm_path, original_image_path, original_video_path FROM live_media_assets WHERE owner_user_id=?',
+        [userId]
+      );
+      motionCount = Array.isArray(assets) ? assets.length : 0;
+      const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
+      const seen = new Set();
+      const toAbs = (p) => {
+        if (!p) return null;
+        let normalized = String(p).replace(/\\/g, '/');
+        if (path.isAbsolute(normalized)) return normalized;
+        if (normalized.startsWith('storage/')) normalized = normalized.substring(8);
+        return path.resolve(baseUploadPath, normalized);
+      };
+      const statSize = async (p) => {
+        try {
+          if (!p) return 0;
+          const exists = await fs.pathExists(p);
+          if (!exists) return 0;
+          const st = await fs.stat(p);
+          return st.isFile() ? st.size : 0;
+        } catch { return 0; }
+      };
+      for (const a of (assets || [])) {
+        const candidates = [a.video_mp4_path, a.video_webm_path, a.original_video_path, a.original_image_path, a.poster_path]
+          .map(toAbs)
+          .filter(Boolean);
+        for (const abs of candidates) {
+          const key = abs;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          motionSize += await statSize(abs);
+        }
+      }
+    } catch (_) { /* ignore motion errors */ }
+
     res.json({
       success: true,
       data: {
         ...latestTrend,
+        motion_count: motionCount,
+        live_count: motionCount,
+        motion_size: motionSize,
         trends: trendResult.data.trends,
         changes: trendResult.data.changes
       }

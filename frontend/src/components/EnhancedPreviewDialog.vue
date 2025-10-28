@@ -86,7 +86,7 @@
             </el-button>
           </div>
           <div class="action-item" v-if="systemStore.sharingEnabled">
-            <el-button @click="shareCurrentFile" class="gray-btn">
+            <el-button @click="shareCurrentFile" class="gray-btn" :loading="reviewCreating">
               <el-icon><Share /></el-icon>
               分享
             </el-button>
@@ -97,6 +97,12 @@
               全屏
             </el-button>
           </div>
+        </div>
+        <div v-if="reviewStatus" class="review-status">
+          <div class="row"><span class="label">审核状态</span><span class="value" :class="reviewStatus.status">{{ reviewStatusText }}</span></div>
+          <el-progress :percentage="reviewStatus.review_progress || 0" :stroke-width="8" :show-text="true" />
+          <div v-if="reviewStatus.review_reason" class="reason">{{ reviewStatus.review_reason }}</div>
+          <div v-if="publicShareUrl" class="public-url">{{ publicShareUrl }}</div>
         </div>
       </aside>
     </div>
@@ -163,6 +169,18 @@ const currentFile = computed(() => {
   return file
 })
 
+// 审核/分享状态
+const reviewId = ref<number | null>(null)
+const reviewStatus = ref<{ status: string, review_progress: number, review_reason?: string } | null>(null)
+const reviewCreating = ref(false)
+const publicShareUrl = ref('')
+let reviewPoller: any = null
+const reviewStatusText = computed(() => {
+  if (!reviewStatus.value) return ''
+  const s = reviewStatus.value.status
+  return s === 'pending_review' ? '审核中' : s === 'approved' ? '已通过' : s === 'rejected' ? '未通过' : s
+})
+
 const hasMultipleFiles = computed(() => files.value.length > 1)
 
 const dialogTitle = computed(() => {
@@ -223,24 +241,50 @@ const shareCurrentFile = async () => {
     return
   }
   try {
-    const { data } = await api.post('/share', {
+    reviewCreating.value = true
+    reviewStatus.value = null
+    publicShareUrl.value = ''
+    // 先发起审核，不立刻拿公开链接
+    const { data } = await api.post('/share/review', {
       file_id: currentFile.value.id,
       allowPreview: true,
       allowDownload: true,
       expireInHours: null
     })
-    if (data && data.success && data.token) {
-      const shareUrl = `${window.location.origin}/share/${data.token}`
-      await navigator.clipboard.writeText(shareUrl)
-      ElMessage.success('公开分享链接已复制')
+    if (data && data.success && data.review_id) {
+      reviewId.value = data.review_id
+      startReviewPolling()
+      ElMessage.success('已提交审核，请稍候...')
     } else {
-      ElMessage.error('生成分享链接失败')
+      ElMessage.error('提交审核失败')
     }
-  } catch (e: any) {
-    ElMessage.error(e?.response?.data?.message || '生成分享链接失败')
+  } catch (e:any) {
+    ElMessage.error(e?.response?.data?.message || '提交审核失败')
+  } finally {
+    reviewCreating.value = false
   }
 }
 
+function startReviewPolling() {
+  if (!reviewId.value) return
+  stopReviewPolling()
+  reviewPoller = setInterval(async () => {
+    try {
+      const { data } = await api.get(`/share/review/${reviewId.value}/status`)
+      reviewStatus.value = { status: data.status, review_progress: data.review_progress || 0, review_reason: data.review_reason }
+      if (data.status === 'approved' && data.share_token) {
+        publicShareUrl.value = `${window.location.origin}/share/${data.share_token}`
+        stopReviewPolling()
+        try { await navigator.clipboard.writeText(publicShareUrl.value); ElMessage.success('审核通过，公开链接已复制') } catch { ElMessage.success('审核通过，请复制公开链接') }
+      } else if (data.status === 'rejected') {
+        stopReviewPolling()
+        ElMessage.error(data.review_reason || '审核未通过')
+      }
+    } catch (_) {}
+  }, 1000)
+}
+function stopReviewPolling() { if (reviewPoller) { clearInterval(reviewPoller); reviewPoller = null } }
+watch(visible, (v) => { if (!v) stopReviewPolling() })
 
 
 const handleFileDeleted = (fileId: number) => {
@@ -569,6 +613,13 @@ watch(() => props.file, (newFile) => {
   }
   
 }
+
+.review-status { margin-top: 10px; }
+.review-status .row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px; }
+.review-status .value.pending_review { color: #8a8a8a; }
+.review-status .value.approved { color: #16a34a; }
+.review-status .value.rejected { color: #dc2626; }
+.public-url { margin-top: 6px; font-size: 12px; color: #111; word-break: break-all; }
 
 // 响应式设计
 @media (max-width: 768px) {

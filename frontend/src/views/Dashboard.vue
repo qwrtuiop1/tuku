@@ -105,6 +105,29 @@
         </div>
       </div>
       
+      <!-- 动图/实况卡片（替换原总大小卡片，并与文件夹卡片交换位置） -->
+      <div class="stat-card motion-card">
+        <div class="card-header">
+          <div class="stat-icon">
+            <el-icon><CircleCheck /></el-icon>
+          </div>
+          <div class="stat-trend">
+            <el-icon :class="(Number(stats.changes?.videos?.percentage) || 0) >= 0 ? 'trend-up' : 'trend-down'">
+              <TrendCharts />
+            </el-icon>
+            <span class="trend-text" :class="(Number(stats.changes?.videos?.percentage) || 0) >= 0 ? 'trend-positive' : 'trend-negative'">
+              {{ (Number(stats.changes?.videos?.percentage) || 0) >= 0 ? '+' : '' }}{{ (Number(stats.changes?.videos?.percentage) || 0).toFixed(1) }}%
+            </span>
+          </div>
+        </div>
+        <div class="stat-content">
+          <div class="stat-number">{{ stats.motionCount || 0 }}</div>
+          <div class="stat-label">动图/实况</div>
+          <div class="stat-detail">{{ formatFileSize(stats.motionSize || 0) }}</div>
+        </div>
+      </div>
+
+      <!-- 文件夹卡片（位置后移） -->
       <div class="stat-card folder-card">
         <div class="card-header">
           <div class="stat-icon">
@@ -123,27 +146,6 @@
           <div class="stat-number">{{ stats.folderCount }}</div>
           <div class="stat-label">文件夹</div>
           <div class="stat-detail">{{ stats.totalFiles }} 个文件</div>
-        </div>
-      </div>
-      
-      <div class="stat-card storage-card">
-        <div class="card-header">
-          <div class="stat-icon">
-            <el-icon><DataLine /></el-icon>
-          </div>
-          <div class="stat-trend">
-            <el-icon :class="(Number(stats.changes?.size?.percentage) || 0) >= 0 ? 'trend-up' : 'trend-down'">
-              <TrendCharts />
-            </el-icon>
-            <span class="trend-text" :class="(Number(stats.changes?.size?.percentage) || 0) >= 0 ? 'trend-positive' : 'trend-negative'">
-              {{ (Number(stats.changes?.size?.percentage) || 0) >= 0 ? '+' : '' }}{{ (Number(stats.changes?.size?.percentage) || 0).toFixed(1) }}%
-            </span>
-          </div>
-        </div>
-        <div class="stat-content">
-          <div class="stat-number">{{ formatFileSize(stats.totalSize) }}</div>
-          <div class="stat-label">总大小</div>
-          <div class="stat-detail">{{ formatPercentage(authStore.storageUsage) }} 使用率</div>
         </div>
       </div>
     </div>
@@ -210,6 +212,15 @@
                 <div class="breakdown-content">
                   <div class="breakdown-label">视频文件</div>
                   <div class="breakdown-value">{{ formatFileSize(stats.videoSize) }}</div>
+                </div>
+              </div>
+              <div class="breakdown-item">
+                <div class="breakdown-icon motion">
+                  <el-icon><CircleCheck /></el-icon>
+                </div>
+                <div class="breakdown-content">
+                  <div class="breakdown-label">动图/实况</div>
+                  <div class="breakdown-value">{{ formatFileSize(stats.motionSize || 0) }}</div>
                 </div>
               </div>
             </div>
@@ -456,7 +467,8 @@ import {
   QuestionFilled,
   InfoFilled,
   StarFilled,
-  Share
+  Share,
+  CircleCheck
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useFilesStore } from '@/stores/files'
@@ -483,6 +495,8 @@ const stats = ref({
   totalSize: 0,
   imageSize: 0,
   videoSize: 0,
+  motionCount: 0,
+  motionSize: 0,
   changes: {
     files: { value: 0, percentage: 0 },
     size: { value: 0, percentage: 0 },
@@ -608,7 +622,9 @@ const loadDashboardData = async () => {
       totalFiles: data.total_files || 0,
       totalSize: data.total_size || 0,
       imageSize: data.image_size || 0,
-      videoSize: data.video_size || 0,
+    videoSize: data.video_size || 0,
+    motionCount: data.live_count || data.motion_count || 0,
+    motionSize: data.motion_size || 0,
       changes: data.changes || {
         files: { value: 0, percentage: 0 },
         size: { value: 0, percentage: 0 },
@@ -640,7 +656,9 @@ const loadLocalStats = async () => {
       totalFiles: data.total_files || 0,
       totalSize: data.total_size || 0,
       imageSize: data.image_size || 0,
-      videoSize: data.video_size || 0,
+    videoSize: data.video_size || 0,
+    motionCount: data.live_count || data.motion_count || 0,
+    motionSize: data.motion_size || 0,
       changes: data.changes || {
         files: { value: 0, percentage: 0 },
         size: { value: 0, percentage: 0 },
@@ -1524,6 +1542,12 @@ onMounted(() => {
     }
   }
   
+  &.motion-card {
+    .card-header .stat-icon {
+      background: linear-gradient(135deg, #9ca3af, #6b7280);
+    }
+  }
+  
   &.folder-card {
     .card-header .stat-icon {
       background: linear-gradient(135deg, #d1d5db, #9ca3af);
@@ -1821,6 +1845,10 @@ onMounted(() => {
         
         &.video {
           background: linear-gradient(135deg, #6b7280, #4b5563);
+        }
+        
+        &.motion {
+          background: linear-gradient(135deg, #4b5563, #374151);
         }
       }
       

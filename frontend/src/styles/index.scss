@@ -362,4 +362,42 @@ a {
   animation: bounce 1s infinite;
 }
 
+// 全局：下拉菜单选项（Element Plus）统一黑白灰悬浮样式
+// Dropdown 菜单项
+.el-dropdown-menu__item {
+  color: #1f1f1f;
+}
+.el-dropdown-menu__item:hover,
+.el-dropdown-menu__item:focus {
+  background-color: #f5f5f5 !important;
+  color: #000000 !important;
+}
+.el-dropdown-menu__item.is-disabled,
+.el-dropdown-menu__item.is-disabled:hover,
+.el-dropdown-menu__item.is-disabled:focus {
+  color: #bfbfbf !important;
+  background-color: transparent !important;
+}
+
+// Select 下拉选项
+.el-select-dropdown__item {
+  color: #1f1f1f;
+}
+.el-select-dropdown__item.hover,
+.el-select-dropdown__item:hover,
+.el-select-dropdown__item:focus {
+  background-color: #f5f5f5 !important;
+  color: #000000 !important;
+}
+.el-select-dropdown__item.selected {
+  background-color: #ededed !important;
+  color: #000000 !important;
+}
+.el-select-dropdown__item.is-disabled,
+.el-select-dropdown__item.is-disabled:hover,
+.el-select-dropdown__item.is-disabled:focus {
+  color: #bfbfbf !important;
+  background-color: transparent !important;
+}
+
 

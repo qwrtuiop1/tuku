@@ -88,9 +88,16 @@ onUnmounted(() => { if (poller) { clearInterval(poller); poller = null } })
 .card { width: 100%; max-width: 720px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
 .title { margin: 0 0 8px; font-size: 18px; }
 .meta { color: #6b7280; font-size: 13px; margin-bottom: 12px; }
-.preview { display: flex; justify-content: center; margin-bottom: 12px; }
-.preview img { max-width: 100%; border-radius: 8px; border: 1px solid #eee; }
+.preview { display: flex; justify-content: center; align-items: center; margin-bottom: 12px; }
+.preview img { max-width: 100%; height: auto; max-height: 80vh; object-fit: contain; border-radius: 8px; border: 1px solid #eee; }
+.preview video { max-width: 100%; width: 100%; height: auto; max-height: 80vh; object-fit: contain; border-radius: 8px; background: #000; }
 .actions { display: flex; justify-content: center; }
+:deep(.actions .el-button--primary) { background-color: #1f1f1f; border-color: #1f1f1f; color: #ffffff; }
+:deep(.actions .el-button--primary:hover),
+:deep(.actions .el-button--primary:focus) { background-color: #000000; border-color: #000000; color: #ffffff; }
+:deep(.actions .el-button--primary.is-disabled),
+:deep(.actions .el-button--primary[disabled]) { background-color: #eaeaea; border-color: #eaeaea; color: #9e9e9e; }
+.hint { margin-top: 8px; color: #6b7280; font-size: 12px; text-align: center; }
 </style>
 
 

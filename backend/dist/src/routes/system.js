@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../config/database');
 const { asyncHandler } = require('../middleware/errorHandler');
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -81,3 +82,79 @@ router.get('/share-status', asyncHandler(async (req, res) => {
 }));
 
 module.exports = router;
+
+// 审核配置（数据库优先，ENV 兜底）
+router.get('/moderation', asyncHandler(async (req, res) => {
+  const keys = [
+    'moderation_enable',
+    'moderation_provider',
+    'moderation_api_url',
+    'moderation_api_key',
+    'moderation_model',
+    'moderation_strictness',
+    'moderation_max_image_bytes',
+    'moderation_image_heuristic',
+    'moderation_ocr_api_url',
+    'moderation_ocr_api_key'
+  ];
+  const placeholders = keys.map(() => '?').join(',');
+  try {
+    const [rows] = await pool.execute(
+      `SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (${placeholders})`,
+      keys
+    );
+    const map = {};
+    rows.forEach(r => { map[r.setting_key] = r.setting_value });
+    res.json({
+      enable: (map.moderation_enable || 'false') === 'true',
+      provider: map.moderation_provider || '',
+      apiUrl: map.moderation_api_url || '',
+      apiKey: map.moderation_api_key || '',
+      model: map.moderation_model || '',
+      strictness: map.moderation_strictness ? Number(map.moderation_strictness) : 70,
+      maxImageBytes: map.moderation_max_image_bytes ? Number(map.moderation_max_image_bytes) : 524288,
+      imageHeuristic: (map.moderation_image_heuristic || 'true') === 'true',
+      ocrApiUrl: map.moderation_ocr_api_url || '',
+      ocrApiKey: map.moderation_ocr_api_key || ''
+    });
+  } catch (e) {
+    res.json({
+      enable: false,
+      provider: '',
+      apiUrl: '',
+      apiKey: '',
+      model: '',
+      strictness: 70,
+      maxImageBytes: 524288,
+      imageHeuristic: true,
+      ocrApiUrl: '',
+      ocrApiKey: ''
+    });
+  }
+}));
+
+router.put('/moderation', authenticateToken, requireAdmin, asyncHandler(async (req, res) => {
+  const body = req.body || {};
+  const entries = [
+    ['moderation_enable', body.enable ? 'true' : 'false'],
+    ['moderation_provider', String(body.provider || '').trim()],
+    ['moderation_api_url', String(body.apiUrl || '').trim()],
+    ['moderation_api_key', String(body.apiKey || '').trim()],
+    ['moderation_model', String(body.model || '').trim()],
+    ['moderation_strictness', String(Math.min(100, Math.max(0, Number(body.strictness || 70))))],
+    ['moderation_max_image_bytes', String(Math.min(2 * 1024 * 1024, Math.max(10 * 1024, Number(body.maxImageBytes || 524288))))],
+    ['moderation_image_heuristic', body.imageHeuristic === false ? 'false' : 'true'],
+    ['moderation_ocr_api_url', String(body.ocrApiUrl || '').trim()],
+    ['moderation_ocr_api_key', String(body.ocrApiKey || '').trim()],
+  ];
+  // 批量 upsert
+  for (const [k, v] of entries) {
+    try {
+      await pool.execute(
+        'INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)',
+        [k, v]
+      );
+    } catch (e) {}
+  }
+  res.json({ success: true });
+}));

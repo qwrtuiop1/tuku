@@ -1,7 +1,7 @@
 <template>
   <div class="live-media-card" @mouseenter="onHover(true)" @mouseleave="onHover(false)" @touchstart.passive="onTouchStart" @touchend.passive="onTouchEnd">
     <div class="poster-wrapper">
-      <img v-if="asset.poster_url" :src="posterSrc" class="poster" :alt="label" @load="onPosterLoad" crossOrigin="anonymous" />
+      <img v-if="asset.poster_url" :src="posterSrc" class="poster" :alt="label" @load="onPosterLoad" />
       <video v-if="inView && previewing && source" ref="videoRef" class="preview" :src="source.src" muted playsinline :loop="isLooping" :poster="asset.poster_url" @ended="handleEnded"></video>
       <div class="badge">LIVE</div>
     </div>
@@ -140,6 +140,9 @@ onUnmounted(() => { stopPreview(); if (observer) observer.disconnect() })
 .poster { width: 100%; height: 100%; object-fit: cover; display: block; }
 .preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; pointer-events: none; }
 .badge { position: absolute; left: 8px; bottom: 8px; background: rgba(0,0,0,0.75); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 10px; letter-spacing: 1px; z-index: 2; pointer-events: none; text-shadow: 0 1px 2px rgba(0,0,0,0.8); }
+@media (max-width: 768px) {
+  .badge { left: 0; right: auto; bottom: 0; top: auto; padding: 0; border-radius: 0; }
+}
 </style>
 
 
