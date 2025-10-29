@@ -116,7 +116,7 @@
                   size="large"
                   :disabled="emailCodeCooldown > 0"
                   @click="sendEmailCode"
-                  class="send-code-btn"
+                  class="send-code-btn same-height"
                 >
                   {{ emailCodeCooldown > 0 ? `${emailCodeCooldown}s` : '发送验证码' }}
                 </el-button>
@@ -279,6 +279,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { isValidEmail } from '@/utils/helpers'
 import api from '@/utils/api'
+import { useEmailCode } from '@/composables/useEmailCode'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -312,9 +313,8 @@ const passwordForm = reactive({
   confirmPassword: ''
 })
 
-// 邮箱验证码相关
-const emailCodeCooldown = ref(0)
-const emailCodeTimer = ref<number | null>(null)
+// 邮箱验证码相关（复用通用逻辑：极验 + 60s 冷却，5分钟有效期后端控制）
+const { emailCodeCooldown, sendEmailCodeWithHuman } = useEmailCode()
 
 // 密码要求
 const passwordRequirements = ref<string>('')
@@ -527,38 +527,9 @@ const handleEmailSubmit = async () => {
   }
 }
 
-// 发送邮箱验证码
+// 发送邮箱验证码（统一使用通用逻辑）
 const sendEmailCode = async () => {
-  try {
-    // 人机验证
-    const humanOk = await runHumanVerification()
-    if (!humanOk) {
-      ElMessage.error('请先完成人机验证')
-      return
-    }
-    await api.post('/auth/send-email-code', {
-      email: emailForm.email,
-      type: 'forgot_password'
-    })
-    
-    ElMessage.success('验证码已发送到您的邮箱')
-    startEmailCodeCooldown()
-  } catch (error: any) {
-    const errorMessage = error.response?.data?.message || '发送验证码失败'
-    ElMessage.error(errorMessage)
-  }
-}
-
-// 开始验证码冷却
-const startEmailCodeCooldown = () => {
-  emailCodeCooldown.value = 60
-  emailCodeTimer.value = window.setInterval(() => {
-    emailCodeCooldown.value--
-    if (emailCodeCooldown.value <= 0) {
-      clearInterval(emailCodeTimer.value!)
-      emailCodeTimer.value = null
-    }
-  }, 1000)
+  await sendEmailCodeWithHuman(emailForm.email, 'forgot_password')
 }
 
 // 步骤2: 处理身份验证
@@ -650,13 +621,8 @@ const goToLogin = () => {
   router.push('/login')
 }
 
-// 清理定时器
-const clearTimers = () => {
-  if (emailCodeTimer.value) {
-    clearInterval(emailCodeTimer.value)
-    emailCodeTimer.value = null
-  }
-}
+// 清理定时器（保留空实现，兼容旧调用）
+const clearTimers = () => {}
 
 onMounted(() => {
   // 页面初始化
@@ -680,9 +646,14 @@ onUnmounted(() => {
 .forgot-password-container {
   position: relative;
   min-height: 100vh;
-  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+  background:
+    radial-gradient(1200px 800px at 20% 10%, rgba(255,255,255,0.85), rgba(240,242,245,0.75) 60%, rgba(230,232,236,0.6) 100%),
+    linear-gradient(135deg, #fafafa 0%, #eef1f4 100%);
   overflow-x: hidden; // 只隐藏水平滚动，允许垂直滚动
 }
+
+.email-code-group :deep(.el-input__wrapper) { height: 40px; }
+.email-code-group .send-code-btn.same-height { height: 40px; }
 
 .top-nav {
   position: absolute;
@@ -731,11 +702,12 @@ onUnmounted(() => {
   width: 100%;
   max-width: 420px;
   padding: 40px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  backdrop-filter: blur(8px);
+  background: linear-gradient(180deg, rgba(255,255,255,0.80), rgba(245,246,248,0.72));
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  backdrop-filter: blur(18px) saturate(1.06);
+  -webkit-backdrop-filter: blur(18px) saturate(1.06);
   border-radius: 24px;
-  box-shadow: 0 14px 28px rgba(17, 24, 39, 0.08);
+  box-shadow: 0 24px 48px rgba(17, 24, 39, 0.12), inset 0 1px 0 rgba(255,255,255,0.6);
   animation: slideUp 0.8s ease-out;
 }
 
@@ -1071,14 +1043,14 @@ onUnmounted(() => {
   border-radius: 12px;
   font-size: 16px;
   font-weight: 600;
-  background: linear-gradient(135deg, #374151, #111827);
-  border: 1px solid #111827;
-  color: #ffffff;
-  transition: all 0.3s ease;
+  background: linear-gradient(180deg, #f3f4f6, #e5e7eb);
+  border: 1px solid rgba(17, 24, 39, 0.18);
+  color: #111827;
+  transition: box-shadow 180ms ease, transform 120ms ease, background 180ms ease;
   
   &:hover {
     transform: translateY(-1px);
-    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.18);
+    box-shadow: 0 12px 28px rgba(17, 24, 39, 0.18), 0 0 0 3px rgba(17,24,39,0.06) inset;
   }
   
   &:active {
@@ -1120,12 +1092,26 @@ onUnmounted(() => {
   width: 100%;
   max-width: 400px;
   padding: 40px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: linear-gradient(180deg, rgba(255,255,255,0.82), rgba(245,246,248,0.74));
+  border: 1px solid rgba(17, 17, 17, 0.08);
   border-radius: 24px;
-  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.06);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 28px 56px rgba(17, 24, 39, 0.12), inset 0 1px 0 rgba(255,255,255,0.55);
+  backdrop-filter: blur(20px) saturate(1.1) contrast(1.02);
   animation: slideUp 0.8s ease-out 0.2s both;
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(120% 100% at 0% 0%, rgba(255,255,255,0.35), rgba(255,255,255,0) 56%),
+      radial-gradient(120% 100% at 100% 0%, rgba(255,255,255,0.16), rgba(255,255,255,0) 50%);
+    mix-blend-mode: overlay;
+    opacity: .85;
+  }
   
   .panel-content {
     .panel-title {

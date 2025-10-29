@@ -38,8 +38,9 @@ const initDatabase = async () => {
       CREATE TABLE IF NOT EXISTS users (
         id INT PRIMARY KEY AUTO_INCREMENT,
         username VARCHAR(50) UNIQUE NOT NULL,
-        email VARCHAR(100) UNIQUE NOT NULL,
+        email VARCHAR(100) UNIQUE DEFAULT NULL,
         password_hash VARCHAR(255) NOT NULL,
+        has_password TINYINT(1) NOT NULL DEFAULT 1,
         nickname VARCHAR(50),
         bio TEXT,
         avatar_url VARCHAR(255),
@@ -75,6 +76,12 @@ const initDatabase = async () => {
 
     try {
       await connection.execute(`ALTER TABLE users ADD COLUMN IF NOT EXISTS status ENUM('active', 'inactive', 'suspended') DEFAULT 'active'`);
+    } catch (error) {
+      // 字段可能已存在，忽略错误
+    }
+
+    try {
+      await connection.execute(`ALTER TABLE users ADD COLUMN IF NOT EXISTS has_password TINYINT(1) NOT NULL DEFAULT 1 AFTER password_hash`);
     } catch (error) {
       // 字段可能已存在，忽略错误
     }

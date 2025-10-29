@@ -95,7 +95,8 @@ router.get('/moderation', asyncHandler(async (req, res) => {
     'moderation_max_image_bytes',
     'moderation_image_heuristic',
     'moderation_ocr_api_url',
-    'moderation_ocr_api_key'
+    'moderation_ocr_api_key',
+    'moderation_http_timeout_ms'
   ];
   const placeholders = keys.map(() => '?').join(',');
   try {
@@ -112,10 +113,11 @@ router.get('/moderation', asyncHandler(async (req, res) => {
       apiKey: map.moderation_api_key || '',
       model: map.moderation_model || '',
       strictness: map.moderation_strictness ? Number(map.moderation_strictness) : 70,
-      maxImageBytes: map.moderation_max_image_bytes ? Number(map.moderation_max_image_bytes) : 524288,
+      maxImageBytes: map.moderation_max_image_bytes ? Number(map.moderation_max_image_bytes) : (20 * 1024 * 1024),
       imageHeuristic: (map.moderation_image_heuristic || 'true') === 'true',
       ocrApiUrl: map.moderation_ocr_api_url || '',
-      ocrApiKey: map.moderation_ocr_api_key || ''
+      ocrApiKey: map.moderation_ocr_api_key || '',
+      httpTimeoutMs: map.moderation_http_timeout_ms ? Number(map.moderation_http_timeout_ms) : 20000
     });
   } catch (e) {
     res.json({
@@ -125,10 +127,11 @@ router.get('/moderation', asyncHandler(async (req, res) => {
       apiKey: '',
       model: '',
       strictness: 70,
-      maxImageBytes: 524288,
+      maxImageBytes: 20 * 1024 * 1024,
       imageHeuristic: true,
       ocrApiUrl: '',
-      ocrApiKey: ''
+      ocrApiKey: '',
+      httpTimeoutMs: 20000
     });
   }
 }));
@@ -142,10 +145,11 @@ router.put('/moderation', authenticateToken, requireAdmin, asyncHandler(async (r
     ['moderation_api_key', String(body.apiKey || '').trim()],
     ['moderation_model', String(body.model || '').trim()],
     ['moderation_strictness', String(Math.min(100, Math.max(0, Number(body.strictness || 70))))],
-    ['moderation_max_image_bytes', String(Math.min(2 * 1024 * 1024, Math.max(10 * 1024, Number(body.maxImageBytes || 524288))))],
+    ['moderation_max_image_bytes', String(Math.min(200 * 1024 * 1024, Math.max(10 * 1024, Number(body.maxImageBytes || (20 * 1024 * 1024)))))],
     ['moderation_image_heuristic', body.imageHeuristic === false ? 'false' : 'true'],
     ['moderation_ocr_api_url', String(body.ocrApiUrl || '').trim()],
     ['moderation_ocr_api_key', String(body.ocrApiKey || '').trim()],
+    ['moderation_http_timeout_ms', String(Math.min(120000, Math.max(1000, Number(body.httpTimeoutMs || 20000))))],
   ];
   // 批量 upsert
   for (const [k, v] of entries) {

@@ -56,6 +56,7 @@ declare module 'vue' {
     FileThumbnail: typeof import('./../components/FileThumbnail.vue')['default']
     FileUploader: typeof import('./../components/FileUploader.vue')['default']
     FolderDetailsDialog: typeof import('./../components/FolderDetailsDialog.vue')['default']
+    GlassConfirmModal: typeof import('./../components/GlassConfirmModal.vue')['default']
     ImageViewer: typeof import('./../components/ImageViewer.vue')['default']
     LiveMediaCard: typeof import('./../components/LiveMediaCard.vue')['default']
     LiveMediaFullscreen: typeof import('./../components/LiveMediaFullscreen.vue')['default']

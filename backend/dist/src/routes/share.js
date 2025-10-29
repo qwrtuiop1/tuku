@@ -93,6 +93,7 @@ async function ensureShareTable() {
   try { await pool.execute("ALTER TABLE file_shares ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'approved'"); } catch (_) {}
   try { await pool.execute('ALTER TABLE file_shares ADD COLUMN review_progress INT NOT NULL DEFAULT 0'); } catch (_) {}
   try { await pool.execute('ALTER TABLE file_shares ADD COLUMN review_reason VARCHAR(255) NULL'); } catch (_) {}
+  try { await pool.execute('ALTER TABLE file_shares ADD COLUMN review_debug MEDIUMTEXT NULL'); } catch (_) {}
   try { await pool.execute("ALTER TABLE file_shares ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"); } catch (_) {}
 }
 
@@ -109,29 +110,55 @@ async function ensureReviewTable() {
       review_progress INT NOT NULL DEFAULT 0,
       review_reason VARCHAR(255) NULL,
       share_token VARCHAR(64) NULL,
+      review_debug MEDIUMTEXT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
+  // 兼容老表：补充缺失列
+  try { await pool.execute('ALTER TABLE file_share_reviews ADD COLUMN review_debug MEDIUMTEXT NULL'); } catch (_) {}
+}
+
+async function appendJsonDebug(table, keyColumn, keyValue, column, entry) {
+  try {
+    const [rows] = await pool.execute(`SELECT ${column} FROM ${table} WHERE ${keyColumn}=?`, [keyValue]);
+    const cur = rows && rows[0] && rows[0][column] ? rows[0][column] : null;
+    let arr = [];
+    try { if (cur) arr = JSON.parse(cur); } catch (_) {}
+    arr.push(Object.assign({ ts: new Date().toISOString() }, entry));
+    await pool.execute(`UPDATE ${table} SET ${column}=? WHERE ${keyColumn}=?`, [JSON.stringify(arr).slice(0, 4 * 1024 * 1024), keyValue]);
+  } catch (_) {}
 }
 
 async function simulateReview(token, file) {
   const step = async (p) => pool.execute('UPDATE file_shares SET review_progress=?, updated_at=CURRENT_TIMESTAMP WHERE token=?', [p, token])
   try {
+    console.log('[review] token=%s step=init file_id=%s type=%s', token, file.id, file.file_type)
+    await appendJsonDebug('file_shares', 'token', token, 'review_debug', { step: 'init', file_id: file.id, type: file.file_type })
     await step(15); await new Promise(r => setTimeout(r, 200));
     // 可选 OCR 文本
     let ocrText = null;
-    try { ocrText = await moderationService.fetchOcrText(file) } catch (_) {}
+    try { ocrText = await moderationService.fetchOcrText(file); console.log('[review] token=%s ocr=ok', token); await appendJsonDebug('file_shares','token',token,'review_debug',{ step:'ocr', ok:true }) } catch (e) { console.log('[review] token=%s ocr=skip %s', token, e?.message||''); await appendJsonDebug('file_shares','token',token,'review_debug',{ step:'ocr', ok:false, error: String(e?.message||'') }) }
     await step(45); await new Promise(r => setTimeout(r, 200));
-    let decision = await moderationService.reviewFile(file, [ocrText].filter(Boolean)).catch(() => null)
+    let decision = await moderationService.reviewFile(file, [ocrText].filter(Boolean)).catch((e) => { console.log('[review] token=%s ai-fail %s', token, e?.message||''); appendJsonDebug('file_shares','token',token,'review_debug',{ step:'ai', ok:false, error:String(e?.message||'') }); return null })
+    if (decision && decision.source === 'ai') {
+      await appendJsonDebug('file_shares','token',token,'review_debug',{ step:'ai', ok:true, score: decision.score ?? null })
+    }
     if (!decision) {
-      decision = { approved: !likelyNonCompliant(file.original_name || '', file.mime_type || ''), reason: '本地启发式规则' }
+      const localApproved = !likelyNonCompliant(file.original_name || '', file.mime_type || '')
+      decision = { approved: localApproved, reason: '本地启发式规则' }
+      console.log('[review] token=%s local=%s', token, localApproved)
+      await appendJsonDebug('file_shares','token',token,'review_debug',{ step:'local', approved: localApproved })
     }
     await step(85); await new Promise(r => setTimeout(r, 150));
     if (!decision.approved) {
       await pool.execute("UPDATE file_shares SET status='rejected', review_progress=100, review_reason=? WHERE token=?", [decision.reason || '内容疑似不合规，请修改后重试', token])
+      console.log('[review] token=%s result=rejected reason=%s', token, decision.reason||'')
+      await appendJsonDebug('file_shares','token',token,'review_debug',{ step:'final', status:'rejected', reason: decision.reason || null })
     } else {
       await pool.execute("UPDATE file_shares SET status='approved', review_progress=100, review_reason=NULL WHERE token=?", [token])
+      console.log('[review] token=%s result=approved', token)
+      await appendJsonDebug('file_shares','token',token,'review_debug',{ step:'final', status:'approved' })
     }
   } catch (_) {}
 }
@@ -139,14 +166,21 @@ async function simulateReview(token, file) {
 async function simulateReviewForReviewRow(reviewId, file, allowPreview, allowDownload, expiresAt) {
   const step = async (p) => pool.execute('UPDATE file_share_reviews SET review_progress=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [p, reviewId])
   try {
+    console.log('[review-row] id=%s step=init file_id=%s type=%s', reviewId, file.id, file.file_type)
+    await appendJsonDebug('file_share_reviews','id',reviewId,'review_debug',{ step:'init', file_id:file.id, type:file.file_type })
     await step(15); await new Promise(r => setTimeout(r, 200));
-    let ocrText = null; try { ocrText = await require('../services/moderationService').fetchOcrText(file) } catch (_) {}
+    let ocrText = null; try { ocrText = await require('../services/moderationService').fetchOcrText(file); console.log('[review-row] id=%s ocr=ok', reviewId); await appendJsonDebug('file_share_reviews','id',reviewId,'review_debug',{ step:'ocr', ok:true }) } catch (e) { console.log('[review-row] id=%s ocr=skip %s', reviewId, e?.message||''); await appendJsonDebug('file_share_reviews','id',reviewId,'review_debug',{ step:'ocr', ok:false, error:String(e?.message||'') }) }
     await step(45); await new Promise(r => setTimeout(r, 200));
-    let decision = await require('../services/moderationService').reviewFile(file, [ocrText].filter(Boolean)).catch(() => null)
-    if (!decision) { decision = { approved: !likelyNonCompliant(file.original_name || '', file.mime_type || ''), reason: '本地启发式规则' } }
+    let decision = await require('../services/moderationService').reviewFile(file, [ocrText].filter(Boolean)).catch((e) => { console.log('[review-row] id=%s ai-fail %s', reviewId, e?.message||''); appendJsonDebug('file_share_reviews','id',reviewId,'review_debug',{ step:'ai', ok:false, error:String(e?.message||'') }); return null })
+    if (decision && decision.source === 'ai') {
+      await appendJsonDebug('file_share_reviews','id',reviewId,'review_debug',{ step:'ai', ok:true, score: decision.score ?? null })
+    }
+    if (!decision) { const localApproved = !likelyNonCompliant(file.original_name || '', file.mime_type || ''); decision = { approved: localApproved, reason: '本地启发式规则' }; console.log('[review-row] id=%s local=%s', reviewId, localApproved); await appendJsonDebug('file_share_reviews','id',reviewId,'review_debug',{ step:'local', approved: localApproved }) }
     await step(85); await new Promise(r => setTimeout(r, 150));
     if (!decision.approved) {
       await pool.execute("UPDATE file_share_reviews SET status='rejected', review_progress=100, review_reason=? WHERE id=?", [decision.reason || '内容疑似不合规，请修改后重试', reviewId])
+      await appendJsonDebug('file_share_reviews','id',reviewId,'review_debug',{ step:'final', status:'rejected', reason: decision.reason || null })
+      console.log('[review-row] id=%s result=rejected reason=%s', reviewId, decision.reason||'')
     } else {
       // 审核通过：创建正式分享token
       const token = uuidv4().replace(/-/g, '').slice(0, 24);
@@ -156,6 +190,8 @@ async function simulateReviewForReviewRow(reviewId, file, allowPreview, allowDow
         [token, file.id, file.user_id, allowPreview ? 1 : 0, allowDownload ? 1 : 0, expiresAt ? expiresAt.toISOString().slice(0, 19).replace('T', ' ') : null, 'approved', 100, null]
       );
       await pool.execute("UPDATE file_share_reviews SET status='approved', review_progress=100, review_reason=NULL, share_token=? WHERE id=?", [token, reviewId])
+      await appendJsonDebug('file_share_reviews','id',reviewId,'review_debug',{ step:'final', status:'approved', token })
+      console.log('[review-row] id=%s result=approved token=%s', reviewId, token)
     }
   } catch (_) {}
 }
@@ -461,7 +497,7 @@ router.get('/review/:id/status', authenticateToken, asyncHandler(async (req, res
   await ensureReviewTable();
   const userId = req.user.id;
   const id = parseInt(req.params.id, 10);
-  const [rows] = await pool.execute('SELECT id, file_id, owner_user_id, status, review_progress, review_reason, share_token, expires_at, created_at FROM file_share_reviews WHERE id=?', [id]);
+  const [rows] = await pool.execute('SELECT id, file_id, owner_user_id, status, review_progress, review_reason, share_token, expires_at, created_at, review_debug FROM file_share_reviews WHERE id=?', [id]);
   if (!rows || rows.length === 0) return res.status(404).json({ message: '不存在' });
   const r = rows[0];
   if (String(r.owner_user_id) !== String(userId)) return res.status(403).json({ message: '无权限' });
@@ -472,7 +508,8 @@ router.get('/review/:id/status', authenticateToken, asyncHandler(async (req, res
     review_reason: r.review_reason,
     share_token: r.share_token || null,
     expires_at: r.expires_at ? new Date(r.expires_at).toISOString() : null,
-    created_at: r.created_at ? new Date(r.created_at).toISOString() : null
+    created_at: r.created_at ? new Date(r.created_at).toISOString() : null,
+    debug: (function(d){ try { return d ? JSON.parse(d) : [] } catch(_) { return [] } })(r.review_debug)
   });
 }));
 

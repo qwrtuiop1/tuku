@@ -7,8 +7,9 @@ USE tuku_dev;
 CREATE TABLE IF NOT EXISTS users (
   id INT PRIMARY KEY AUTO_INCREMENT,
   username VARCHAR(50) UNIQUE NOT NULL COMMENT '用户名',
-  email VARCHAR(100) UNIQUE NOT NULL COMMENT '邮箱',
+  email VARCHAR(100) UNIQUE DEFAULT NULL COMMENT '邮箱',
   password_hash VARCHAR(255) NOT NULL COMMENT '密码哈希',
+  has_password TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否已设置密码',
   avatar_url VARCHAR(255) COMMENT '头像URL',
   role ENUM('admin', 'user') DEFAULT 'user' COMMENT '角色',
   storage_limit BIGINT DEFAULT 1073741824 COMMENT '存储限制(字节)',

@@ -6,6 +6,7 @@ const sharp = require('sharp');
 const { v4: uuidv4 } = require('uuid');
 const mime = require('mime-types');
 const { pool } = require('../config/database');
+const child_process = require('child_process');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
 const liveMediaService = require('../services/liveMediaService');
@@ -408,6 +409,43 @@ async function isMotionPhotoJpeg(filePath) {
   return false;
 }
 
+// 提取视频元数据（需要系统已安装 ffprobe）
+async function extractVideoMeta(fullPath) {
+  return await new Promise((resolve) => {
+    try {
+      const ffprobe = child_process.spawn('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,duration', '-of', 'json', fullPath]);
+      let out = '';
+      ffprobe.stdout.on('data', (d) => out += String(d));
+      ffprobe.on('close', () => {
+        try {
+          const json = JSON.parse(out || '{}');
+          const s = (json.streams && json.streams[0]) || {};
+          resolve({ width: s.width || null, height: s.height || null, duration: s.duration ? Math.round(parseFloat(s.duration)) : null });
+        } catch (_) { resolve(null) }
+      })
+      ffprobe.on('error', () => resolve(null))
+    } catch (_) { resolve(null) }
+  })
+}
+
+// 生成视频缩略图（需要 ffmpeg），落地到用户缩略图目录
+async function generateVideoThumbnail(fullPath, userId, folderId) {
+  return await new Promise(async (resolve) => {
+    try {
+      const { thumbnailsDir } = await ensureUploadDir(userId, folderId);
+      const outFile = path.join(thumbnailsDir, `thumb_${path.basename(fullPath)}.jpg`);
+      const ffmpeg = child_process.spawn('ffmpeg', ['-y', '-i', fullPath, '-ss', '00:00:01', '-vframes', '1', '-vf', 'scale=300:-1', outFile]);
+      ffmpeg.on('close', async (code) => {
+        try {
+          if (code === 0 && await fs.pathExists(outFile)) return resolve(outFile);
+        } catch (_) {}
+        resolve(null)
+      })
+      ffmpeg.on('error', () => resolve(null))
+    } catch (_) { resolve(null) }
+  })
+}
+
 const handleFileUpload = asyncHandler(async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: '没有上传文件' });
@@ -435,6 +473,8 @@ const handleFileUpload = asyncHandler(async (req, res) => {
   // 获取文件信息
   const fileType = file.mimetype.startsWith('image/') ? 'image' : 'video';
   let width = null, height = null, duration = null;
+  // 为审核提供的额外文本（如OCR、ASR、文件特征）
+  let moderationHints = [];
   
 
   if (fileType === 'image') {
@@ -458,9 +498,23 @@ const handleFileUpload = asyncHandler(async (req, res) => {
         height = null;
     }
   } else if (fileType === 'video') {
-    // TODO: 添加视频元数据提取（需要ffmpeg）
+    // 提取视频元数据与缩略图（若系统安装了 ffprobe/ffmpeg）
+    try {
+      const meta = await extractVideoMeta(file.path).catch(() => null)
+      if (meta) {
+        duration = meta.duration || null
+        width = meta.width || null
+        height = meta.height || null
+      }
+      const thumb = await generateVideoThumbnail(file.path, userId, folder_id).catch(() => null)
+      if (thumb) thumbnailPath = thumb
+    } catch (_) {}
+    // 生成OCR可用的提示（文件名）
+    try { moderationHints.push(String(path.basename(file.originalname || ''))) } catch (_) {}
   }
 
+  // 保存文件后追加：将审核提示写入扩展列（幂等添加 columns）
+  try { await pool.execute("ALTER TABLE files ADD COLUMN IF NOT EXISTS moderation_hints TEXT NULL") } catch (_) {}
   // 生成缩略图
   let thumbnailPath = null;
   if (fileType === 'image') {

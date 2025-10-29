@@ -736,7 +736,9 @@ router.get('/users/:id/stats', asyncHandler(async (req, res) => {
   });
 }));
 
-// 删除用户
+const { deleteUserCompletely } = require('../services/accountDeletionService');
+
+// 删除用户（复用删除服务，管理员动作，保留审计日志）
 router.delete('/users/:id', asyncHandler(async (req, res) => {
   const userId = req.params.id;
 
@@ -757,67 +759,15 @@ router.delete('/users/:id', asyncHandler(async (req, res) => {
     return res.status(400).json({ message: '不能删除自己的账户' });
   }
 
-  // 开始事务
-  const connection = await pool.getConnection();
-  await connection.beginTransaction();
-
   try {
-    // 1. 删除用户文件
-    console.log(`🗑️ 删除用户 ${user.username} 的文件...`);
-    const [fileResult] = await connection.execute(
-      'DELETE FROM files WHERE user_id = ?',
-      [userId]
-    );
-    console.log(`   删除了 ${fileResult.affectedRows} 个文件`);
+    await deleteUserCompletely(userId, { deleteSystemLogs: true })
+  } catch (error) {
+    console.error('删除用户失败:', error)
+    throw error
+  }
 
-    // 2. 删除用户文件夹
-    console.log(`📁 删除用户 ${user.username} 的文件夹...`);
-    const [folderResult] = await connection.execute(
-      'DELETE FROM folders WHERE user_id = ?',
-      [userId]
-    );
-    console.log(`   删除了 ${folderResult.affectedRows} 个文件夹`);
-
-    // 3. 删除用户token
-    console.log(`🔑 删除用户 ${user.username} 的登录token...`);
-    const [tokenResult] = await connection.execute(
-      'DELETE FROM user_tokens WHERE user_id = ?',
-      [userId]
-    );
-    console.log(`   删除了 ${tokenResult.affectedRows} 个token`);
-
-    // 4. 删除用户通知设置
-    console.log(`🔔 删除用户 ${user.username} 的通知设置...`);
-    const [notificationResult] = await connection.execute(
-      'DELETE FROM user_notification_settings WHERE user_id = ?',
-      [userId]
-    );
-    console.log(`   删除了 ${notificationResult.affectedRows} 个通知设置`);
-
-    // 5. 删除用户偏好设置
-    console.log(`⚙️ 删除用户 ${user.username} 的偏好设置...`);
-    const [preferencesResult] = await connection.execute(
-      'DELETE FROM user_preferences WHERE user_id = ?',
-      [userId]
-    );
-    console.log(`   删除了 ${preferencesResult.affectedRows} 个偏好设置`);
-
-    // 6. 删除用户相关的系统日志（可选，也可以保留用于审计）
-    console.log(`📝 删除用户 ${user.username} 的系统日志...`);
-    const [logResult] = await connection.execute(
-      'DELETE FROM system_logs WHERE user_id = ?',
-      [userId]
-    );
-    console.log(`   删除了 ${logResult.affectedRows} 条日志`);
-
-    // 7. 最后删除用户记录
-    console.log(`👤 删除用户 ${user.username} 的记录...`);
-    await connection.execute('DELETE FROM users WHERE id = ?', [userId]);
-
-    // 提交事务
-    await connection.commit();
-
-    // 记录删除操作到系统日志
+  // 记录删除操作到系统日志
+  try {
     await pool.execute(
       'INSERT INTO system_logs (level, message, source, user_id, timestamp) VALUES (?, ?, ?, ?, NOW())',
       [
@@ -826,28 +776,10 @@ router.delete('/users/:id', asyncHandler(async (req, res) => {
         'ADMIN_PANEL',
         req.user.id
       ]
-    );
+    )
+  } catch (_) {}
 
-    res.json({ 
-      message: `用户 ${user.username} 及其所有相关数据已删除`,
-      deletedData: {
-        files: fileResult.affectedRows,
-        folders: folderResult.affectedRows,
-        tokens: tokenResult.affectedRows,
-        notifications: notificationResult.affectedRows,
-        preferences: preferencesResult.affectedRows,
-        logs: logResult.affectedRows
-      }
-    });
-
-  } catch (error) {
-    // 回滚事务
-    await connection.rollback();
-    console.error('删除用户失败:', error);
-    throw error;
-  } finally {
-    connection.release();
-  }
+  res.json({ message: `用户 ${user.username} 及其所有相关数据已删除` })
 }));
 
 // 获取存储统计

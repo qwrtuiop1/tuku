@@ -18,6 +18,18 @@
         <p>正在跳转...</p>
       </div>
     </div>
+
+    <GlassConfirmModal
+      :visible="showConfirm"
+      title="是否注册并登录？"
+      :message="'检测到该 QQ 尚未在本站注册。是否立即注册并登录？'"
+      confirm-text="注册并登录"
+      cancel-text="取消"
+      :avatar="profile.avatar"
+      provider-name="QQ"
+      @confirm="confirmRegister"
+      @cancel="cancelRegister"
+    />
   </div>
 </template>
 
@@ -28,6 +40,7 @@ import { ElMessage } from 'element-plus'
 import { Loading, CircleCloseFilled, CircleCheckFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/utils/api'
+import GlassConfirmModal from '@/components/GlassConfirmModal.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -35,6 +48,9 @@ const authStore = useAuthStore()
 const loading = ref(true)
 const error = ref('')
 const success = ref(false)
+const showConfirm = ref(false)
+const tempToken = ref('')
+const profile = ref<{ avatar?: string }>({})
 
 onMounted(async () => {
   try {
@@ -54,14 +70,11 @@ onMounted(async () => {
     const response = await api.post('/auth/qq/callback', payload)
     
     if (response.data.success) {
-      // 首次登录需补注册
-      if (response.data.signup_required) {
-        const { tempToken, qq } = response.data
-        const params = new URLSearchParams()
-        params.set('token', tempToken)
-        if (qq?.nickname) params.set('nickname', qq.nickname)
-        if (qq?.avatar) params.set('avatar', qq.avatar)
-        router.push(`/auth/qq/signup?${params.toString()}`)
+      // 首次登录需确认注册（兼容旧字段 signup_required）
+      if (response.data.needs_confirm || response.data.signup_required) {
+        const t = response.data.tempToken
+        const avatar = response.data.profile?.avatar || response.data.qq?.avatar || ''
+        router.replace({ name: 'SignupConfirm', query: { provider: 'qq', token: t, avatar } })
         return
       }
       // 标记需要刷新绑定状态
@@ -104,6 +117,30 @@ onMounted(async () => {
 })
 
 const goToLogin = () => {
+  router.push('/login')
+}
+
+const confirmRegister = async () => {
+  try {
+    const resp = await api.post('/auth/qq/confirm-register', { tempToken: tempToken.value })
+    if (!resp.data?.success) throw new Error(resp.data?.message || '注册失败')
+    const { token, user, settings } = resp.data
+    const authStore = useAuthStore()
+    authStore.token = token
+    authStore.user = user
+    localStorage.setItem('token', token)
+    localStorage.setItem('rememberMe', 'true')
+    if (settings) localStorage.setItem('userSettings', JSON.stringify(settings))
+    ElMessage.success('已注册并登录')
+    router.push('/')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '注册失败，请重试')
+    router.push('/login')
+  }
+}
+
+const cancelRegister = () => {
+  ElMessage.info('已取消注册')
   router.push('/login')
 }
 </script>

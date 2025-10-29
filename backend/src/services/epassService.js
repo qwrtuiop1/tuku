@@ -35,6 +35,7 @@ class EPassService {
         username: u.username || '',
         avatar: u.avatar || '',
         email: u.email || '',
+        bio: u.bio || '',
         raw: u
       }
     } catch (err) {

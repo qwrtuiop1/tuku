@@ -18,6 +18,17 @@
         <p>正在跳转...</p>
       </div>
     </div>
+    <GlassConfirmModal
+      :visible="showConfirm"
+      title="是否注册并登录？"
+      :message="confirmText"
+      confirm-text="注册并登录"
+      cancel-text="取消"
+      :avatar="profile.avatar"
+      provider-name="E通行证"
+      @confirm="confirmRegister"
+      @cancel="cancelRegister"
+    />
   </div>
 </template>
 
@@ -28,6 +39,7 @@ import { ElMessage } from 'element-plus'
 import { Loading, CircleCloseFilled, CircleCheckFilled } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/utils/api'
+import GlassConfirmModal from '@/components/GlassConfirmModal.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -35,6 +47,10 @@ const authStore = useAuthStore()
 const loading = ref(true)
 const error = ref('')
 const success = ref(false)
+const showConfirm = ref(false)
+const tempToken = ref('')
+const profile = ref<{ avatar?: string, email?: string }>({})
+const confirmText = ref('检测到该 E通行证 尚未在本站注册。是否使用授权邮箱直接注册并登录？')
 
 onMounted(async () => {
   try {
@@ -61,14 +77,11 @@ onMounted(async () => {
     const response = await api.post('/auth/epass/callback', { accessToken, state })
     
     if (response.data.success) {
-      if (response.data.signup_required) {
-        const { tempToken, epass } = response.data
-        const q = new URLSearchParams()
-        q.set('token', tempToken)
-        if (epass?.username) q.set('nickname', epass.username)
-        if (epass?.avatar) q.set('avatar', epass.avatar)
-        if (epass?.email) q.set('email', epass.email)
-        router.push(`/auth/epass/signup?${q.toString()}`)
+      if (response.data.needs_confirm) {
+        const t = response.data.tempToken
+        const avatar = response.data.profile?.avatar || ''
+        const email = response.data.profile?.email || ''
+        router.replace({ name: 'SignupConfirm', query: { provider: 'epass', token: t, avatar, email } })
         return
       }
       // 标记绑定状态刷新
@@ -100,6 +113,30 @@ onMounted(async () => {
 })
 
 const goToLogin = () => { router.push('/login') }
+
+const confirmRegister = async () => {
+  try {
+    const resp = await api.post('/auth/epass/confirm-register', { tempToken: tempToken.value })
+    if (!resp.data?.success) throw new Error(resp.data?.message || '注册失败')
+    const { token, user, settings } = resp.data
+    const authStore = useAuthStore()
+    authStore.token = token
+    authStore.user = user
+    localStorage.setItem('token', token)
+    localStorage.setItem('rememberMe', 'true')
+    if (settings) localStorage.setItem('userSettings', JSON.stringify(settings))
+    ElMessage.success('已注册并登录')
+    router.push('/')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '注册失败，请重试')
+    router.push('/login')
+  }
+}
+
+const cancelRegister = () => {
+  ElMessage.info('已取消注册')
+  router.push('/login')
+}
 </script>
 
 <style scoped>

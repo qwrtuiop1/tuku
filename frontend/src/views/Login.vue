@@ -396,7 +396,9 @@ onMounted(() => {
 .login-container {
   position: relative;
   min-height: 100vh;
-  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+  background:
+    radial-gradient(1200px 800px at 20% 10%, rgba(255,255,255,0.85), rgba(240,242,245,0.75) 60%, rgba(230,232,236,0.6) 100%),
+    linear-gradient(135deg, #fafafa 0%, #eef1f4 100%);
   overflow-x: hidden; // 只隐藏水平滚动，允许垂直滚动
 }
 
@@ -460,12 +462,36 @@ onMounted(() => {
   width: 100%;
   max-width: 420px;
   padding: 40px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  backdrop-filter: blur(8px);
+  background: linear-gradient(180deg, rgba(255,255,255,0.80), rgba(245,246,248,0.72));
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  backdrop-filter: blur(22px) saturate(1.12) contrast(1.02);
+  -webkit-backdrop-filter: blur(22px) saturate(1.12) contrast(1.02);
   border-radius: 24px;
-  box-shadow: 0 14px 28px rgba(17, 24, 39, 0.08);
+  box-shadow: 0 28px 56px rgba(17, 24, 39, 0.14), inset 0 1px 0 rgba(255,255,255,0.55);
   animation: slideUp 0.8s ease-out;
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(120% 100% at 0% 0%, rgba(255,255,255,0.38), rgba(255,255,255,0) 58%),
+      radial-gradient(120% 100% at 100% 0%, rgba(255,255,255,0.18), rgba(255,255,255,0) 52%);
+    mix-blend-mode: overlay;
+    opacity: .85;
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.45), inset 0 -1px 0 rgba(17,24,39,.06);
+  }
 }
 
 .login-header {
@@ -572,14 +598,26 @@ onMounted(() => {
   border-radius: 12px;
   font-size: 16px;
   font-weight: 600;
-  background: linear-gradient(135deg, #374151, #111827);
-  border: 1px solid #111827;
-  color: #ffffff;
-  transition: all 0.3s ease;
+  background: linear-gradient(180deg, #f3f4f6, #e5e7eb);
+  border: 1px solid rgba(17, 24, 39, 0.18);
+  color: #111827;
+  transition: box-shadow 200ms ease, transform 140ms ease, background 200ms ease;
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -20%;
+    background: radial-gradient(40% 40% at 50% 50%, rgba(255,255,255,.35), rgba(255,255,255,0) 60%);
+    opacity: 0;
+    transition: opacity .25s ease, transform .25s ease;
+  }
   
   &:hover {
     transform: translateY(-1px);
-    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.18);
+    box-shadow: 0 16px 32px rgba(17, 24, 39, 0.2), 0 0 0 3px rgba(17,24,39,0.06) inset;
+    &::before { opacity: .7; transform: scale(1.02); }
   }
   
   &:active {
@@ -630,16 +668,29 @@ onMounted(() => {
       min-height: 44px;
       max-height: 44px;
       border-radius: 12px;
-      border: 1px solid #e5e7eb;
-      background: #ffffff;
-      color: #374151;
-      transition: all 0.3s ease;
+      border: 1px solid rgba(17, 17, 17, 0.08);
+      background: linear-gradient(180deg, rgba(255,255,255,0.86), rgba(246,247,249,0.78));
+      color: #111827;
+      transition: box-shadow 200ms ease, transform 140ms ease, background 200ms ease;
       box-sizing: border-box;
+      position: relative;
+      overflow: hidden;
+      
+      &::before {
+        content: '';
+        position: absolute;
+        inset: -25%;
+        background: radial-gradient(45% 45% at 50% 50%, rgba(255,255,255,.3), rgba(255,255,255,0) 60%);
+        opacity: 0;
+        transition: opacity .25s ease, transform .25s ease;
+      }
       
       &:hover {
-        border-color: #d1d5db;
+        border-color: rgba(17, 17, 17, 0.14);
         color: #111827;
         transform: translateY(-1px);
+        box-shadow: 0 14px 28px rgba(17,24,39,0.16), 0 0 0 2px rgba(17,24,39,0.06) inset;
+        &::before { opacity: .65; transform: scale(1.03); }
       }
     }
   }
@@ -673,12 +724,35 @@ onMounted(() => {
   width: 100%;
   max-width: 400px;
   padding: 40px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: linear-gradient(180deg, rgba(255,255,255,0.82), rgba(245,246,248,0.74));
+  border: 1px solid rgba(17, 17, 17, 0.08);
   border-radius: 24px;
-  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.06);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 28px 56px rgba(17, 24, 39, 0.12), inset 0 1px 0 rgba(255,255,255,0.55);
+  backdrop-filter: blur(20px) saturate(1.1) contrast(1.02);
   animation: slideUp 0.8s ease-out 0.2s both;
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(120% 100% at 0% 0%, rgba(255,255,255,0.35), rgba(255,255,255,0) 56%),
+      radial-gradient(120% 100% at 100% 0%, rgba(255,255,255,0.16), rgba(255,255,255,0) 50%);
+    mix-blend-mode: overlay;
+    opacity: .85;
+  }
+  
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.45), inset 0 -1px 0 rgba(17,24,39,.06);
+  }
   
   .panel-content {
     .panel-title {
@@ -703,7 +777,7 @@ onMounted(() => {
         .feature-icon {
           width: 40px;
           height: 40px;
-          background: #f3f4f6;
+          background: rgba(17,24,39,0.06);
           border-radius: 12px;
           display: flex;
           align-items: center;

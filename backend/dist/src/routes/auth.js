@@ -459,6 +459,18 @@ router.put('/profile', authenticateToken, [
       }
     }
 
+    // 在清空第三方绑定时进行保护判断（最后一个第三方 + 未设置密码 -> 阻止）
+    if (hasQqOpenIdField && req.body.qq_openid === null) {
+      try {
+        const [rows] = await pool.execute('SELECT qq_openid, epass_id, COALESCE(has_password, 1) AS has_password FROM users WHERE id = ?', [userId])
+        const info = rows[0] || {}
+        const boundCount = (info.qq_openid ? 1 : 0) + (info.epass_id ? 1 : 0)
+        if (!info.has_password && boundCount <= 1) {
+          return res.status(400).json({ success: false, code: 'NEED_PASSWORD_TO_UNBIND_LAST_PROVIDER', message: '请先设置密码后再解绑最后一个第三方登录' })
+        }
+      } catch {}
+    }
+
     // 构建更新字段
     const updateFields = [];
     const updateValues = [];
@@ -672,6 +684,8 @@ router.put('/password', [
       'UPDATE users SET password_hash = ? WHERE id = ?',
       [newPasswordHash, userId]
     );
+    // 标记为已设置密码
+    try { await pool.execute('UPDATE users SET has_password = 1 WHERE id = ?', [userId]) } catch {}
 
     // 验证码已在verifyCode函数中自动标记为已使用
 
@@ -802,6 +816,8 @@ router.post('/reset-password', [
       'UPDATE users SET password_hash = ? WHERE id = ?',
       [hashedPassword, userId]
     );
+    // 标记为已设置密码
+    try { await pool.execute('UPDATE users SET has_password = 1 WHERE id = ?', [userId]) } catch {}
 
     res.json({
       success: true,
@@ -1147,6 +1163,8 @@ router.post('/reset-password-new', [
       'UPDATE users SET password_hash = ? WHERE id = ?',
       [hashedPassword, users[0].id]
     );
+    // 标记为已设置密码
+    try { await pool.execute('UPDATE users SET has_password = 1 WHERE id = ?', [users[0].id]) } catch {}
 
     res.json({
       success: true,
@@ -1849,6 +1867,7 @@ router.post('/send-verification-code', [
 // QQ登录相关路由
 const qqOAuthService = require('../services/qqOAuthService');
 const epassService = require('../services/epassService');
+const { deleteUserCompletely } = require('../services/accountDeletionService');
 
 // 获取QQ登录授权URL
 router.get('/qq/auth', asyncHandler(async (req, res) => {
@@ -1943,7 +1962,7 @@ router.post('/qq/callback', [
         ]
       );
     } else {
-      // 不直接创建账号，要求完成“QQ用户注册”
+      // 首次：返回确认注册所需信息（无需跳注册页）
       const jwt = require('jsonwebtoken');
       const tempPayload = {
         typ: 'qq_signup',
@@ -1955,11 +1974,10 @@ router.post('/qq/callback', [
       const tempToken = jwt.sign(tempPayload, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback', { expiresIn: '30m' });
       return res.json({
         success: true,
-        signup_required: true,
+        needs_confirm: true,
         tempToken,
-        qq: {
-          openId,
-          unionId: unionId || null,
+        profile: {
+          provider: 'qq',
           nickname: qqUserInfo.nickname || '',
           avatar: qqUserInfo.avatar || ''
         }
@@ -2133,11 +2151,11 @@ router.post('/epass/callback', asyncHandler(async (req, res) => {
     // 登录：查找已有用户
     let [users] = await pool.execute('SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, created_at FROM users WHERE epass_id = ?', [info.epassId])
     if (users.length === 0) {
-      // 首次：返回补注册所需信息
+      // 首次：返回确认注册所需信息（包含 bio）
       const jwt = require('jsonwebtoken')
-      const tempPayload = { typ: 'epass_signup', epassId: info.epassId, username: info.username || '', avatar: info.avatar || '', email: info.email || '' }
+      const tempPayload = { typ: 'epass_signup', epassId: info.epassId, username: info.username || '', avatar: info.avatar || '', email: info.email || '', bio: info.bio || '' }
       const tempToken = jwt.sign(tempPayload, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback', { expiresIn: '30m' })
-      return res.json({ success: true, signup_required: true, tempToken, epass: { username: info.username || '', avatar: info.avatar || '', email: info.email || '' } })
+      return res.json({ success: true, needs_confirm: true, tempToken, profile: { provider: 'epass', nickname: info.username || '', avatar: info.avatar || '', email: info.email || '' } })
     }
     const user = users[0]
     // 更新登录统计
@@ -2203,6 +2221,95 @@ router.post('/epass/complete-signup', [
   const token = generateToken(userId, '30d')
   return res.json({ success: true, message: '注册并登录成功', token })
 }))
+// 确认注册（EPass）：消费 tempToken 并创建用户（写入 epass_id、username、email、avatar_url、nickname、bio）
+router.post('/epass/confirm-register', [
+  body('tempToken').notEmpty().withMessage('缺少临时令牌')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) return res.status(400).json({ success: false, message: '参数错误', errors: errors.array() })
+
+  const { tempToken } = req.body
+  const jwt = require('jsonwebtoken')
+  let payload
+  try {
+    payload = jwt.verify(tempToken, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback')
+    if (payload.typ !== 'epass_signup') throw new Error('invalid token')
+  } catch {
+    return res.status(400).json({ success: false, message: '临时令牌无效或已过期' })
+  }
+
+  const epassId = payload.epassId
+  const nickname = payload.username || ''
+  const avatar = payload.avatar || ''
+  const email = (payload.email || '').trim()
+  const bio = (payload.bio || '').toString().slice(0, 200)
+
+  if (!email) return res.status(400).json({ success: false, message: '缺少邮箱' })
+
+  // 已存在该 epassId 则直接登录
+  let [exists] = await pool.execute('SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, nickname, bio, created_at FROM users WHERE epass_id = ?', [epassId])
+  if (exists.length > 0) {
+    const user = exists[0]
+    await pool.execute('UPDATE users SET last_login = NOW(), login_count = COALESCE(login_count, 0) + 1 WHERE id = ?', [user.id])
+    const token = generateToken(user.id, '30d')
+    return res.json({ success: true, message: '登录成功', token, user })
+  }
+
+  // 生成用户名：尽量使用 EPass 的 username，冲突则加后缀
+  const sanitize = (s) => (s || '').toString().replace(/[^\u4e00-\u9fa5a-zA-Z0-9_\s]/g, '').trim()
+  const randomSuffix = () => Math.random().toString(16).slice(2, 8)
+  let username = sanitize(nickname) || `epass_user_${String(epassId).slice(-6) || randomSuffix()}`
+  for (let i = 0; i < 5; i++) {
+    const [u] = await pool.execute('SELECT id FROM users WHERE username = ?', [username])
+    if (u.length === 0) break
+    username = `${username}_${randomSuffix()}`
+  }
+
+  // 邮箱唯一校验
+  const [emailTaken] = await pool.execute('SELECT id FROM users WHERE email = ?', [email])
+  if (emailTaken.length > 0) return res.status(409).json({ success: false, message: '该邮箱已存在，无法自动注册' })
+
+  const bcrypt = require('bcryptjs')
+  const passwordRandom = `Ep!${Math.random().toString(36).slice(2)}${Date.now()}`
+  const passwordHash = await bcrypt.hash(passwordRandom, 10)
+
+  try {
+    let insertId
+    try {
+      const [result] = await pool.execute(
+      'INSERT INTO users (username, email, password_hash, role, status, epass_id, third_party_type, avatar_url, nickname, bio, last_login, login_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())',
+      [username, email, passwordHash, 'user', 'active', epassId, 'local', avatar || '', nickname || username, bio || null, 1]
+      )
+      insertId = result.insertId
+    } catch (e1) {
+      // 兼容未添加 nickname/bio 列的数据库
+      if ((e1 && e1.code === 'ER_BAD_FIELD_ERROR') || /Unknown column\s+'(nickname|bio)'/i.test(e1?.message || '')) {
+        const [result2] = await pool.execute(
+          'INSERT INTO users (username, email, password_hash, role, status, epass_id, third_party_type, avatar_url, last_login, login_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())',
+          [username, email, passwordHash, 'user', 'active', epassId, 'local', avatar || '', 1]
+        )
+        insertId = result2.insertId
+      } else {
+        throw e1
+      }
+    }
+    const userId = insertId
+    await pool.execute('INSERT INTO user_login_logs (user_id, login_time, ip_address, user_agent, login_method, success) VALUES (?, NOW(), ?, ?, ?, ?)', [userId, req.ip || req.connection.remoteAddress || 'unknown', req.get('User-Agent') || 'unknown', 'epass', true])
+    const token = generateToken(userId, '30d')
+    return res.json({ success: true, message: '注册并登录成功', token, user: { id: userId, username, email, role: 'user', status: 'active', storage_limit: 1073741824, used_storage: 0, avatar_url: avatar || '', nickname: nickname || username, bio, created_at: new Date() } })
+  } catch (e) {
+    // 并发兜底：若刚创建成功但这里报错，再查一次
+    try {
+      const [u] = await pool.execute('SELECT id, username, email, role, status FROM users WHERE epass_id = ?', [epassId])
+      if (u.length > 0) {
+        const user = u[0]
+        const token = generateToken(user.id, '30d')
+        return res.json({ success: true, message: '登录成功', token, user })
+      }
+    } catch {}
+    return res.status(500).json({ success: false, message: e?.message || '注册失败' })
+  }
+}))
 router.post('/epass/bind', authenticateToken, asyncHandler(async (req, res) => {
   const { epassId } = req.body || {}
   if (!epassId) return res.status(400).json({ success: false, message: '缺少epassId' })
@@ -2215,6 +2322,15 @@ router.post('/epass/bind', authenticateToken, asyncHandler(async (req, res) => {
 }))
 
 router.post('/epass/unbind', authenticateToken, asyncHandler(async (req, res) => {
+  // 阻止在未设置密码的情况下解绑最后一个第三方
+  try {
+    const [rows] = await pool.execute('SELECT qq_openid, epass_id, COALESCE(has_password, 1) AS has_password FROM users WHERE id = ?', [req.user.id])
+    const info = rows[0] || {}
+    const boundCount = (info.qq_openid ? 1 : 0) + (info.epass_id ? 1 : 0)
+    if (!info.has_password && boundCount <= 1) {
+      return res.status(400).json({ success: false, code: 'NEED_PASSWORD_TO_UNBIND_LAST_PROVIDER', message: '请先设置密码后再解绑最后一个第三方登录' })
+    }
+  } catch {}
   await pool.execute('UPDATE users SET epass_id = NULL WHERE id = ?', [req.user.id])
   return res.json({ success: true, message: 'EPass已解绑' })
 }))
@@ -2222,6 +2338,15 @@ router.post('/epass/unbind', authenticateToken, asyncHandler(async (req, res) =>
 // 解绑 QQ（清空 qq_openid 与 qq_unionid）
 router.post('/qq/unbind', authenticateToken, asyncHandler(async (req, res) => {
   try {
+    // 阻止在未设置密码的情况下解绑最后一个第三方
+    try {
+      const [rows] = await pool.execute('SELECT qq_openid, epass_id, COALESCE(has_password, 1) AS has_password FROM users WHERE id = ?', [req.user.id])
+      const info = rows[0] || {}
+      const boundCount = (info.qq_openid ? 1 : 0) + (info.epass_id ? 1 : 0)
+      if (!info.has_password && boundCount <= 1) {
+        return res.status(400).json({ success: false, code: 'NEED_PASSWORD_TO_UNBIND_LAST_PROVIDER', message: '请先设置密码后再解绑最后一个第三方登录' })
+      }
+    } catch {}
     await pool.execute('UPDATE users SET qq_openid = NULL, qq_unionid = NULL WHERE id = ?', [req.user.id])
     return res.json({ success: true, message: 'QQ已解绑' })
   } catch (e) {
@@ -2229,18 +2354,85 @@ router.post('/qq/unbind', authenticateToken, asyncHandler(async (req, res) => {
   }
 }))
 
+// 确认注册（QQ）：消费 tempToken 并创建用户（写入 qq_openid/qq_unionid，使用占位邮箱）
+router.post('/qq/confirm-register', [
+  body('tempToken').notEmpty().withMessage('缺少临时令牌')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req)
+  if (!errors.isEmpty()) return res.status(400).json({ success: false, message: '参数错误', errors: errors.array() })
+
+  const { tempToken } = req.body
+  const jwt = require('jsonwebtoken')
+  let payload
+  try {
+    payload = jwt.verify(tempToken, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback')
+    if (payload.typ !== 'qq_signup') throw new Error('invalid token')
+  } catch {
+    return res.status(400).json({ success: false, message: '临时令牌无效或已过期' })
+  }
+
+  const openId = payload.openId
+  const unionId = payload.unionId || null
+  const nickname = payload.nickname || ''
+  const avatar = payload.avatar || ''
+
+  // 幂等：若已存在则直接登录
+  let [exists] = await pool.execute('SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, created_at FROM users WHERE qq_openid = ? OR qq_unionid = ?', [openId, unionId])
+  if (exists.length > 0) {
+    const user = exists[0]
+    await pool.execute('UPDATE users SET last_login = NOW(), login_count = COALESCE(login_count, 0) + 1 WHERE id = ?', [user.id])
+    await pool.execute('INSERT INTO user_login_logs (user_id, login_time, ip_address, user_agent, login_method, success) VALUES (?, NOW(), ?, ?, ?, ?)', [user.id, req.ip || req.connection.remoteAddress || 'unknown', req.get('User-Agent') || 'unknown', 'qq', true])
+    const token = generateToken(user.id, '30d')
+    return res.json({ success: true, message: '登录成功', token, user })
+  }
+
+  // 生成用户名
+  const sanitize = (s) => (s || '').toString().replace(/[^\u4e00-\u9fa5a-zA-Z0-9_\s]/g, '').trim()
+  const randomSuffix = () => Math.random().toString(16).slice(2, 8)
+  let username = sanitize(nickname) || `qq_user_${(unionId || openId || '').slice(-6) || randomSuffix()}`
+  for (let i = 0; i < 5; i++) {
+    const [u] = await pool.execute('SELECT id FROM users WHERE username = ?', [username])
+    if (u.length === 0) break
+    username = `${username}_${randomSuffix()}`
+  }
+  // 邮箱改为 NULL（第三方注册默认无邮箱）
+  const email = null
+
+  const bcrypt = require('bcryptjs')
+  const passwordRandom = `Qq!${Math.random().toString(36).slice(2)}${Date.now()}`
+  const passwordHash = await bcrypt.hash(passwordRandom, 10)
+
+  try {
+    const [result] = await pool.execute('INSERT INTO users (username, email, password_hash, has_password, role, status, qq_openid, qq_unionid, third_party_type, avatar_url, last_login, login_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())', [username, email, passwordHash, 0, 'user', 'active', openId, unionId, 'qq', avatar || '', 1])
+    const userId = result.insertId
+    await pool.execute('INSERT INTO user_login_logs (user_id, login_time, ip_address, user_agent, login_method, success) VALUES (?, NOW(), ?, ?, ?, ?)', [userId, req.ip || req.connection.remoteAddress || 'unknown', req.get('User-Agent') || 'unknown', 'qq', true])
+    const token = generateToken(userId, '30d')
+    return res.json({ success: true, message: '注册并登录成功', token })
+  } catch (e) {
+    // 并发冲突兜底
+    try {
+      const [u] = await pool.execute('SELECT id, username, email, role, status FROM users WHERE qq_openid = ? OR qq_unionid = ?', [openId, unionId])
+      if (u.length > 0) {
+        const user = u[0]
+        const token = generateToken(user.id, '30d')
+        return res.json({ success: true, message: '登录成功', token, user })
+      }
+    } catch {}
+    return res.status(500).json({ success: false, message: e?.message || '注册失败' })
+  }
+}))
 router.get('/bindings', authenticateToken, asyncHandler(async (req, res) => {
   let rows
   try {
-    ;[rows] = await pool.execute('SELECT qq_openid, qq_unionid, nickname, avatar_url, epass_id, qq_number, email FROM users WHERE id = ?', [req.user.id])
+    ;[rows] = await pool.execute('SELECT qq_openid, qq_unionid, nickname, avatar_url, epass_id, qq_number, email, has_password FROM users WHERE id = ?', [req.user.id])
   } catch (e) {
-    ;[rows] = await pool.execute('SELECT qq_openid, qq_unionid, nickname, avatar_url, epass_id, email FROM users WHERE id = ?', [req.user.id])
+    ;[rows] = await pool.execute('SELECT qq_openid, qq_unionid, nickname, avatar_url, epass_id, email, has_password FROM users WHERE id = ?', [req.user.id])
   }
   const row = rows[0] || {}
-  // 归一化占位邮箱：unbound_*@unbind.local 视为未绑定
+  // 归一化占位邮箱：unbound_*@unbind.local 或 qq_*@noemail.qq.local 视为未绑定
   let normalizedEmail = row.email || null
   try {
-    if (typeof normalizedEmail === 'string' && /@unbind\.local$/i.test(normalizedEmail)) {
+    if (typeof normalizedEmail === 'string' && (/@unbind\.local$/i.test(normalizedEmail) || /@noemail\.qq\.local$/i.test(normalizedEmail))) {
       normalizedEmail = null
     }
   } catch {}
@@ -2253,7 +2445,8 @@ router.get('/bindings', authenticateToken, asyncHandler(async (req, res) => {
     qqNumber: row.qq_number || null,
     epass: !!row.epass_id,
     epassId: row.epass_id || null,
-    email: normalizedEmail
+    email: normalizedEmail,
+    hasPassword: !!row.has_password
   }})
 }))
 
@@ -2327,6 +2520,21 @@ router.post('/captcha/validate', asyncHandler(async (req, res) => {
   } catch (e) {
     return res.status(500).json({ success: false, message: e.message || '校验失败' })
   }
+}));
+
+// 注销账号：删除当前用户的所有数据与存储
+router.post('/account/delete', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const { confirm } = req.body || {};
+  if (!confirm || String(confirm) !== '注销') {
+    return res.status(400).json({ success: false, message: '确认字样不正确，请输入：注销' });
+  }
+  try {
+    await deleteUserCompletely(userId, { deleteSystemLogs: false });
+  } catch (e) {
+    return res.status(500).json({ success: false, message: e?.message || '注销失败' });
+  }
+  return res.json({ success: true, message: '账号已注销' });
 }));
 
 // 获取当前密码策略（供前端展示动态密码安全要求）

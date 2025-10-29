@@ -41,24 +41,17 @@ const routes = [
       requiresAuth: false
     }
   },
+  
   {
-    path: '/auth/qq/signup',
-    name: 'QQSignup',
-    component: () => import('@/views/QQSignup.vue'),
-    meta: {
-      title: 'QQ用户注册',
-      requiresAuth: false
+    path: '/auth/confirm-register',
+    name: 'SignupConfirm',
+    component: () => import('@/views/SignupConfirm.vue'),
+    meta: { 
+      title: '注册确认',
+      requiresAuth: false 
     }
   },
-  {
-    path: '/auth/epass/signup',
-    name: 'EPassSignup',
-    component: () => import('@/views/EPassSignup.vue'),
-    meta: {
-      title: 'E通行证用户注册',
-      requiresAuth: false
-    }
-  },
+  
   {
     path: '/register',
     name: 'Register',
@@ -206,7 +199,7 @@ router.beforeEach(async (to, from, next) => {
   document.title = to.meta.title ? `${to.meta.title} - 图库系统` : '图库系统'
   
   // 检查维护模式（除了登录、注册、维护页面本身）
-  if (!['Login', 'Register', 'Maintenance', 'QQCallback', 'EPassCallback', 'EPassSignup'].includes(to.name as string)) {
+  if (!['Login', 'Register', 'Maintenance', 'QQCallback', 'EPassCallback', 'SignupConfirm'].includes(to.name as string)) {
     try {
       // 获取当前token
       const token = localStorage.getItem('token') || sessionStorage.getItem('token')
@@ -275,10 +268,13 @@ router.beforeEach(async (to, from, next) => {
     }
     
     // 检查是否需要管理员权限
-    if (to.meta.requiresAdmin && authStore.user?.role !== 'admin') {
-      ElMessage.error('需要管理员权限')
-      next('/')
-      return
+    if (to.meta.requiresAdmin) {
+      const authStore = useAuthStore()
+      if (!authStore.user || authStore.user.role !== 'admin') {
+        ElMessage.error('需要管理员权限')
+        next('/')
+        return
+      }
     }
   }
   

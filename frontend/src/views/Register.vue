@@ -65,7 +65,7 @@
                   size="large"
                   :disabled="emailCodeCooldown > 0"
                   @click="sendEmailCode"
-                  class="send-code-btn"
+                  class="send-code-btn same-height"
                 >
                   {{ emailCodeCooldown > 0 ? `${emailCodeCooldown}s` : '发送验证码' }}
                 </el-button>
@@ -608,7 +608,9 @@ onUnmounted(() => {
 .register-container {
   position: relative;
   min-height: 100vh;
-  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+  background:
+    radial-gradient(1200px 800px at 20% 10%, rgba(255,255,255,0.85), rgba(240,242,245,0.75) 60%, rgba(230,232,236,0.6) 100%),
+    linear-gradient(135deg, #fafafa 0%, #eef1f4 100%);
   overflow-x: hidden; // 只隐藏水平滚动，允许垂直滚动
   overflow-y: visible; // 允许垂直滚动
   height: auto; // 允许高度自适应
@@ -701,11 +703,12 @@ onUnmounted(() => {
   width: 100%;
   max-width: 420px;
   padding: 40px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  backdrop-filter: blur(8px);
+  background: linear-gradient(180deg, rgba(255,255,255,0.80), rgba(245,246,248,0.72));
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  backdrop-filter: blur(18px) saturate(1.06);
+  -webkit-backdrop-filter: blur(18px) saturate(1.06);
   border-radius: 24px;
-  box-shadow: 0 14px 28px rgba(17, 24, 39, 0.08);
+  box-shadow: 0 24px 48px rgba(17, 24, 39, 0.12), inset 0 1px 0 rgba(255,255,255,0.6);
   animation: slideUp 0.8s ease-out;
   height: auto; // 允许高度自适应
   min-height: auto; // 允许最小高度自适应
@@ -884,14 +887,14 @@ onUnmounted(() => {
   }
   
   // 邮箱验证码样式
-  .email-verification-section {
+.email-verification-section {
     margin-top: 16px;
     padding: 20px;
-    background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
-    border-radius: 16px;
-    border: 1px solid #e5e7eb;
-    box-shadow: 0 4px 20px rgba(17, 24, 39, 0.06);
-    backdrop-filter: blur(8px);
+  background: linear-gradient(180deg, rgba(255,255,255,0.86), rgba(246,247,249,0.78));
+  border-radius: 16px;
+  border: 1px solid rgba(17, 17, 17, 0.08);
+  box-shadow: 0 18px 38px rgba(17,24,39,0.12), inset 0 1px 0 rgba(255,255,255,0.55);
+  backdrop-filter: blur(18px) saturate(1.08) contrast(1.02);
     transition: all 0.3s ease;
     width: 100%; // 确保与邮箱输入框同宽
     box-sizing: border-box;
@@ -963,17 +966,29 @@ onUnmounted(() => {
         border-radius: 12px;
         font-weight: 600;
         font-size: 14px;
-        transition: all 0.3s ease;
-        background: linear-gradient(135deg, #374151, #111827);
-        border: 1px solid #111827;
-        color: #ffffff;
-        box-shadow: 0 4px 15px rgba(17, 24, 39, 0.18);
+        transition: box-shadow 200ms ease, transform 140ms ease, background 200ms ease;
+        background: linear-gradient(180deg, #f3f4f6, #e5e7eb);
+        border: 1px solid rgba(17, 24, 39, 0.18);
+        color: #111827;
+        box-shadow: 0 4px 15px rgba(17, 24, 39, 0.10);
         flex-shrink: 0; // 兼容性冗余
+        position: relative;
+        overflow: hidden;
+        
+        &::before {
+          content: '';
+          position: absolute;
+          inset: -20%;
+          background: radial-gradient(40% 40% at 50% 50%, rgba(255,255,255,.35), rgba(255,255,255,0) 60%);
+          opacity: 0;
+          transition: opacity .25s ease, transform .25s ease;
+        }
         
         &:hover:not(:disabled) {
           transform: translateY(-1px);
-          box-shadow: 0 8px 20px rgba(17, 24, 39, 0.22);
-          background: linear-gradient(135deg, #4b5563, #1f2937);
+          box-shadow: 0 12px 26px rgba(17,24,39,0.18), 0 0 0 3px rgba(17,24,39,0.06) inset;
+          &::before { opacity: .7; transform: scale(1.02); }
+          background: linear-gradient(180deg, #f5f6f8, #e8eaee);
         }
         
         &:active:not(:disabled) {
@@ -1043,15 +1058,15 @@ onUnmounted(() => {
   border-radius: 12px;
   font-size: 16px;
   font-weight: 600;
-  background: linear-gradient(135deg, #374151, #111827);
-  border: 1px solid #111827;
-  color: #ffffff;
-  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+  background: linear-gradient(180deg, #f3f4f6, #e5e7eb);
+  border: 1px solid rgba(17, 24, 39, 0.18);
+  color: #111827;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
   
   &:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 14px 32px rgba(17, 24, 39, 0.20);
-    background: linear-gradient(135deg, #4b5563, #1f2937);
+    box-shadow: 0 14px 32px rgba(17, 24, 39, 0.18), 0 0 0 3px rgba(17,24,39,0.06) inset;
+    background: linear-gradient(180deg, #f5f6f8, #e8eaee);
   }
   
   &:active:not(:disabled) {
@@ -1108,16 +1123,17 @@ onUnmounted(() => {
     width: 100%;
     min-width: 0;
     border-radius: 12px;
-    border: 1px solid #e5e7eb;
-    background: #ffffff;
-    color: #374151;
-    transition: all 0.3s ease;
+    border: 1px solid rgba(17, 17, 17, 0.08);
+    background: linear-gradient(180deg, rgba(255,255,255,0.86), rgba(246,247,249,0.78));
+    color: #111827;
+    transition: box-shadow 180ms ease, transform 120ms ease, background 180ms ease;
     box-sizing: border-box;
     
     &:hover {
-      border-color: #d1d5db;
+      border-color: rgba(17, 17, 17, 0.14);
       color: #111827;
       transform: translateY(-1px);
+      box-shadow: 0 10px 24px rgba(17,24,39,0.14), 0 0 0 2px rgba(17,24,39,0.06) inset;
     }
   }
 }
@@ -1150,11 +1166,11 @@ onUnmounted(() => {
   width: 100%;
   max-width: 400px;
   padding: 40px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: linear-gradient(180deg, rgba(255,255,255,0.82), rgba(245,246,248,0.74));
+  border: 1px solid rgba(17, 17, 17, 0.08);
   border-radius: 24px;
-  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.06);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 24px 48px rgba(17, 24, 39, 0.10), inset 0 1px 0 rgba(255,255,255,0.6);
+  backdrop-filter: blur(16px) saturate(1.05);
   position: sticky;
   top: var(--nav-offset); // 使用统一变量
   align-self: flex-start;

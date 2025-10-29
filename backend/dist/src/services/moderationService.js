@@ -21,7 +21,9 @@ const MOD_KEYS = [
   'moderation_max_image_bytes',
   'moderation_image_heuristic',
   'moderation_ocr_api_url',
-  'moderation_ocr_api_key'
+  'moderation_ocr_api_key',
+  'moderation_http_timeout',
+  'moderation_http_timeout_ms'
 ];
 
 function envModerationDefaults() {
@@ -32,10 +34,12 @@ function envModerationDefaults() {
     apiKey: process.env.MODERATION_API_KEY || '',
     model: process.env.MODERATION_MODEL || '',
     strictness: Math.min(100, Math.max(0, parseInt(process.env.MODERATION_STRICTNESS || '70', 10))),
-    maxImageBytes: Math.min(2 * 1024 * 1024, parseInt(process.env.MODERATION_MAX_IMAGE_BYTES || String(512 * 1024), 10)),
+    // 提升最大图片大小上限至 20MB
+    maxImageBytes: Math.min(20 * 1024 * 1024, parseInt(process.env.MODERATION_MAX_IMAGE_BYTES || String(512 * 1024), 10)),
     imageHeuristic: (process.env.MODERATION_IMAGE_HEURISTIC || 'true').toLowerCase() === 'true',
     ocrApiUrl: process.env.MODERATION_OCR_API_URL || '',
-    ocrApiKey: process.env.MODERATION_OCR_API_KEY || ''
+    ocrApiKey: process.env.MODERATION_OCR_API_KEY || '',
+    httpTimeout: parseInt(process.env.MODERATION_HTTP_TIMEOUT || process.env.MODERATION_HTTP_TIMEOUT_MS || '8000', 10)
   };
 }
 
@@ -58,10 +62,14 @@ async function loadModerationConfig() {
       apiKey: map.moderation_api_key || cfg.apiKey,
       model: map.moderation_model || cfg.model,
       strictness: map.moderation_strictness ? Math.min(100, Math.max(0, parseInt(map.moderation_strictness, 10))) : cfg.strictness,
-      maxImageBytes: map.moderation_max_image_bytes ? Math.min(2 * 1024 * 1024, parseInt(map.moderation_max_image_bytes, 10)) : cfg.maxImageBytes,
+      // 与 ENV 一致采用 20MB 上限
+      maxImageBytes: map.moderation_max_image_bytes ? Math.min(20 * 1024 * 1024, parseInt(map.moderation_max_image_bytes, 10)) : cfg.maxImageBytes,
       imageHeuristic: map.moderation_image_heuristic ? String(map.moderation_image_heuristic).toLowerCase() === 'true' : cfg.imageHeuristic,
       ocrApiUrl: map.moderation_ocr_api_url || cfg.ocrApiUrl,
-      ocrApiKey: map.moderation_ocr_api_key || cfg.ocrApiKey
+      ocrApiKey: map.moderation_ocr_api_key || cfg.ocrApiKey,
+      httpTimeout: map.moderation_http_timeout
+        ? parseInt(map.moderation_http_timeout, 10)
+        : (map.moderation_http_timeout_ms ? parseInt(map.moderation_http_timeout_ms, 10) : cfg.httpTimeout)
     };
   } catch (_) {}
   moderationCfgCache = cfg;
@@ -101,16 +109,17 @@ async function readThumbnailBase64(fileRow) {
 }
 
 async function fetchOcrText(fileRow) {
-  if (!MODERATION_OCR_API_URL) return null;
   try {
+    const cfg = await loadModerationConfig();
+    if (!cfg.ocrApiUrl) return null;
     const imageBase64 = await readThumbnailBase64(fileRow);
     if (!imageBase64) return null;
-    const headers = MODERATION_OCR_API_KEY ? { Authorization: `Bearer ${MODERATION_OCR_API_KEY}` } : {};
-    const { status, body } = await postJson(MODERATION_OCR_API_URL, headers, {
+    const headers = cfg.ocrApiKey ? { Authorization: `Bearer ${cfg.ocrApiKey}` } : {};
+    const { status, body } = await postJson(cfg.ocrApiUrl, headers, {
       type: 'ocr', image_base64: imageBase64, lang: 'zh-CN'
-    });
+    }, cfg.httpTimeout);
     if (status >= 200 && status < 300 && body && typeof body.text === 'string') {
-      const t = body.text.trim();
+      const t = String(body.text || '').trim();
       return t ? t : null;
     }
   } catch (_) {}
@@ -152,17 +161,19 @@ async function quickImageHeuristic(fileRow) {
   }
 }
 
-function postJson(urlString, headers, body) {
+function postJson(urlString, headers, body, timeoutMs) {
   return new Promise((resolve, reject) => {
     try {
       const u = new URL(urlString);
       const isHttps = u.protocol === 'https:';
+      const t = parseInt(String(timeoutMs || process.env.MODERATION_HTTP_TIMEOUT || process.env.MODERATION_HTTP_TIMEOUT_MS || 8000), 10);
       const options = {
         method: 'POST',
         hostname: u.hostname,
         port: u.port || (isHttps ? 443 : 80),
         path: `${u.pathname}${u.search}`,
-        headers: Object.assign({ 'Content-Type': 'application/json' }, headers || {})
+        headers: Object.assign({ 'Content-Type': 'application/json' }, headers || {}),
+        timeout: t
       };
       const req = (isHttps ? https : http).request(options, (res) => {
         let data = '';
@@ -176,6 +187,9 @@ function postJson(urlString, headers, body) {
             resolve({ status: res.statusCode || 0, body: {} });
           }
         });
+      });
+      req.setTimeout(t, () => {
+        try { req.destroy(new Error('timeout')); } catch (_) {}
       });
       req.on('error', reject);
       req.write(JSON.stringify(body || {}));
@@ -205,11 +219,16 @@ async function callSiliconflowModeration(fileRow, extraTextList) {
       { role: 'user', content: userPrompt }
     ],
     temperature: 0,
-    max_tokens: 200
+    max_tokens: 200,
+    // 强制要求模型输出严格 JSON，避免多余文本导致解析失败
+    response_format: { type: 'json_object' },
+    // 关闭思考链，减少非JSON思考输出干扰
+    enable_thinking: false,
+    n: 1
   };
   const headers = cfg.apiKey ? { Authorization: `Bearer ${cfg.apiKey}` } : {};
   try {
-    const { status, body } = await postJson(cfg.apiUrl, headers, payload);
+    const { status, body } = await postJson(cfg.apiUrl, headers, payload, cfg.httpTimeout);
     if (status >= 200 && status < 300 && body && body.choices && body.choices[0] && body.choices[0].message && body.choices[0].message.content) {
       const content = String(body.choices[0].message.content || '').trim();
       // 解析JSON
@@ -219,9 +238,9 @@ async function callSiliconflowModeration(fileRow, extraTextList) {
         const allow = String(parsed.decision || '').toLowerCase() === 'allow';
         const block = String(parsed.decision || '').toLowerCase() === 'block';
         const score = typeof parsed.score === 'number' ? parsed.score : null;
-        if (block) return { approved: false, reason: parsed.reason || 'AI判定不合规' };
-        if (allow) return { approved: true };
-        if (score !== null) return { approved: score < cfg.strictness, reason: score >= cfg.strictness ? '风险评分过高' : undefined };
+        if (block) return { approved: false, reason: parsed.reason || 'AI判定不合规', source: 'ai', score };
+        if (allow) return { approved: true, source: 'ai', score };
+        if (score !== null) return { approved: score < cfg.strictness, reason: score >= cfg.strictness ? '风险评分过高' : undefined, source: 'ai', score };
       }
     }
   } catch (_) {}
@@ -252,17 +271,17 @@ async function callExternalModeration(fileRow, extraTextList) {
   };
   const headers = cfg.apiKey ? { Authorization: `Bearer ${cfg.apiKey}` } : {};
   try {
-    const { status, body } = await postJson(cfg.apiUrl, headers, payload);
+    const { status, body } = await postJson(cfg.apiUrl, headers, payload, cfg.httpTimeout);
     if (status >= 200 && status < 300) {
       const allowed = body.allowed === true || body.allow === true || body.decision === 'allow' || body.label === 'allow';
       const block = body.allowed === false || body.allow === false || body.decision === 'block' || body.label === 'block';
       const score = typeof body.score === 'number' ? body.score : (typeof body.risk === 'number' ? body.risk : null);
-      if (block) return { approved: false, reason: body.reason || '内容不合规' };
-      if (allowed) return { approved: true };
+      if (block) return { approved: false, reason: body.reason || '内容不合规', source: 'ai', score };
+      if (allowed) return { approved: true, source: 'ai', score };
       if (score !== null) {
-        return { approved: score < cfg.strictness, reason: score >= cfg.strictness ? '风险评分过高' : undefined };
+        return { approved: score < cfg.strictness, reason: score >= cfg.strictness ? '风险评分过高' : undefined, source: 'ai', score };
       }
-      return { approved: false, reason: body.reason || '审核未通过' };
+      return { approved: false, reason: body.reason || '审核未通过', source: 'ai' };
     }
   } catch (_) {}
   return null;
@@ -270,22 +289,30 @@ async function callExternalModeration(fileRow, extraTextList) {
 
 module.exports = {
   async reviewFile(fileRow, extraTextList = []) {
-    if (isLikelyViolationFromText(fileRow.original_name || '', fileRow.mime_type || '')) {
-      return { approved: false, reason: '命中不合规关键词' };
-    }
-    if (ENABLE_IMAGE_HEURISTIC && (fileRow.file_type === 'image' || /image\//i.test(fileRow.mime_type || ''))) {
-      const res = await quickImageHeuristic(fileRow);
-      if (res && res.flag) {
-        return { approved: false, reason: `图像可疑（皮肤像素占比 ${res.score}%）` };
-      }
-    }
+    const cfg = await loadModerationConfig();
+    // 1) 先尝试 AI 审核
     const ext = await callExternalModeration(fileRow, extraTextList || []);
     if (ext) return ext;
+
+    // 2) 再走本地快速规则（关键词）
+    if (isLikelyViolationFromText(fileRow.original_name || '', fileRow.mime_type || '')) {
+      return { approved: false, reason: '命中不合规关键词', source: 'local' };
+    }
+
+    // 3) 再走图像启发式
+    if (cfg.imageHeuristic && (fileRow.file_type === 'image' || /image\//i.test(fileRow.mime_type || ''))) {
+      const res = await quickImageHeuristic(fileRow);
+      if (res && res.flag) {
+        return { approved: false, reason: `图像可疑（皮肤像素占比 ${res.score}%）`, source: 'heuristic', score: res.score };
+      }
+    }
+
+    // 4) 兜底
     const mime = (fileRow.mime_type || '').toLowerCase();
     if (!mime || mime.includes('octet-stream')) {
-      return { approved: false, reason: '文件类型未知，无法审核' };
+      return { approved: false, reason: '文件类型未知，无法审核', source: 'local' };
     }
-    return { approved: true };
+    return { approved: true, source: 'local' };
   },
   fetchOcrText
 };

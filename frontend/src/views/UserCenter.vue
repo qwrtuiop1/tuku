@@ -299,12 +299,12 @@
                         />
                         <el-button 
                           type="primary" 
-                          :disabled="codeCountdown > 0 || !userInfo.email"
+                          :disabled="emailCodeCooldown > 0 || !userInfo.email"
                           @click="sendEmailCode"
-                          :loading="sendingCode"
-                          class="send-code-btn"
+                          :loading="emailCodeSending"
+                          class="send-code-btn same-height"
                         >
-                          {{ codeCountdown > 0 ? `${codeCountdown}秒后重发` : '发送验证码' }}
+                          {{ emailCodeCooldown > 0 ? `${emailCodeCooldown}s` : '发送验证码' }}
                         </el-button>
                       </div>
                       <div class="form-hint">
@@ -340,7 +340,19 @@
                       </div>
                       <div class="binding-actions">
                         <el-button v-if="!bindings.qq" size="small" type="primary" @click="bindQQ">去绑定</el-button>
-                        <el-button v-else size="small" type="default" @click="unbindQQ">解绑</el-button>
+                        <el-tooltip
+                          v-if="bindings.qq"
+                          :disabled="!(lastProviderAndNoPassword)"
+                          content="请先设置密码后再解绑最后一个第三方登录"
+                          placement="top"
+                        >
+                          <el-button
+                            size="small"
+                            type="default"
+                            :disabled="lastProviderAndNoPassword"
+                            @click="unbindQQ"
+                          >解绑</el-button>
+                        </el-tooltip>
                       </div>
                     </div>
 
@@ -353,9 +365,36 @@
                       </div>
                       <div class="binding-actions">
                         <el-button v-if="bindings.email" size="small" type="default" @click="unbindEmail">解绑</el-button>
-                        <el-button v-else size="small" @click="goProfileEmail">去设置</el-button>
+                        <el-button v-else size="small" @click="showEmailBindPanel = true">去设置</el-button>
                       </div>
                     </div>
+
+                    <!-- 邮箱绑定面板（点击"去设置"后展开） -->
+                    <transition name="fade-slide">
+                      <div v-if="showEmailBindPanel" class="email-bind-panel">
+                        <el-form label-width="88px" class="email-bind-form">
+                          <el-form-item label="邮箱">
+                            <el-input v-model="emailBind.email" placeholder="请输入要绑定的邮箱" />
+                          </el-form-item>
+                          <el-form-item label="验证码">
+                            <div class="code-row">
+                              <el-input v-model="emailBind.code" placeholder="6位验证码" maxlength="6" />
+                              <el-button
+                                class="send-code-btn same-height"
+                                :disabled="emailCodeSending || emailCodeCooldown>0 || !emailBind.email"
+                                @click="sendEmailBindCode"
+                              >
+                                {{ emailCodeCooldown>0 ? `${emailCodeCooldown}s` : '发送验证码' }}
+                              </el-button>
+                            </div>
+                          </el-form-item>
+                          <div class="email-bind-actions">
+                            <el-button size="small" @click="showEmailBindPanel = false">取消</el-button>
+                            <el-button size="small" type="primary" :loading="emailBind.binding" @click="confirmEmailBind">绑定邮箱</el-button>
+                          </div>
+                        </el-form>
+                      </div>
+                    </transition>
 
                     <div class="binding-item">
                       <div class="binding-info">
@@ -366,10 +405,31 @@
                       </div>
                       <div class="binding-actions">
                         <el-button v-if="!bindings.epass" size="small" type="primary" @click="bindEPass">去绑定</el-button>
-                        <el-button v-else size="small" type="default" @click="unbindEPass">解绑</el-button>
+                        <el-tooltip
+                          v-else
+                          :disabled="!(lastProviderAndNoPassword)"
+                          content="请先设置密码后再解绑最后一个第三方登录"
+                          placement="top"
+                        >
+                          <el-button
+                            size="small"
+                            type="default"
+                            :disabled="lastProviderAndNoPassword"
+                            @click="unbindEPass"
+                          >解绑</el-button>
+                        </el-tooltip>
                       </div>
                     </div>
                   </div>
+                </div>
+
+                <div class="security-section danger-zone">
+                  <h4>危险操作</h4>
+                  <p class="danger-tip">此操作将永久删除您的账号及所有数据（文件、文件夹、分享、登录日志、偏好设置等），且不可恢复。</p>
+                  <el-button type="danger" @click="confirmDeleteAccount">
+                    <el-icon><Delete /></el-icon>
+                    注销账号
+                  </el-button>
                 </div>
               </el-tab-pane>
 
@@ -539,6 +599,7 @@ import { useAuthStore } from '@/stores/auth'
 import { formatFileSize, formatPercentage } from '@/utils/helpers'
 import api from '@/utils/api'
 import { useRouter } from 'vue-router'
+import { useEmailCode } from '@/composables/useEmailCode'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -550,10 +611,8 @@ const changingPassword = ref(false)
 const profileFormRef = ref<FormInstance>()
 const passwordFormRef = ref<FormInstance>()
 
-// 验证码相关
-const sendingCode = ref(false)
-const codeCountdown = ref(0)
-const countdownTimer = ref<NodeJS.Timeout | null>(null)
+// 验证码相关 - 复用通用逻辑（极验 + 60s 冷却，5分钟有效期后端控制）
+const { isSending: emailCodeSending, emailCodeCooldown, sendEmailCodeWithHuman } = useEmailCode()
 
 // 存储相关
 const refreshingStorage = ref(false)
@@ -628,8 +687,47 @@ const bindings = reactive({
   qqNumber: null as string | null,
   epass: false,
   epassId: null as number | string | null,
-  email: null as string | null
+  email: null as string | null,
+  hasPassword: true as boolean
 })
+
+// 邮箱绑定弹出区
+const showEmailBindPanel = ref(false)
+const emailBind = reactive({
+  email: '',
+  code: '',
+  binding: false
+})
+
+const sendEmailBindCode = async () => {
+  if (!emailBind.email) { ElMessage.warning('请先输入邮箱'); return }
+  await sendEmailCodeWithHuman(emailBind.email, 'change_email')
+}
+
+const confirmEmailBind = async () => {
+  if (!emailBind.email || !emailBind.code) {
+    ElMessage.error('请填写邮箱和验证码')
+    return
+  }
+  emailBind.binding = true
+  try {
+    const resp = await api.put('/auth/profile', { email: emailBind.email, emailCode: emailBind.code })
+    if (resp.data?.user || resp.data?.success) {
+      ElMessage.success('邮箱绑定成功')
+      showEmailBindPanel.value = false
+      emailBind.email = ''
+      emailBind.code = ''
+      await loadBindings()
+      await loadUserSettingsFromServer()
+    } else {
+      ElMessage.error(resp.data?.message || '绑定失败')
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.message || '绑定失败')
+  } finally {
+    emailBind.binding = false
+  }
+}
 
 const loadBindings = async () => {
   try {
@@ -650,6 +748,31 @@ const bindQQ = async () => {
     }
   } catch (e: any) {
     ElMessage.error(e?.message || 'QQ绑定失败')
+  }
+}
+
+const unbindQQ = async () => {
+  try {
+    const ok = await ElMessageBox.confirm('确定要解绑 QQ 吗？', '确认操作', { type: 'warning' }).then(() => true).catch(() => false)
+    if (!ok) return
+    const resp = await api.post('/auth/qq/unbind')
+    if (resp.data?.success) {
+      ElMessage.success('QQ已解绑')
+      await loadBindings()
+    } else {
+      if (resp.data?.code === 'NEED_PASSWORD_TO_UNBIND_LAST_PROVIDER') {
+        ElMessageBox.alert('请先在本页设置登录密码，再解绑最后一个第三方登录。', '操作受限', { type: 'warning' })
+      } else {
+        ElMessage.error(resp.data?.message || '解绑失败')
+      }
+    }
+  } catch (e: any) {
+    const msg = e?.response?.data?.message || e?.message
+    if (e?.response?.data?.code === 'NEED_PASSWORD_TO_UNBIND_LAST_PROVIDER') {
+      ElMessageBox.alert('请先在本页设置登录密码，再解绑最后一个第三方登录。', '操作受限', { type: 'warning' })
+    } else {
+      ElMessage.error(msg || '解绑失败')
+    }
   }
 }
 
@@ -683,12 +806,25 @@ const unbindEPass = async () => {
       ElMessage.success('已解绑 E通行证')
       await loadBindings()
     } else {
-      ElMessage.error(resp.data?.message || '解绑失败')
+      if (resp.data?.code === 'NEED_PASSWORD_TO_UNBIND_LAST_PROVIDER') {
+        ElMessageBox.alert('请先在本页设置登录密码，再解绑最后一个第三方登录。', '操作受限', { type: 'warning' })
+      } else {
+        ElMessage.error(resp.data?.message || '解绑失败')
+      }
     }
   } catch (e: any) {
-    ElMessage.error(e?.message || '解绑失败')
+    const msg = e?.response?.data?.message || e?.message
+    if (e?.response?.data?.code === 'NEED_PASSWORD_TO_UNBIND_LAST_PROVIDER') {
+      ElMessageBox.alert('请先在本页设置登录密码，再解绑最后一个第三方登录。', '操作受限', { type: 'warning' })
+    } else {
+      ElMessage.error(msg || '解绑失败')
+    }
   }
 }
+
+// 仅剩一个第三方且未设置密码时，禁止解绑
+const thirdPartyBoundCount = computed(() => (bindings.qq ? 1 : 0) + (bindings.epass ? 1 : 0))
+const lastProviderAndNoPassword = computed(() => thirdPartyBoundCount.value === 1 && !bindings.hasPassword)
 
 const unbindEmail = async () => {
   try {
@@ -699,26 +835,6 @@ const unbindEmail = async () => {
       ElMessage.success('邮箱已解绑')
       await loadBindings()
       await loadUserSettingsFromServer()
-    } else {
-      ElMessage.error(resp.data?.message || '解绑失败')
-    }
-  } catch (e: any) {
-    ElMessage.error(e?.message || '解绑失败')
-  }
-}
-
-const goProfileEmail = () => {
-  activeTab.value = 'profile'
-}
-
-const unbindQQ = async () => {
-  try {
-    const ok = await ElMessageBox.confirm('确定要解绑 QQ 吗？', '确认操作', { type: 'warning' }).then(() => true).catch(() => false)
-    if (!ok) return
-    const resp = await api.post('/auth/qq/unbind')
-    if (resp.data?.success) {
-      ElMessage.success('QQ已解绑')
-      await loadBindings()
     } else {
       ElMessage.error(resp.data?.message || '解绑失败')
     }
@@ -1323,53 +1439,14 @@ const saveNotificationSettings = async () => {
   }
 }
 
-// 发送邮箱验证码
+// 发送邮箱验证码（密码修改）：统一人机校验 + 频率控制
 const sendEmailCode = async () => {
-  if (!userInfo.email) {
-    ElMessage.error('请先设置邮箱地址')
-    return
-  }
-  
-  try {
-    sendingCode.value = true
-    
-    await api.post('/auth/send-verification-code', {
-      email: userInfo.email,
-      type: 'password_change'
-    })
-    
-    ElMessage.success('验证码已发送到您的邮箱')
-    
-    // 开始倒计时
-    startCountdown()
-  } catch (error) {
-    ElMessage.error('发送验证码失败')
-  } finally {
-    sendingCode.value = false
-  }
+  if (!userInfo.email) { ElMessage.error('请先设置邮箱地址'); return }
+  await sendEmailCodeWithHuman(userInfo.email, 'password_change')
 }
 
-// 开始倒计时
-const startCountdown = () => {
-  codeCountdown.value = 60
-  
-  countdownTimer.value = setInterval(() => {
-    codeCountdown.value--
-    if (codeCountdown.value <= 0) {
-      clearInterval(countdownTimer.value!)
-      countdownTimer.value = null
-    }
-  }, 1000)
-}
-
-// 清理倒计时
-const clearCountdown = () => {
-  if (countdownTimer.value) {
-    clearInterval(countdownTimer.value)
-    countdownTimer.value = null
-  }
-  codeCountdown.value = 0
-}
+// 清理倒计时（保留为空实现，兼容旧调用）
+const clearCountdown = () => {}
 
 const changePassword = async () => {
   if (!passwordFormRef.value) return
@@ -1399,6 +1476,36 @@ const changePassword = async () => {
     ElMessage.error('修改密码失败')
   } finally {
     changingPassword.value = false
+  }
+}
+
+// 注销账号
+const confirmDeleteAccount = async () => {
+  try {
+    const { action } = await ElMessageBox.prompt(
+      '请输入"注销"以确认永久删除账号（不可恢复）：',
+      '注销账号',
+      {
+        inputPlaceholder: '输入 注销 确认',
+        inputValidator: (val: string) => (val === '注销' ? true : '请输入：注销'),
+        confirmButtonText: '永久删除',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+    if (action !== 'confirm') return
+    const resp = await api.post('/auth/account/delete', { confirm: '注销' })
+    if (resp.data?.success) {
+      ElMessage.success('账号已注销')
+      const auth = useAuthStore()
+      await auth.logout()
+      window.location.href = '/login'
+    } else {
+      ElMessage.error(resp.data?.message || '注销失败')
+    }
+  } catch (e: any) {
+    if (e === 'cancel') return
+    ElMessage.error(e?.message || '操作失败')
   }
 }
 
@@ -2156,6 +2263,23 @@ onUnmounted(() => {
     }
   }
 }
+
+.email-bind-panel {
+  margin: 10px 0 0 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #f9fafb;
+  border: 1px solid #eef2f7;
+}
+.email-bind-form .code-row {
+  display: flex;
+  gap: 8px;
+}
+.email-bind-form .send-code-btn { white-space: nowrap; }
+.email-bind-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.fade-slide-enter-active, .fade-slide-leave-active { transition: all .18s ease; }
+.fade-slide-enter-from, .fade-slide-leave-to { opacity: 0; transform: translateY(-6px); }
 
 // 对话框样式
 .storage-analysis {
@@ -4361,6 +4485,8 @@ onUnmounted(() => {
     }
   }
 }
+.user-center-page :deep(.verification-code-input .el-input__wrapper) { height: 40px; }
+.user-center-page .verification-code-input .send-code-btn.same-height { height: 40px; }
 </style>
 
 

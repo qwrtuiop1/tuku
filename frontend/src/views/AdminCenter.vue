@@ -2010,9 +2010,10 @@
                     size="small" 
                     @click="sendPasswordVerificationCode"
                     :loading="sendingVerificationCode"
+                    :disabled="passwordVerificationCooldown > 0"
                     class="send-code-btn-desktop"
                   >
-                    发送验证码
+                    {{ passwordVerificationCooldown > 0 ? `${passwordVerificationCooldown}s` : '发送验证码' }}
                   </el-button>
                 </div>
                 <div class="verification-timer">
@@ -2090,9 +2091,10 @@
                       size="small" 
                       @click="sendPasswordVerificationCode"
                       :loading="sendingVerificationCode"
+                      :disabled="passwordVerificationCooldown > 0"
                       class="send-code-btn"
                     >
-                      发送验证码
+                      {{ passwordVerificationCooldown > 0 ? `${passwordVerificationCooldown}s` : '发送验证码' }}
                     </el-button>
                   </div>
                   <div class="verification-timer">
@@ -2485,6 +2487,20 @@ const passwordVerificationExpired = ref(false)
 const passwordVerifiedOk = ref(false)
 const passwordVerificationExpiry = ref<Date | null>(null)
 const sendingVerificationCode = ref(false)
+const passwordVerificationCooldown = ref(0)
+let passwordVerificationTimer: number | null = null
+
+const startPasswordVerificationCooldown = () => {
+  if (passwordVerificationTimer) { clearInterval(passwordVerificationTimer); passwordVerificationTimer = null }
+  passwordVerificationCooldown.value = 60
+  passwordVerificationTimer = window.setInterval(() => {
+    passwordVerificationCooldown.value--
+    if (passwordVerificationCooldown.value <= 0) {
+      if (passwordVerificationTimer) { clearInterval(passwordVerificationTimer); passwordVerificationTimer = null }
+      passwordVerificationCooldown.value = 0
+    }
+  }, 1000)
+}
 
 // 移动端检测
 const isMobile = ref(false)
@@ -3294,7 +3310,6 @@ const handleUserCardClick = async (user: User, evt?: MouseEvent) => {
     ElMessage.error('操作失败，请重试')
   }
 }
-
 const handleUserAction = async (command: string, user: User) => {
   // 执行操作后关闭菜单
   closeAllMenus()
@@ -3470,6 +3485,7 @@ const sendPasswordVerificationCode = async () => {
       passwordVerificationExpiry.value = new Date(Date.now() + 5 * 60 * 1000) // 5分钟有效期
       passwordVerificationCode.value = ''
       ElMessage.success('验证码已发送到用户邮箱')
+      startPasswordVerificationCooldown()
     } else {
       ElMessage.error(response.data.message || '发送验证码失败')
     }
@@ -4094,7 +4110,6 @@ const clearLogs = async () => {
     }
   }
 }
-
 // 导出日志
 const exportLogs = () => {
   if (logs.value.length === 0) {
