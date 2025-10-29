@@ -340,8 +340,8 @@ router.put('/profile', authenticateToken, [
     .optional()
     .isLength({ min: 2, max: 20 })
     .withMessage('用户名长度必须在2-20个字符之间')
-    .matches(/^[\u4e00-\u9fa5a-zA-Z0-9_\s]+$/)
-    .withMessage('用户名只能包含中文、字母、数字、下划线和空格')
+    .matches(/^[^\s@]+$/)
+    .withMessage('用户名可用中文、字母、数字、下划线与符号，但不能有空格或@')
     .custom((value) => {
       if (value && value.includes('@')) {
         throw new Error('用户名不能使用邮箱格式');
@@ -2054,7 +2054,7 @@ router.post('/qq/callback', [
 // 完成 QQ 首次登录的注册流程
 router.post('/qq/complete-signup', [
   body('tempToken').notEmpty().withMessage('缺少临时令牌'),
-  body('username').isLength({ min: 2, max: 20 }).matches(/^[\u4e00-\u9fa5a-zA-Z0-9_\s]+$/),
+  body('username').isLength({ min: 2, max: 20 }).matches(/^[^\s@]+$/),
   body('password').isLength({ min: 6 }).withMessage('密码长度至少6个字符'),
   body('email').isEmail().withMessage('请输入有效的邮箱地址'),
   body('emailCode').isLength({ min: 6, max: 6 }).withMessage('验证码必须是6位')
@@ -2185,7 +2185,7 @@ router.post('/epass/callback', asyncHandler(async (req, res) => {
 // 完成 EPass 首次登录的注册
 router.post('/epass/complete-signup', [
   body('tempToken').notEmpty().withMessage('缺少临时令牌'),
-  body('username').isLength({ min: 2, max: 20 }).matches(/^[\u4e00-\u9fa5a-zA-Z0-9_\s]+$/),
+  body('username').isLength({ min: 2, max: 20 }).matches(/^[^\s@]+$/),
   body('password').isLength({ min: 6 }).withMessage('密码长度至少6个字符'),
   body('email').isEmail().withMessage('请输入有效的邮箱地址'),
   body('emailCode').isLength({ min: 6, max: 6 }).withMessage('验证码必须是6位')
@@ -2423,10 +2423,19 @@ router.post('/qq/confirm-register', [
 }))
 router.get('/bindings', authenticateToken, asyncHandler(async (req, res) => {
   let rows
+  // 尽量宽列查询；兼容缺失列回退，避免500
   try {
     ;[rows] = await pool.execute('SELECT qq_openid, qq_unionid, nickname, avatar_url, epass_id, qq_number, email, has_password FROM users WHERE id = ?', [req.user.id])
-  } catch (e) {
-    ;[rows] = await pool.execute('SELECT qq_openid, qq_unionid, nickname, avatar_url, epass_id, email, has_password FROM users WHERE id = ?', [req.user.id])
+  } catch (e1) {
+    try {
+      ;[rows] = await pool.execute('SELECT qq_openid, qq_unionid, nickname, avatar_url, epass_id, email, has_password FROM users WHERE id = ?', [req.user.id])
+    } catch (e2) {
+      try {
+        ;[rows] = await pool.execute('SELECT qq_openid, qq_unionid, nickname, avatar_url, epass_id, email FROM users WHERE id = ?', [req.user.id])
+      } catch (e3) {
+        rows = [{}]
+      }
+    }
   }
   const row = rows[0] || {}
   // 归一化占位邮箱：unbound_*@unbind.local 或 qq_*@noemail.qq.local 视为未绑定

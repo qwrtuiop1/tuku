@@ -147,22 +147,7 @@
                   </div>
                 </el-col>
 
-                <!-- 动图/实况卡片（替换原总存储卡片） -->
-                <el-col :xs="24" :sm="8" :md="8" :lg="8" :xl="8">
-                  <div class="stat-card motion-card">
-                    <div class="stat-icon motion">
-                      <el-icon><CircleCheck /></el-icon>
-                    </div>
-                    <div class="stat-info">
-                      <div class="stat-value">{{ systemStats.totalMotion || 0 }}</div>
-                      <div class="stat-label">动图/实况</div>
-                      <div class="stat-trend">
-                        <el-icon class="trend-icon up"><ArrowUp /></el-icon>
-                        <span class="trend-text">数据</span>
-                      </div>
-                    </div>
-                  </div>
-                </el-col>
+                
               </el-row>
 
               
@@ -4884,6 +4869,14 @@ onUnmounted(() => {
             &.storage {
               background: linear-gradient(135deg, #4b5563, #374151);
             }
+
+            // 补全缺失的图标样式：文件夹与动图/实况
+            &.folder {
+              background: linear-gradient(135deg, #52525b, #262626);
+            }
+            &.motion {
+              background: linear-gradient(135deg, #111111, #000000);
+            }
           }
           
           .stat-info {
@@ -4928,6 +4921,17 @@ onUnmounted(() => {
             }
           }
         }
+      }
+
+      // 窄屏自动换行，避免卡片被压缩
+      @media (max-width: 1200px) {
+        .stats-cards {
+          flex-wrap: wrap !important;
+          :deep(.el-col) { flex: 1 1 48% !important; min-width: 280px; }
+        }
+      }
+      @media (max-width: 768px) {
+        .stats-cards { gap: 12px; }
       }
       
       .quick-actions {

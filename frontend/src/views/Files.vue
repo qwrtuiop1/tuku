@@ -2173,6 +2173,14 @@ const shareStatusText = computed(() => {
     align-items: center;
     gap: 12px;
     
+    .filter-live-btn {
+      height: 32px;
+      padding: 0 14px;
+      border-radius: 16px; // 与 is-round 协同
+      display: inline-flex;
+      align-items: center;
+    }
+
     .view-toggle {
       .view-btn {
         width: 36px;

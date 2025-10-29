@@ -401,3 +401,197 @@ a {
 }
 
 
+// 全局：消息弹窗（Element Plus MessageBox）黑白灰风格
+.el-message-box {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 12px !important;
+  box-shadow: 0 18px 36px rgba(0,0,0,0.08) !important;
+  color: #111111 !important;
+}
+.el-message-box__header {
+  padding: 16px 16px 8px 16px !important;
+}
+.el-message-box__title {
+  color: #111111 !important;
+  font-weight: 600 !important;
+}
+.el-message-box__headerbtn .el-message-box__close {
+  color: #1f1f1f !important;
+}
+.el-message-box__content {
+  padding: 8px 16px 4px 16px !important;
+  color: #333333 !important;
+}
+.el-message-box__status {
+  color: #111111 !important;
+}
+.el-message-box__btns {
+  padding: 12px 16px 16px 16px !important;
+}
+.el-message-box .el-button {
+  border-radius: 8px !important;
+}
+.el-message-box .el-button:not(.el-button--primary) {
+  background: transparent !important;
+  color: #333333 !important;
+  border: 1px solid #d1d5db !important;
+}
+.el-message-box .el-button:not(.el-button--primary):hover {
+  color: #111111 !important;
+  border-color: #6b7280 !important;
+  background: #f5f5f5 !important;
+}
+.el-message-box .el-button--primary {
+  background: #111111 !important;
+  border-color: #111111 !important;
+  color: #ffffff !important;
+}
+.el-message-box .el-button--primary:hover {
+  background: #000000 !important;
+  border-color: #000000 !important;
+}
+
+// 登录 / 注册 / 忘记密码 左侧卡片：极简黑白灰、线条化
+.login-box, .register-box, .forgot-password-box {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 16px !important;
+  box-shadow: 0 18px 36px rgba(0,0,0,0.06) !important;
+  backdrop-filter: none !important;
+}
+
+.login-box .login-header, .register-box .register-header, .forgot-password-box .step-header {
+  text-align: center;
+  margin-bottom: 8px;
+}
+.login-box .header-icon, .register-box .header-icon, .forgot-password-box .header-icon {
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  width: 48px; height: 48px;
+  border: 1px solid #d1d5db; border-radius: 50%;
+  color: #111111; background: #fff;
+  transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+}
+.login-box .header-icon:hover, .register-box .header-icon:hover, .forgot-password-box .header-icon:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.06);
+  border-color: #9ca3af;
+}
+.login-title, .register-title, .forgot-password-box .step-title {
+  margin: 10px 0 4px; color: #111111; font-size: 22px; font-weight: 700;
+}
+.login-subtitle, .register-subtitle, .forgot-password-box .step-subtitle {
+  color: #6b7280; font-size: 14px;
+}
+
+// 线条化输入框
+.custom-input :deep(.el-input__wrapper),
+.step-form :deep(.el-input__wrapper),
+.login-form :deep(.el-input__wrapper),
+.register-form :deep(.el-input__wrapper) {
+  background: #fff !important;
+  box-shadow: none !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 10px !important;
+  padding: 10px 12px !important;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.custom-input :deep(.el-input__wrapper.is-focus),
+.step-form :deep(.el-input__wrapper.is-focus),
+.login-form :deep(.el-input__wrapper.is-focus),
+.register-form :deep(.el-input__wrapper.is-focus) {
+  border-color: #111111 !important;
+  box-shadow: 0 0 0 3px rgba(17,17,17,0.08) !important;
+}
+.custom-input :deep(.el-input__prefix),
+.custom-input :deep(.el-input__suffix) {
+  color: #1f2937 !important;
+}
+
+// 主按钮：黑色；次按钮：线条化
+.login-button, .register-button, .step-button {
+  background: #111111 !important; border-color: #111111 !important; color: #fff !important;
+  border-radius: 10px !important; height: 44px !important; padding: 0 18px !important;
+  transition: transform .15s ease, box-shadow .15s ease, background .2s ease;
+}
+.login-button:hover, .register-button:hover, .step-button:hover { background: #000000 !important; border-color: #000000 !important; }
+.login-button:active, .register-button:active, .step-button:active { transform: translateY(1px); }
+
+.remember-checkbox :deep(.el-checkbox__inner) {
+  border-radius: 4px; border-color: #9ca3af;
+}
+.remember-checkbox :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
+  background: #111111; border-color: #111111;
+}
+.remember-text, .remember-hint { color: #4b5563; }
+
+.login-divider .divider-text, .register-divider .divider-text { color: #6b7280; }
+
+.social-login .social-btn, .social-register .social-btn {
+  border: 1px solid #e5e7eb !important; background: #fff !important; color: #1f2937 !important;
+  border-radius: 10px !important;
+}
+.social-login .social-btn:hover, .social-register .social-btn:hover {
+  border-color: #9ca3af !important; background: #f5f5f5 !important; color: #111111 !important;
+}
+
+// 页面切换动画：默认淡入淡出
+.page-fade-enter-active, .page-fade-leave-active { transition: opacity .28s ease; }
+.page-fade-enter-from, .page-fade-leave-to { opacity: 0; }
+
+// 认证页切换动画：微位移 + 淡入淡出
+.auth-slide-enter-active, .auth-slide-leave-active { transition: opacity .28s ease, transform .28s ease; }
+.auth-slide-enter-from { opacity: 0; transform: translateY(8px) scale(.995); }
+.auth-slide-leave-to { opacity: 0; transform: translateY(-8px) scale(.995); }
+
+// 进一步的线条化与悬浮动效（仅影响左侧卡片内容，不改布局）
+.login-box .el-button,
+.register-box .el-button,
+.forgot-password-box .el-button {
+  transition: transform .15s ease, box-shadow .15s ease, background .2s ease, border-color .2s ease, color .2s ease;
+}
+.login-box .el-button:hover,
+.register-box .el-button:hover,
+.forgot-password-box .el-button:hover {
+  box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+}
+
+.login-divider, .register-divider {
+  display: flex; align-items: center; justify-content: center; gap: 12px; margin: 8px 0 12px;
+}
+.login-divider::before, .login-divider::after,
+.register-divider::before, .register-divider::after {
+  content: ''; display: block; height: 1px; background: #e5e7eb; flex: 1;
+}
+.login-divider .divider-text, .register-divider .divider-text { padding: 0 4px; color: #6b7280; }
+
+.login-footer .link, .register-footer .link {
+  color: #111111 !important; border-bottom: 1px solid transparent; transition: color .2s ease, border-color .2s ease;
+}
+.login-footer .link:hover, .register-footer .link:hover {
+  color: #000000 !important; border-color: #111111;
+}
+
+.custom-input :deep(.el-input__wrapper:hover),
+.step-form :deep(.el-input__wrapper:hover),
+.login-form :deep(.el-input__wrapper:hover),
+.register-form :deep(.el-input__wrapper:hover) {
+  border-color: #9ca3af !important;
+}
+
+.forgot-password,
+.terms-link {
+  color: #4b5563 !important; border-bottom: 1px solid transparent; transition: color .2s ease, border-color .2s ease;
+}
+.forgot-password:hover,
+.terms-link:hover {
+  color: #111111 !important; border-color: #111111;
+}
+
+.social-login .social-btn .el-icon, .social-register .social-btn .el-icon {
+  transition: transform .15s ease;
+}
+.social-login .social-btn:hover .el-icon, .social-register .social-btn:hover .el-icon {
+  transform: translateY(-1px);
+}

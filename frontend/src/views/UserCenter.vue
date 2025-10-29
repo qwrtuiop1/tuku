@@ -195,7 +195,7 @@
                       placeholder="请输入用户名"
                       :disabled="false"
                     />
-                    <div class="form-hint">支持中文、字母、数字、下划线与空格</div>
+                    <div class="form-hint">支持中文、字母、数字、下划线和符号（不含空格与@）</div>
                   </el-form-item>
 
                   <el-form-item label="昵称" prop="display_name">

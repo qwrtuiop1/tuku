@@ -154,11 +154,11 @@
         </div>
         
         <div class="social-register">
-          <el-button class="social-btn qq-btn">
+          <el-button class="social-btn qq-btn" @click="handleQQLogin">
             <el-icon><User /></el-icon>
             QQ注册
           </el-button>
-          <el-button class="social-btn wechat-btn">
+          <el-button class="social-btn wechat-btn" @click="handleEPassLogin">
             <el-icon><User /></el-icon>
             微信注册
           </el-button>
@@ -602,6 +602,41 @@ onMounted(() => {
 onUnmounted(() => {
   clearTimers()
 })
+
+// QQ 登录/注册：与登录页逻辑保持一致
+const handleQQLogin = async () => {
+  try {
+    const response = await api.get('/auth/qq/auth')
+    if (response.data?.success && response.data.authUrl) {
+      window.location.href = response.data.authUrl
+    } else {
+      ElMessage.error(`QQ登录服务暂不可用${response.data?.message ? '：' + response.data.message : ''}`)
+    }
+  } catch (error: any) {
+    if (error?.code === 'ERR_NETWORK') ElMessage.error('网络连接失败，请检查网络')
+    else if (error?.response?.status === 404) ElMessage.error('QQ登录接口不存在')
+    else if (error?.response?.status === 500) ElMessage.error('服务器内部错误')
+    else ElMessage.error(`QQ登录失败：${error?.message || '请重试'}`)
+  }
+}
+
+// EPass 登录/注册：与登录页逻辑保持一致
+const handleEPassLogin = async () => {
+  try {
+    const arr = new Uint8Array(16)
+    if (window.crypto?.getRandomValues) window.crypto.getRandomValues(arr)
+    const state = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('')
+    try { sessionStorage.setItem('epass_state', state) } catch {}
+    const clientId = 'euser-gallery'
+    const redirectUri = `${window.location.origin}/auth/callback`
+    const scope = 'read'
+    const params = new URLSearchParams({ client_id: clientId, response_type: 'token', redirect_uri: redirectUri, scope, state })
+    const authorizeUrl = `https://account.emoera.com/oauth/authorize?${params.toString()}`
+    window.location.href = authorizeUrl
+  } catch (e: any) {
+    ElMessage.error(e?.message || 'E通行证登录初始化失败')
+  }
+}
 </script>
 
 <style lang="scss" scoped>

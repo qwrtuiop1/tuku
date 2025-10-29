@@ -10,7 +10,8 @@ const routes = [
     component: () => import('@/views/Login.vue'),
     meta: { 
       title: '登录',
-      requiresAuth: false 
+      requiresAuth: false,
+      transition: 'auth-slide'
     }
   },
   {
@@ -58,7 +59,8 @@ const routes = [
     component: Register,
     meta: { 
       title: '注册',
-      requiresAuth: false 
+      requiresAuth: false,
+      transition: 'auth-slide'
     }
   },
   {
@@ -67,7 +69,8 @@ const routes = [
     component: () => import('@/views/ForgotPassword.vue'),
     meta: { 
       title: '忘记密码',
-      requiresAuth: false 
+      requiresAuth: false,
+      transition: 'auth-slide'
     }
   },
   {

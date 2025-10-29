@@ -93,7 +93,7 @@ const storage = multer.diskStorage({
   }
 });
 
-// 动态获取允许的文件类型
+// 动态获取允许的文件类型（带规范化与兜底）
 const getAllowedFileTypes = async () => {
   try {
     const [imageResult] = await pool.execute(
@@ -105,23 +105,52 @@ const getAllowedFileTypes = async () => {
       'SELECT setting_value FROM system_settings WHERE setting_key = ?',
       ['allowed_video_types']
     );
-    
-    const allowedImageTypes = imageResult.length > 0 
-      ? imageResult[0].setting_value.split(',').map(type => `image/${type.trim()}`)
-      : ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
-    
-    const allowedVideoTypes = videoResult.length > 0 
-      ? videoResult[0].setting_value.split(',').map(type => `video/${type.trim()}`)
-      : ['video/mp4', 'video/webm', 'video/quicktime', 'video/avi', 'video/mov', 'video/wmv', 'video/flv', 'video/mkv'];
-    
-    
-    return { allowedImageTypes, allowedVideoTypes };
+    // 规范化图片 MIME
+    const imageExts = (imageResult.length > 0 ? String(imageResult[0].setting_value) : 'jpg,jpeg,png,gif,webp,svg')
+      .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+    const imageMimes = new Set([
+      'image/jpeg','image/png','image/gif','image/webp','image/svg+xml','image/heic','image/heif'
+    ])
+    for (const ext of imageExts) {
+      if (ext === 'jpg' || ext === 'jpeg') imageMimes.add('image/jpeg')
+      else if (ext === 'png') imageMimes.add('image/png')
+      else if (ext === 'gif') imageMimes.add('image/gif')
+      else if (ext === 'webp') imageMimes.add('image/webp')
+      else if (ext === 'svg' || ext === 'svg+xml') imageMimes.add('image/svg+xml')
+      else if (ext === 'heic') imageMimes.add('image/heic')
+      else if (ext === 'heif') imageMimes.add('image/heif')
+    }
+
+    // 规范化视频 MIME
+    const videoExts = (videoResult.length > 0 ? String(videoResult[0].setting_value) : 'mp4,webm,mov,avi,mkv,m4v,flv,wmv,mpeg,mpg,3gp,ts,m2ts,ogv')
+      .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+    const videoMimes = new Set(['video/mp4','video/webm','video/quicktime']) // 兜底
+    const mapVideo = (ext) => {
+      if (ext === 'mp4') return ['video/mp4']
+      if (ext === 'm4v') return ['video/x-m4v','video/mp4']
+      if (ext === 'webm') return ['video/webm']
+      if (ext === 'mov') return ['video/quicktime']
+      if (ext === 'avi') return ['video/x-msvideo']
+      if (ext === 'mkv') return ['video/x-matroska','video/webm']
+      if (ext === 'flv') return ['video/x-flv']
+      if (ext === 'wmv') return ['video/x-ms-wmv']
+      if (ext === 'mpeg' || ext === 'mpg') return ['video/mpeg']
+      if (ext === '3gp') return ['video/3gpp']
+      if (ext === 'ts' || ext === 'm2ts') return ['video/mp2t']
+      if (ext === 'ogv' || ext === 'ogg') return ['video/ogg']
+      return []
+    }
+    for (const ext of videoExts) {
+      for (const m of mapVideo(ext)) videoMimes.add(m)
+    }
+
+    return { allowedImageTypes: Array.from(imageMimes), allowedVideoTypes: Array.from(videoMimes) };
   } catch (error) {
     console.error('获取文件类型设置失败:', error);
     // 使用默认设置
     return {
-      allowedImageTypes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
-      allowedVideoTypes: ['video/mp4', 'video/webm', 'video/quicktime', 'video/avi', 'video/mov', 'video/wmv', 'video/flv', 'video/mkv']
+      allowedImageTypes: ['image/jpeg','image/png','image/gif','image/webp','image/svg+xml','image/heic','image/heif'],
+      allowedVideoTypes: ['video/mp4','video/webm','video/quicktime','video/x-matroska','video/x-msvideo']
     };
   }
 };
@@ -387,23 +416,30 @@ router.post('/upload', authenticateToken, asyncHandler(async (req, res) => {
 
 // 处理文件上传的核心逻辑
 async function isMotionPhotoJpeg(filePath) {
+  // 多点采样 + 关键字/MP4 box 检测，兼容微信/三星/小米等 Motion Photo 实现
+  const ftyp = Buffer.from('ftyp');
+  const decoder = new TextDecoder();
   try {
-    const fd = await fs.open(filePath, 'r');
     const stat = await fs.stat(filePath);
-    const size = Math.min(stat.size, 1024 * 1024); // 读前 1MB
-    const buf = Buffer.alloc(size);
-    await fd.read(buf, 0, size, 0);
-    await fd.close();
-    const headStr = buf.toString('utf8');
-    if (/G(Camera|Image)|MicroVideo|MotionPhoto/i.test(headStr)) return true;
-    // 简单 EOI(FFD9) 后 ftyp 检测：再读最后 256KB
-    const tailLen = Math.min(stat.size, 256 * 1024);
-    const tailBuf = Buffer.alloc(tailLen);
-    const fd2 = await fs.open(filePath, 'r');
-    await fd2.read(tailBuf, 0, tailLen, stat.size - tailLen);
-    await fd2.close();
-    if (tailBuf.includes(Buffer.from('ftyp'))) return true;
-  } catch (e) {
+    const sampleSize = Math.min(512 * 1024, stat.size); // 每段最多 512KB
+    const positions = [
+      0,
+      Math.max(0, Math.floor(stat.size * 0.25) - sampleSize / 2),
+      Math.max(0, Math.floor(stat.size * 0.5) - sampleSize / 2),
+      Math.max(0, Math.floor(stat.size * 0.75) - sampleSize / 2),
+      Math.max(0, stat.size - sampleSize)
+    ];
+    for (const pos of positions) {
+      const fd = await fs.open(filePath, 'r');
+      const buf = Buffer.alloc(sampleSize);
+      await fd.read(buf, 0, sampleSize, pos);
+      await fd.close();
+      // MP4 box 标记
+      if (buf.indexOf(ftyp) !== -1) return true;
+      const text = decoder.decode(buf);
+      if (/G(Camera|Image)|MicroVideo|MotionPhoto|XMP|MotionPhotoPresentationTimestamp|MicroVideoOffset/i.test(text)) return true;
+    }
+  } catch (_) {
     return false;
   }
   return false;

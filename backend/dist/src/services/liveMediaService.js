@@ -289,15 +289,33 @@ module.exports = {
   },
 
   async processUploadBatch(userId, files, onProgress, folderId) {
-    // 识别上传内容
-    const heic = files.find(f => /\.heic$/i.test(f.originalname));
-    const mov = files.find(f => /\.(mov|qt)$/i.test(f.originalname) || f.mimetype === 'video/quicktime');
+    // 识别上传内容（支持 HEIC+MOV 或 JPEG+MOV 配对，优先按同名基名匹配）
+    const isMov = (f) => /\.(mov|qt)$/i.test(f.originalname) || f.mimetype === 'video/quicktime'
+    const isHeic = (f) => /\.heic$/i.test(f.originalname) || f.mimetype === 'image/heic'
+    const isJpeg = (f) => /\.jpe?g$/i.test(f.originalname) || f.mimetype === 'image/jpeg'
     const gif = files.find(f => /\.gif$/i.test(f.originalname) || f.mimetype === 'image/gif');
     const webp = files.find(f => /\.webp$/i.test(f.originalname) || f.mimetype === 'image/webp');
-    const jpeg = files.find(f => /\.jpe?g$/i.test(f.originalname) || f.mimetype === 'image/jpeg');
+
+    const images = files.filter(f => isHeic(f) || isJpeg(f))
+    const movies = files.filter(isMov)
+    const jpeg = images.find(f => isJpeg(f))
+    const toBase = (n) => String(n || '').replace(/\.[^.]+$/, '').toLowerCase()
+    let imageFile = null
+    let videoFile = null
+    // 先尝试基名一一配对
+    if (images.length && movies.length) {
+      const movMap = new Map()
+      for (const m of movies) movMap.set(toBase(m.originalname), m)
+      for (const img of images) {
+        const m = movMap.get(toBase(img.originalname))
+        if (m) { imageFile = img; videoFile = m; break }
+      }
+      // 若未配对成功，退化为任意取一对
+      if (!imageFile) { imageFile = images[0]; videoFile = movies[0] }
+    }
 
     // iOS Live Photo
-    if (heic && mov) {
+    if (imageFile && videoFile) {
       if (onProgress) onProgress(15);
       const [result] = await pool.execute('SELECT 1'); // 保持连接活跃
       // 先插入占位以获取 assetId
@@ -311,10 +329,10 @@ module.exports = {
       let originalImagePath = null;
       let originalVideoPath = null;
       if (KEEP_ORIGINAL) {
-        originalImagePath = path.join(assetDir, path.basename(heic.path));
-        originalVideoPath = path.join(assetDir, path.basename(mov.path));
-        await fs.copy(heic.path, originalImagePath);
-        await fs.copy(mov.path, originalVideoPath);
+        originalImagePath = path.join(assetDir, path.basename(imageFile.path));
+        originalVideoPath = path.join(assetDir, path.basename(videoFile.path));
+        await fs.copy(imageFile.path, originalImagePath);
+        await fs.copy(videoFile.path, originalVideoPath);
       }
       if (onProgress) onProgress(40);
       const mp4Path = path.join(assetDir, 'video.mp4');

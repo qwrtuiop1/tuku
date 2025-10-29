@@ -240,7 +240,8 @@ export const isValidEmail = (email: string): boolean => {
 
 // 验证用户名格式
 export const isValidUsername = (username: string): boolean => {
-  const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/
+  // 允许中文、字母、数字、下划线及绝大多数符号；不允许空白与 '@'；长度 2-20
+  const usernameRegex = /^[^\s@]{2,20}$/
   return usernameRegex.test(username)
 }
 

@@ -49,7 +49,7 @@
       ref="liveFileInputRef"
       type="file"
       multiple
-      accept=".heic,.mov,.gif,.webp,image/heic,video/quicktime,image/gif,image/webp"
+      accept=".heic,.heif,.jpg,.jpeg,.mov,.gif,.webp,image/heic,image/heif,image/jpeg,video/quicktime,image/gif,image/webp"
       style="display: none"
       @change="handleLiveSelect"
     />
@@ -165,7 +165,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Upload,
   Loading,
@@ -243,11 +243,14 @@ const computedVideoAccept = computed(() => {
 })
 
 const computedUnifiedAccept = computed(() => {
+  // iOS 简化 accept，避免系统相册过滤异常
+  if (isIOS.value) {
+    return ['image/*','image/heic','image/heif','video/*','video/quicktime'].join(',')
+  }
   const imageMimes = ['image/*','image/heic','image/heif']
   const imageExts = ['.heic','.heif','.jpg','.jpeg','.png','.gif','.webp']
   const videoList = computedVideoAccept.value
   const videoExtsOnly = (systemSettings.value.allowedVideoTypes || []).map(v => `.${v}`)
-  // 移动端更偏好将视频列在前面，提高可见性（特别是 iOS 照片选择器）
   return [...videoList, ...videoExtsOnly, ...imageMimes, ...imageExts].join(',')
 })
 
@@ -346,8 +349,24 @@ const validateFile = (file: File): boolean => {
   }
   
   if (!allowedTypes.has(file.type)) {
-    ElMessage.error(`不支持的文件类型: ${file.type}`)
-    return false
+    // iOS/Safari 有时返回空 MIME，尝试按扩展名推断
+    let inferred = file.type
+    if (!inferred || inferred === '') {
+      const n = (file.name || '').toLowerCase()
+      if (n.endsWith('.heic')) inferred = 'image/heic'
+      else if (n.endsWith('.heif')) inferred = 'image/heif'
+      else if (n.endsWith('.jpg') || n.endsWith('.jpeg')) inferred = 'image/jpeg'
+      else if (n.endsWith('.png')) inferred = 'image/png'
+      else if (n.endsWith('.gif')) inferred = 'image/gif'
+      else if (n.endsWith('.webp')) inferred = 'image/webp'
+      else if (n.endsWith('.mov')) inferred = 'video/quicktime'
+      else if (n.endsWith('.mp4') || n.endsWith('.m4v')) inferred = 'video/mp4'
+      else if (n.endsWith('.webm')) inferred = 'video/webm'
+    }
+    if (!inferred || !allowedTypes.has(inferred)) {
+      ElMessage.error(`不支持的文件类型: ${inferred || file.type}`)
+      return false
+    }
   }
   
   return true
@@ -390,10 +409,24 @@ const triggerLiveInput = () => {
   liveFileInputRef.value?.click()
 }
 
+// 取消长按入口，统一点击打开文件选择
+
 // 处理文件选择
 const handleFileSelect = async (e: Event) => {
   const target = e.target as HTMLInputElement
   const files = Array.from(target.files || [])
+  // iOS 引导：若仅选到 静态图(HEIC/JPEG) 而无 MOV，提示用户补选 MOV（可触发实况输入）
+  if (isIOS.value && files.length > 0) {
+    const names = files.map(f => (f.name || '').toLowerCase())
+    const hasHeicOrJpeg = names.some(n => n.endsWith('.heic') || n.endsWith('.heif') || n.endsWith('.jpg') || n.endsWith('.jpeg'))
+    const hasMov = names.some(n => n.endsWith('.mov'))
+    if (hasHeicOrJpeg && !hasMov) {
+      try {
+        await ElMessageBox.confirm('检测到选择了 HEIC 图片，是否继续选择对应的实况视频（MOV）以形成实况？', '提示', { type: 'info', confirmButtonText: '去选择', cancelButtonText: '先上传图片' })
+        triggerLiveInput()
+      } catch {}
+    }
+  }
   await processFiles(files)
   
   // 清空input值，允许重复选择相同文件
