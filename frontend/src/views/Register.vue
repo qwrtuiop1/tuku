@@ -282,7 +282,7 @@ const codeExpireTimer = ref<NodeJS.Timeout | null>(null)
 // GeeTest v4 人机验证
 type AnyFn = (...args: any[]) => any
 const geetestScriptUrl = 'https://static.geetest.com/v4/gt4.js'
-const geetestCaptchaId = ((import.meta.env as any).VITE_GEETEST_CAPTCHA_ID as string) || '7922d406fb215d02770d5a4cd71af066'
+const geetestCaptchaId = ((import.meta.env as any).VITE_GEETEST_CAPTCHA_ID as string) || '30d77075542cc161d6518051a937b9a0'
 const geetestReady = ref(false)
 let geetestHandler: any = null
 const geetestMaxWaitMs = 12000

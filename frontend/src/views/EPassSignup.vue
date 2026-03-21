@@ -133,7 +133,7 @@ const rules = {
 
 // GeeTest 联动（与 QQ 注册一致的组合函数）
 const geetestScriptUrl = 'https://static.geetest.com/v4/gt4.js'
-const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '7922d406fb215d02770d5a4cd71af066')
+const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '30d77075542cc161d6518051a937b9a0')
 let geetestHandler: any = null
 const geetestReady = ref(false)
 const geetestMaxWaitMs = 12000

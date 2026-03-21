@@ -164,7 +164,8 @@ import {
   Platform,
   QuestionFilled,
   InfoFilled,
-  StarFilled
+  StarFilled,
+  Picture
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/utils/api'
@@ -198,7 +199,7 @@ const loginRules: FormRules = {
 // GeeTest v4 人机验证（bind 模式）
 type AnyFn = (...args: any[]) => any
 const geetestScriptUrl = 'https://static.geetest.com/v4/gt4.js'
-const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '7922d406fb215d02770d5a4cd71af066')
+const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '30d77075542cc161d6518051a937b9a0')
 let geetestHandler: any = null
 const geetestReady = ref(false)
 const geetestMaxWaitMs = 12000

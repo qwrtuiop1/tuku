@@ -58,7 +58,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Folder as FolderIcon, FolderOpened, Edit, Delete } from '@element-plus/icons-vue'
+import { Folder, FolderOpened, Edit, Delete } from '@element-plus/icons-vue'
 
 const props = defineProps<{
   modelValue: boolean

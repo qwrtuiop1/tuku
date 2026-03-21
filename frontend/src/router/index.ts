@@ -208,7 +208,9 @@ router.beforeEach(async (to, from, next) => {
       const token = localStorage.getItem('token') || sessionStorage.getItem('token')
       
       // 使用公共接口检查维护模式，而不是管理员接口
-      const response = await fetch('https://tukubackend.vtart.cn/api/system/maintenance-status', {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
+      const maintenanceUrl = baseUrl ? `${baseUrl}/api/system/maintenance-status` : '/api/system/maintenance-status'
+      const response = await fetch(maintenanceUrl, {
         headers: token ? {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

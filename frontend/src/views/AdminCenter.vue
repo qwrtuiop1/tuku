@@ -2170,7 +2170,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, markRaw, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import {
   DataBoard,
@@ -2195,6 +2195,7 @@ import {
   Download,
   Refresh,
   Brush,
+  FolderOpened,
   // Picture,
   Star,
   Upload,
@@ -2207,7 +2208,7 @@ import api from '@/utils/api'
 
 // GeeTest v4 人机验证集成
 const geetestScriptUrl = 'https://static.geetest.com/v4/gt4.js'
-const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '7922d406fb215d02770d5a4cd71af066')
+const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '30d77075542cc161d6518051a937b9a0')
 let geetestHandler: any = null
 const geetestReady = ref(false)
 const geetestMaxWaitMs = 12000
@@ -2491,13 +2492,14 @@ const startPasswordVerificationCooldown = () => {
 const isMobile = ref(false)
 
 // 移动端标签页配置（使用组件引用，避免字符串名称在移动端未注册导致不渲染）
+// 用 markRaw 包裹图标组件，避免 Vue 将组件对象代理为响应式，造成性能开销警告
 const mobileTabs = ref([
-  { key: 'overview', label: '概览', icon: DataBoard },
-  { key: 'users', label: '用户', icon: UserFilled },
-  { key: 'logs', label: '日志', icon: Document },
-  { key: 'storage', label: '存储', icon: Folder },
-  { key: 'settings', label: '设置', icon: Setting },
-  { key: 'moderation', label: '审核', icon: CircleCheck }
+  { key: 'overview', label: '概览', icon: markRaw(DataBoard) },
+  { key: 'users', label: '用户', icon: markRaw(UserFilled) },
+  { key: 'logs', label: '日志', icon: markRaw(Document) },
+  { key: 'storage', label: '存储', icon: markRaw(Folder) },
+  { key: 'settings', label: '设置', icon: markRaw(Setting) },
+  { key: 'moderation', label: '审核', icon: markRaw(CircleCheck) }
 ])
 
 // 系统统计数据

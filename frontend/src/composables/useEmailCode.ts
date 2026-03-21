@@ -33,7 +33,7 @@ export function useEmailCode(options?: UseEmailCodeOptions) {
 
   // 内置 GeeTest v4（仅在未提供外部 runHuman 时使用）
   const geetestScriptUrl = 'https://static.geetest.com/v4/gt4.js'
-  const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '')
+  const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '30d77075542cc161d6518051a937b9a0')
   let geetestHandler: any = null
   const geetestReady = ref(false)
   const geetestMaxWaitMs = 12000

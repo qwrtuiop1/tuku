@@ -468,7 +468,8 @@ import {
   InfoFilled,
   StarFilled,
   Share,
-  CircleCheck
+  CircleCheck,
+  Refresh
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useFilesStore } from '@/stores/files'
@@ -2826,6 +2827,55 @@ onMounted(() => {
   }
 }
 
+// 极小屏幕（<576px）保持 2x2 布局，适配更紧凑按钮
+@media (max-width: 576px) {
+  .dashboard {
+    .welcome-actions {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+
+      .action-btn {
+        height: 52px;
+        min-height: 52px;
+        max-height: 52px;
+        padding: 0 8px;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        border-radius: 12px;
+
+        &.el-button,
+        &.el-button--large,
+        &.el-button--primary {
+          height: 52px;
+          min-height: 52px;
+          max-height: 52px;
+          padding: 0 8px;
+          font-size: 13px;
+        }
+
+        .el-icon {
+          font-size: 15px;
+          width: 15px;
+          height: 15px;
+          flex-shrink: 0;
+        }
+
+        span {
+          font-size: 13px;
+          font-weight: 600;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      }
+    }
+  }
+}
+
 // 移动端对话框优化 - 与Files.vue保持一致
 .mobile-upload-dialog {
   :deep(.el-dialog) {
@@ -2874,7 +2924,7 @@ onMounted(() => {
   backdrop-filter: blur(4px) !important;
 }
 
-// 超小屏幕优化
+// 超小屏幕优化（<480px）
 @media (max-width: 480px) {
   .mobile-upload-dialog {
     :deep(.el-dialog) {

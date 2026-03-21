@@ -136,7 +136,7 @@ const rules = {
 
 // GeeTest v4（bind 模式）集成 - 提前定义，供组合函数使用
 const geetestScriptUrl = 'https://static.geetest.com/v4/gt4.js'
-const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '7922d406fb215d02770d5a4cd71af066')
+const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as string) || '30d77075542cc161d6518051a937b9a0')
 let geetestHandler: any = null
 const geetestReady = ref(false)
 const geetestMaxWaitMs = 12000

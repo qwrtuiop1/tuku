@@ -26,7 +26,9 @@ const retryRequest = async (config: any, retryCount = 0): Promise<any> => {
 
 // 创建axios实例
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL ? `${import.meta.env.VITE_API_BASE_URL}/api` : 'https://tukubackend.vtart.cn/api',
+  // 开发环境使用相对路径，通过 Vite proxy 转发
+  // 生产环境使用空字符串，配合 baseURL 的 /api 前缀
+  baseURL: import.meta.env.VITE_API_BASE_URL ? `${import.meta.env.VITE_API_BASE_URL}/api` : '/api',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'

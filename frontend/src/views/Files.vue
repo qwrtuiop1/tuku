@@ -617,7 +617,8 @@ import {
   QuestionFilled,
   InfoFilled,
   StarFilled,
-  Document
+  Document,
+  Loading
 } from '@element-plus/icons-vue'
 import { useFilesStore } from '@/stores/files'
 import { useAuthStore } from '@/stores/auth'
