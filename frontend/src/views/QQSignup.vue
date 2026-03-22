@@ -16,7 +16,7 @@
     <div class="login-content">
       <div class="login-box signup-card">
       <div class="qq-profile" v-if="qq.nickname || qq.avatar">
-        <el-avatar :size="56" :src="qq.avatar">Q</el-avatar>
+        <el-avatar :size="56" :src="getAvatarUrl(qq.avatar)">Q</el-avatar>
         <div class="qq-info">
           <div class="title">QQ 用户注册</div>
           <div class="sub">欢迎，{{ qq.nickname || 'QQ用户' }}</div>
@@ -109,6 +109,7 @@ import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
 import { useEmailCode } from '@/composables/useEmailCode'
 import { Picture, Upload, View, Platform } from '@element-plus/icons-vue'
+import { getAvatarUrl } from '@/utils/helpers'
 
 const router = useRouter()
 

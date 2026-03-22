@@ -99,15 +99,17 @@ class QQOAuthService {
         throw new Error(`获取用户信息失败: ${data.msg || '未知错误'}`);
       }
 
+      const fixScheme = (url) => url && url.replace(/^http:\/\//i, 'https://')
+
       return {
         openId: openId,
         nickname: data.nickname,
-        avatar: data.figureurl_qq_2 || data.figureurl_qq_1 || data.figureurl_2 || data.figureurl_1,
-        avatar30: data.figureurl, // 30x30像素头像
-        avatar50: data.figureurl_1, // 50x50像素头像
-        avatar100: data.figureurl_2, // 100x100像素头像
-        avatarQQ40: data.figureurl_qq_1, // 40x40像素QQ头像
-        avatarQQ100: data.figureurl_qq_2, // 100x100像素QQ头像
+        avatar: fixScheme(data.figureurl_qq_2 || data.figureurl_qq_1 || data.figureurl_2 || data.figureurl_1),
+        avatar30: fixScheme(data.figureurl),
+        avatar50: fixScheme(data.figureurl_1),
+        avatar100: fixScheme(data.figureurl_2),
+        avatarQQ40: fixScheme(data.figureurl_qq_1),
+        avatarQQ100: fixScheme(data.figureurl_qq_2),
         gender: data.gender === '男' ? 'male' : data.gender === '女' ? 'female' : 'unknown',
         genderType: data.gender_type,
         province: data.province,

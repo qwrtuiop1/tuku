@@ -238,6 +238,15 @@ export const isValidEmail = (email: string): boolean => {
   return emailRegex.test(email)
 }
 
+// 获取头像完整 URL，自动修正 http->https 并处理相对路径
+export const getAvatarUrl = (avatarUrl: string | undefined | null): string => {
+  if (!avatarUrl) return ''
+  if (avatarUrl.startsWith('http')) {
+    return avatarUrl.replace(/^http:\/\//i, 'https://')
+  }
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://tukubackend.vtart.cn'
+  return `${baseUrl}${avatarUrl}`
+}
 // 验证用户名格式
 export const isValidUsername = (username: string): boolean => {
   // 允许中文、字母、数字、下划线及绝大多数符号；不允许空白与 '@'；长度 2-20

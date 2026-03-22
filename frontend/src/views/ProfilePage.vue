@@ -228,7 +228,7 @@ import {
   Lock,
   QuestionFilled
 } from '@element-plus/icons-vue'
-import { formatFileSize, formatPercentage } from '@/utils/helpers'
+import { formatFileSize, formatPercentage, getAvatarUrl } from '@/utils/helpers'
 import api from '@/utils/api'
 import { useAuthStore } from '@/stores/auth'
 
@@ -442,9 +442,7 @@ const fetchProfile = async () => {
       email: userData.email,
       nickname: userData.nickname || '',
       bio: userData.bio || '',
-      avatar_url: userData.avatar_url ? 
-        (userData.avatar_url.startsWith('http') ? userData.avatar_url : 
-         `${import.meta.env.VITE_API_BASE_URL || 'https://tukubackend.vtart.cn'}${userData.avatar_url}`) : '',
+      avatar_url: getAvatarUrl(userData.avatar_url),
       role: userData.role,
       storage_limit: userData.storage_limit,
       used_storage: userData.used_storage,

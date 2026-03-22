@@ -6,7 +6,7 @@
       <div class="welcome-main">
         <div class="welcome-header">
           <div class="user-avatar">
-            <el-avatar :size="60" :src="authStore.user?.avatar_url">
+            <el-avatar :size="60" :src="getAvatarUrl(authStore.user?.avatar_url)">
               {{ authStore.user?.username?.charAt(0).toUpperCase() }}
             </el-avatar>
           </div>
@@ -509,7 +509,7 @@ import {
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useFilesStore } from '@/stores/files'
-import { formatFileSize, getStorageUsageColor, formatPercentage } from '@/utils/helpers'
+import { formatFileSize, getStorageUsageColor, formatPercentage, getAvatarUrl } from '@/utils/helpers'
 import api from '@/utils/api'
 import FileUploader from '@/components/FileUploader.vue'
 import FilePreview from '@/components/FilePreview.vue'

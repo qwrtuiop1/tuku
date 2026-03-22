@@ -379,7 +379,7 @@
                 >
                   <div class="user-card-header">
                     <div class="user-info">
-                      <el-avatar :size="40" :src="user.avatar_url">
+                      <el-avatar :size="40" :src="getAvatarUrl(user.avatar_url)">
                         {{ user.username?.charAt(0).toUpperCase() }}
                       </el-avatar>
                       <div class="user-details">
@@ -487,7 +487,7 @@
                 <el-table-column prop="username" label="用户名" width="140">
                   <template #default="{ row }">
                     <div class="user-info">
-                      <el-avatar :size="32" :src="row.avatar_url" shape="circle">
+                      <el-avatar :size="32" :src="getAvatarUrl(row.avatar_url)" shape="circle">
                         {{ row.username?.charAt(0).toUpperCase() }}
                       </el-avatar>
                       <span class="username-text" :title="row.username || '未知用户'">{{ row.username || '未知用户' }}</span>
@@ -1341,7 +1341,7 @@
               >
                 <div class="user-card-header">
                   <div class="user-info">
-                    <el-avatar :size="40" :src="user.avatar_url">
+                    <el-avatar :size="40" :src="getAvatarUrl(user.avatar_url)">
                       {{ user.username?.charAt(0).toUpperCase() }}
                     </el-avatar>
                     <div class="user-details">
@@ -1923,7 +1923,7 @@
           <!-- 移动端：用户头像和基本信息 -->
           <div v-if="isMobile" class="mobile-user-header">
             <div class="user-avatar-section">
-              <el-avatar :size="60" :src="selectedUserStats?.avatar_url">
+              <el-avatar :size="60" :src="getAvatarUrl(selectedUserStats?.avatar_url)">
                 {{ selectedUserStats?.username?.charAt(0).toUpperCase() }}
               </el-avatar>
               <div class="user-basic-info">
@@ -2203,7 +2203,7 @@ import {
   View,
   Calendar
 } from '@element-plus/icons-vue'
-import { formatFileSize } from '@/utils/helpers'
+import { formatFileSize, getAvatarUrl } from '@/utils/helpers'
 import api from '@/utils/api'
 
 // GeeTest v4 人机验证集成

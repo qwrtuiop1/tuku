@@ -15,7 +15,7 @@
     <div class="login-content">
       <div class="login-box signup-card">
         <div class="epass-profile" v-if="profile.nickname || profile.avatar">
-          <el-avatar :size="56" :src="profile.avatar">E</el-avatar>
+          <el-avatar :size="56" :src="getAvatarUrl(profile.avatar)">E</el-avatar>
           <div class="epass-info">
             <div class="title">E通行证 用户注册</div>
             <div class="sub">欢迎，{{ profile.nickname || 'E通行证用户' }}</div>
@@ -106,6 +106,7 @@ import { useRouter } from 'vue-router'
 import api from '@/utils/api'
 import { useEmailCode } from '@/composables/useEmailCode'
 import { Picture, Upload, View, Platform } from '@element-plus/icons-vue'
+import { getAvatarUrl } from '@/utils/helpers'
 
 const router = useRouter()
 
