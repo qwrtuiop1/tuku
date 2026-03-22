@@ -5034,15 +5034,23 @@ onUnmounted(() => {
         min-width: 0;
         
         :deep(.el-avatar) {
+          flex-shrink: 0;
+          flex-grow: 0;
           border-radius: 50% !important;
           overflow: hidden !important;
           width: 32px !important;
           height: 32px !important;
+          min-width: 32px;
+          min-height: 32px;
         }
         :deep(.el-avatar--circle) {
+          flex-shrink: 0;
+          flex-grow: 0;
           border-radius: 50% !important;
           width: 32px !important;
           height: 32px !important;
+          min-width: 32px;
+          min-height: 32px;
           overflow: hidden !important;
         }
         :deep(.el-avatar img) {
@@ -5065,6 +5073,7 @@ onUnmounted(() => {
           color: #303133;
           max-width: 100px;
           flex: 1 1 auto;
+          flex-shrink: 1;
           min-width: 0;
           display: inline-block;
           white-space: nowrap;
@@ -5219,6 +5228,207 @@ onUnmounted(() => {
 .moderation-form :deep(.el-select .el-input__wrapper) { background: var(--input-bg); box-shadow: none; }
 .moderation-form .strict-row { display: flex; align-items: center; gap: 12px; width: 100%; }
 .moderation-form .strict-value { color: var(--text); font-weight: 600; min-width: 28px; text-align: right; }
+
+// 审核设置 - 桌面端基础布局（按钮左右排列）
+.moderation-form .settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+.moderation-form .settings-action-item {
+  flex: 0 0 auto;
+  min-width: 80px;
+}
+.moderation-form .settings-action-item .el-button {
+  height: 36px;
+  font-size: 14px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+// 审核设置 - 平板适配 (992px - 1200px)
+@media (max-width: 1200px) {
+  .moderation-form {
+    :deep(.el-form-item) {
+      margin-bottom: 20px;
+    }
+    :deep(.el-form-item__label) {
+      font-size: 13px;
+    }
+    :deep(.el-input__inner),
+    :deep(.el-select__input) {
+      font-size: 13px;
+    }
+    .strict-row {
+      gap: 10px;
+    }
+  }
+}
+
+// 审核设置 - 小平板适配 (768px - 992px)
+@media (max-width: 992px) {
+  .moderation-form {
+    :deep(.el-form) {
+      display: flex;
+      flex-direction: column;
+    }
+    :deep(.el-form-item) {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 18px;
+    }
+    :deep(.el-form-item__label) {
+      width: 100% !important;
+      text-align: left;
+      padding-bottom: 6px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+    :deep(.el-form-item__content) {
+      margin-left: 0 !important;
+      width: 100%;
+    }
+    :deep(.el-select) {
+      width: 100%;
+    }
+    :deep(.el-input) {
+      width: 100%;
+    }
+    :deep(.el-switch) {
+      align-self: flex-start;
+    }
+    .strict-row {
+      flex-direction: row;
+      gap: 8px;
+      .el-input {
+        flex: 1;
+      }
+      .strict-value {
+        font-size: 13px;
+        min-width: 24px;
+      }
+    }
+    // 最大图片大小那一行
+    > .el-form-item:has(.el-select) {
+      :deep(.el-form-item__content) {
+        flex-wrap: wrap;
+      }
+    }
+  }
+
+  // 平板下隐藏桌面端的 label-width 提示
+  .moderation-form {
+    :deep(.el-form-item__label)::after {
+      display: none;
+    }
+  }
+}
+
+// 审核设置 - 移动端适配 (< 768px)
+@media (max-width: 768px) {
+  .moderation-form {
+    padding: 0;
+
+    :deep(.el-form-item) {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #f0f0f0;
+      &:last-of-type {
+        border-bottom: none;
+      }
+    }
+    :deep(.el-form-item__label) {
+      width: 100% !important;
+      text-align: left;
+      padding-bottom: 4px;
+      font-size: 12px;
+      color: #909399;
+      line-height: 1.4;
+      font-weight: 500;
+    }
+    :deep(.el-form-item__content) {
+      margin-left: 0 !important;
+      width: 100%;
+    }
+    :deep(.el-input__wrapper) {
+      min-height: 40px;
+      border-radius: 8px;
+    }
+    :deep(.el-input__inner) {
+      font-size: 14px;
+    }
+    :deep(.el-select) {
+      width: 100%;
+      :deep(.el-select__wrapper) {
+        min-height: 40px;
+        border-radius: 8px;
+      }
+    }
+    :deep(.el-switch) {
+      align-self: flex-start;
+      transform: scale(0.9);
+    }
+    :deep(.el-slider) {
+      width: 100%;
+    }
+    .strict-row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+      .el-input {
+        width: 100%;
+      }
+      .strict-value {
+        align-self: flex-end;
+        font-size: 12px;
+        color: #909399;
+        font-weight: 400;
+        min-width: unset;
+        text-align: right;
+      }
+    }
+    // 按钮区域 - 移动端垂直堆叠
+    .el-form-item:last-child {
+      border-bottom: none;
+      margin-top: 8px;
+    }
+    .settings-actions {
+      flex-direction: column;
+      gap: 10px;
+      .settings-action-item {
+        width: 100%;
+        min-width: unset;
+      }
+    }
+  }
+}
+
+// 审核设置 - 超小屏适配 (< 480px)
+@media (max-width: 480px) {
+  .moderation-form {
+    :deep(.el-form-item__label) {
+      font-size: 12px;
+    }
+    :deep(.el-input__wrapper) {
+      min-height: 38px;
+    }
+    :deep(.el-select__wrapper) {
+      min-height: 38px;
+    }
+    :deep(.el-switch) {
+      transform: scale(0.85);
+    }
+    .strict-row {
+      .el-input .el-input__wrapper {
+        min-height: 38px;
+      }
+    }
+  }
+}
+
 // ==================== 移动端用户卡片样式优化 ====================
 .mobile-user-list {
   display: flex;
@@ -5273,6 +5483,8 @@ onUnmounted(() => {
         min-width: 0;
         
         .el-avatar {
+          flex-shrink: 0;
+          flex-grow: 0;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
           border: 2px solid #fff;
         }
