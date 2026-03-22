@@ -704,40 +704,19 @@ const getPriorityText = (priority: string) => {
 
 // 获取所有通知（包括已读的）
 const fetchAllNotifications = async () => {
-  if (!authStore.user) {
-    console.log('用户未登录，跳过获取通知')
-    return
-  }
-  
+  if (!authStore.user) return
+
   try {
-    console.log('开始获取所有通知...')
-    console.log('API基础URL:', api.defaults.baseURL)
-    console.log('用户信息:', authStore.user)
-    
     const response = await api.get('/auth/notifications/all')
-    console.log('获取所有通知响应:', response.data)
-    
     if (response.data.success) {
       allNotifications.value = response.data.notifications || []
-      console.log('设置allNotifications:', allNotifications.value.length, '条通知')
-      console.log('通知详情:', allNotifications.value)
     } else {
-      console.error('获取通知失败:', response.data.message)
       ElMessage.error('获取通知失败: ' + response.data.message)
     }
   } catch (error: any) {
-    console.error('获取所有通知失败:', error)
-    console.error('错误详情:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status,
-      config: error.config
-    })
-    
     if (error.response?.status === 401) {
-      console.log('用户未授权，可能需要重新登录')
+      // 用户未登录，静默忽略
     } else if (error.response?.status === 404) {
-      console.log('通知接口不存在')
       ElMessage.error('通知服务暂不可用')
     } else {
       ElMessage.error('获取通知失败，请稍后重试')
@@ -747,30 +726,15 @@ const fetchAllNotifications = async () => {
 
 // 全局通知相关方法
 const fetchGlobalNotifications = async () => {
-  if (!authStore.user) {
-    console.log('用户未登录，跳过获取全局通知')
-    return
-  }
-  
+  if (!authStore.user) return
+
   try {
-    console.log('开始获取全局通知...')
     const response = await api.get('/auth/notifications/unread')
-    console.log('获取全局通知响应:', response.data)
-    
     if (response.data.success) {
-      // 只显示未读通知
       globalNotifications.value = response.data.notifications || []
-      console.log('设置globalNotifications:', globalNotifications.value.length, '条未读通知')
-    } else {
-      console.error('获取全局通知失败:', response.data.message)
     }
   } catch (error: any) {
-    console.error('获取全局通知失败:', error)
-    console.error('错误详情:', {
-      message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
-    })
+    // 静默处理网络错误
   }
 }
 
@@ -841,51 +805,34 @@ const closeNotificationsDialog = () => {
 
 // 打开通知详情悬浮窗
 const openNotificationDetail = async (n: any) => {
-  console.log('打开通知详情:', n)
-  console.log('当前allNotifications数量:', allNotifications.value.length)
-  console.log('当前notificationsDialogVisible:', notificationsDialogVisible.value)
-  
   detailNotification.value = n
-  
-  // 如果通知未读，自动标记为已读
+
   if (!n.is_read) {
     try {
-      console.log('自动标记通知为已读:', n.id)
       await api.put(`/auth/notifications/${n.id}/read`)
-      
-      // 更新本地状态
+
       n.is_read = 1
       n.read_at = new Date().toISOString()
-      
-      // 更新allNotifications中的状态
+
       const notificationIndex = allNotifications.value.findIndex(notif => notif.id === n.id)
       if (notificationIndex !== -1) {
         allNotifications.value[notificationIndex].is_read = 1
         allNotifications.value[notificationIndex].read_at = n.read_at
       }
-      
-      // 从全局未读通知列表中移除
+
       globalNotifications.value = globalNotifications.value.filter(notif => notif.id !== n.id)
-      
-      console.log('通知已自动标记为已读')
-      
-      // 触发响应式更新
+
       allNotifications.value = [...allNotifications.value]
       globalNotifications.value = [...globalNotifications.value]
-      
+
     } catch (error: any) {
-      console.error('自动标记通知为已读失败:', error)
       // 即使标记失败，仍然显示详情
     }
   }
-  
-  // 确保对话框是打开的
+
   if (!notificationsDialogVisible.value) {
     notificationsDialogVisible.value = true
   }
-  
-  console.log('设置后detailNotification:', detailNotification.value)
-  console.log('设置后notificationsDialogVisible:', notificationsDialogVisible.value)
 }
 
 // 打开通知对话框
@@ -917,25 +864,16 @@ const setupSSE = () => {
   const token = localStorage.getItem('token')
   if (!token) return
   
-  eventSource.value = new EventSource(`${api.defaults.baseURL}/auth/notifications/stream`, {
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
+  eventSource.value = new EventSource(`${api.defaults.baseURL}/auth/notifications/stream?token=${encodeURIComponent(token)}`)
+
+  eventSource.value.onmessage = () => {}
+
+  eventSource.value.addEventListener('notification:new', () => {
+    fetchGlobalNotifications()
   })
 
-  eventSource.value.onmessage = (event) => {
-    console.log('SSE message:', event.data)
-  }
-
-  eventSource.value.addEventListener('notification:new', (event) => {
-    console.log('New notification received via SSE:', event.data)
-    fetchGlobalNotifications() // 收到新通知事件后立即刷新
-  })
-
-  eventSource.value.onerror = (error) => {
-    console.error('SSE Error:', error)
+  eventSource.value.onerror = () => {
     eventSource.value?.close()
-    // 尝试重新连接
     setTimeout(setupSSE, 5000)
   }
 }
