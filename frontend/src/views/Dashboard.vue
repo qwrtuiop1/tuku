@@ -2976,19 +2976,20 @@ onUnmounted(() => {
   }
   
   .actions-grid {
-    grid-template-columns: 1fr;
-    
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+
     .action-item {
-      padding: 12px;
-      
+      padding: 14px 12px;
+
       .action-icon {
-        font-size: 20px;
+        font-size: 22px;
       }
-      
+
       .action-text {
-        font-size: 12px;
+        font-size: 13px;
       }
-      
+
       .action-desc {
         font-size: 10px;
       }
