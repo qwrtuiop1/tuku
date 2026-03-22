@@ -15,9 +15,10 @@
               欢迎回来，{{ authStore.user?.username }}！
             </h1>
             <p class="welcome-subtitle">
-              今天是 {{ currentDate }}，让我们开始管理您的文件吧
+              <span class="welcome-date">今天是 {{ currentDate }}</span>
+              <span class="welcome-meta">让我们开始管理您的文件吧</span>
             </p>
-        </div>
+          </div>
       </div>
       <div class="welcome-actions">
         <el-button type="primary" size="large" @click="goToFiles" class="action-btn primary">
@@ -41,28 +42,27 @@
           <el-icon><Setting /></el-icon>
           管理控制台
         </el-button>
-        </div>
       </div>
-      
-      <!-- 统计数据区域：下方一排显示 -->
-      <div class="welcome-stats">
-        <div class="stat-item">
-          <span class="stat-value">{{ stats.totalFiles }}</span>
-          <span class="stat-label">总文件数</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ formatFileSize(stats.totalSize) }}</span>
-          <span class="stat-label">已使用空间</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">{{ formatPercentage(authStore.storageUsage) }}</span>
-          <span class="stat-label">使用率</span>
-        </div>
+    </div>
+
+    <!-- 统计数据区域：下方一排显示 -->
+    <div class="welcome-stats">
+      <div class="stat-item">
+        <span class="stat-value">{{ stats.totalFiles }}</span>
+        <span class="stat-label">总文件数</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value">{{ formatFileSize(stats.totalSize) }}</span>
+        <span class="stat-label">已使用空间</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value">{{ formatPercentage(authStore.storageUsage) }}</span>
+        <span class="stat-label">使用率</span>
       </div>
     </div>
     
-    <!-- 统计卡片 -->
-    <div class="stats-grid">
+    <!-- 统计卡片（桌面端网格布局） -->
+    <div class="stats-grid stats-grid-desktop">
       <div class="stat-card image-card">
         <div class="card-header">
           <div class="stat-icon">
@@ -83,7 +83,7 @@
           <div class="stat-detail">{{ formatFileSize(stats.imageSize) }}</div>
         </div>
       </div>
-      
+
       <div class="stat-card video-card">
         <div class="card-header">
           <div class="stat-icon">
@@ -104,8 +104,7 @@
           <div class="stat-detail">{{ formatFileSize(stats.videoSize) }}</div>
         </div>
       </div>
-      
-      <!-- 动图/实况卡片（替换原总大小卡片，并与文件夹卡片交换位置） -->
+
       <div class="stat-card motion-card">
         <div class="card-header">
           <div class="stat-icon">
@@ -127,7 +126,6 @@
         </div>
       </div>
 
-      <!-- 文件夹卡片（位置后移） -->
       <div class="stat-card folder-card">
         <div class="card-header">
           <div class="stat-icon">
@@ -149,7 +147,53 @@
         </div>
       </div>
     </div>
-    
+
+    <!-- 统计卡片（移动端弧形轮播） -->
+    <div class="stats-arc-carousel" ref="carouselRef">
+      <div class="arc-track">
+        <div
+          v-for="(card, index) in statCards"
+          :key="card.key"
+          :class="[
+            'arc-card',
+            card.cls,
+            {
+              active: currentArcIndex === index,
+              [`left-${currentArcIndex - index}`]: currentArcIndex > index && currentArcIndex - index > 0 && currentArcIndex - index <= 3,
+              [`right-${index - currentArcIndex}`]: currentArcIndex < index && index - currentArcIndex > 0 && index - currentArcIndex <= 3,
+            }
+          ]"
+          @click="currentArcIndex = index"
+        >
+          <div class="arc-card-inner">
+            <div class="arc-card-header">
+              <div class="arc-icon" :style="{ color: card.color }">
+                <el-icon><component :is="card.icon" /></el-icon>
+              </div>
+              <div class="arc-trend" :class="(card.percentage || 0) >= 0 ? 'trend-positive' : 'trend-negative'">
+                <el-icon><TrendCharts /></el-icon>
+                <span>{{ (card.percentage || 0) >= 0 ? '+' : '' }}{{ (card.percentage || 0).toFixed(1) }}%</span>
+              </div>
+            </div>
+            <div class="arc-number">{{ card.value }}</div>
+            <div class="arc-label">{{ card.label }}</div>
+            <div class="arc-detail">{{ card.detail }}</div>
+          </div>
+        </div>
+      </div>
+      <!-- 指示点 -->
+      <div class="arc-indicators">
+        <span
+          v-for="(card, index) in statCards"
+          :key="card.key"
+          :class="['arc-dot', { active: currentArcIndex === index }]"
+          @click="currentArcIndex = index"
+        />
+      </div>
+      <div class="arc-hint">← 左右滑动 →</div>
+    </div>
+  </div>
+
     <!-- 主要内容区域 -->
     <div class="main-content">
       <!-- 存储使用情况 -->
@@ -340,8 +384,7 @@
           </div>
         </el-card>
       </div>
-    </div>
-    
+
     <!-- 快速操作 -->
     <div class="quick-actions">
       <el-card class="actions-card">
@@ -417,34 +460,34 @@
         </div>
       </el-card>
     </div>
-    
-    <!-- 文件上传对话框 -->
-    <el-dialog
-      v-model="showUploadDialog"
-      title="上传文件"
-      :width="isMobile ? '95%' : '600px'"
-      :close-on-click-modal="false"
-      :class="{ 'mobile-upload-dialog': isMobile }"
-      :modal-class="isMobile ? 'mobile-modal' : ''"
-    >
-      <FileUploader @upload-success="handleUploadSuccess" />
-    </el-dialog>
-    
-    <!-- 文件预览对话框 -->
-    <el-dialog
-      v-model="showPreviewDialog"
-      title="文件预览"
-      width="80%"
-      :close-on-click-modal="true"
-    >
-      <FilePreview v-if="previewFile" :file="previewFile" @file-deleted="handleFileDeleted" />
-    </el-dialog>
-    
+  </div>
+
+  <!-- 文件上传对话框 -->
+  <el-dialog
+    v-model="showUploadDialog"
+    title="上传文件"
+    :width="isMobile ? '95%' : '600px'"
+    :close-on-click-modal="false"
+    :class="{ 'mobile-upload-dialog': isMobile }"
+    :modal-class="isMobile ? 'mobile-modal' : ''"
+  >
+    <FileUploader @upload-success="handleUploadSuccess" />
+  </el-dialog>
+  
+  <!-- 文件预览对话框 -->
+  <el-dialog
+    v-model="showPreviewDialog"
+    title="文件预览"
+    width="80%"
+    :close-on-click-modal="true"
+  >
+    <FilePreview v-if="previewFile" :file="previewFile" @file-deleted="handleFileDeleted" />
+  </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -453,27 +496,20 @@ import {
   Picture,
   VideoPlay,
   Folder,
-  DataLine,
   FolderAdd,
   Search,
   TrendCharts,
   PieChart,
   Setting,
-  Clock,
-  View,
   Download,
-  Delete,
   Lightning,
-  QuestionFilled,
-  InfoFilled,
-  StarFilled,
   Share,
   CircleCheck,
   Refresh
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useFilesStore } from '@/stores/files'
-import { formatFileSize, formatTime, getFilePreviewUrl, getStorageUsageColor, formatPercentage } from '@/utils/helpers'
+import { formatFileSize, getStorageUsageColor, formatPercentage } from '@/utils/helpers'
 import api from '@/utils/api'
 import FileUploader from '@/components/FileUploader.vue'
 import FilePreview from '@/components/FilePreview.vue'
@@ -487,8 +523,46 @@ const showPreviewDialog = ref(false)
 const previewFile = ref(null)
 const loadingTrends = ref(false)
 
+// 移动端弧形轮播
+const carouselRef = ref<HTMLElement | null>(null)
+const currentArcIndex = ref(0)
+let touchStartX = 0
+let touchStartY = 0
+
+// 轮播数据（从 stats 响应式计算）
+const statCards = computed(() => [
+  { key: 'images', label: '图片文件', value: stats.value.imageCount, detail: formatFileSize(stats.value.imageSize), icon: Picture, color: '#3b82f6', cls: 'image-card', percentage: Number(stats.value.changes?.images?.percentage) || 0 },
+  { key: 'videos', label: '视频文件', value: stats.value.videoCount, detail: formatFileSize(stats.value.videoSize), icon: VideoPlay, color: '#ef4444', cls: 'video-card', percentage: Number(stats.value.changes?.videos?.percentage) || 0 },
+  { key: 'motion', label: '动图/实况', value: stats.value.motionCount || 0, detail: formatFileSize(stats.value.motionSize || 0), icon: CircleCheck, color: '#a855f7', cls: 'motion-card', percentage: Number(stats.value.changes?.videos?.percentage) || 0 },
+  { key: 'folders', label: '文件夹', value: stats.value.folderCount, detail: `${stats.value.totalFiles} 个文件`, icon: Folder, color: '#10b981', cls: 'folder-card', percentage: Number(stats.value.changes?.folders?.percentage) || 0 },
+])
+
 // 统计数据
-const stats = ref({
+interface TrendData {
+  total_files: number
+  total_size: number
+  trend_date: string
+}
+
+const stats = ref<{
+  imageCount: number
+  videoCount: number
+  folderCount: number
+  totalFiles: number
+  totalSize: number
+  imageSize: number
+  videoSize: number
+  motionCount: number
+  motionSize: number
+  changes: {
+    files: { value: number; percentage: number }
+    size: { value: number; percentage: number }
+    images: { value: number; percentage: number }
+    videos: { value: number; percentage: number }
+    folders: { value: number; percentage: number }
+  }
+  trends: TrendData[]
+}>({
   imageCount: 0,
   videoCount: 0,
   folderCount: 0,
@@ -519,11 +593,6 @@ const currentDate = computed(() => {
   })
 })
 
-// 最近文件
-const recentFiles = computed(() => {
-  return filesStore.files.slice(0, 6)
-})
-
 // 响应式检测
 const isMobile = computed(() => {
   return window.innerWidth <= 768
@@ -542,12 +611,6 @@ const goToFiles = () => {
 // 跳转到管理面板
 const goToAdmin = () => {
   router.push('/admin')
-}
-
-// 预览文件
-const handlePreviewFile = (file: any) => {
-  previewFile.value = file
-  showPreviewDialog.value = true
 }
 
 // 创建新文件夹
@@ -576,36 +639,9 @@ const handleUploadSuccess = () => {
 }
 
 // 处理文件删除
-const handleFileDeleted = (fileId: number) => {
+const handleFileDeleted = (_fileId: number) => {
   showPreviewDialog.value = false
   loadDashboardData()
-}
-
-// 下载文件
-const downloadFile = (file: any) => {
-  try {
-    const link = document.createElement('a')
-    link.href = getFilePreviewUrl(file.id)
-    link.download = file.original_name
-    link.target = '_blank'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    ElMessage.success('开始下载文件')
-  } catch (error) {
-    ElMessage.error('下载失败')
-  }
-}
-
-// 删除文件
-const deleteFile = async (file: any) => {
-  try {
-    await filesStore.deleteFile(file.id)
-    ElMessage.success('文件删除成功')
-    loadDashboardData()
-  } catch (error) {
-    ElMessage.error('删除失败')
-  }
 }
 
 // 加载仪表盘数据
@@ -681,6 +717,8 @@ const loadLocalStats = async () => {
       totalSize: 0,
       imageSize: 0,
       videoSize: 0,
+      motionCount: 0,
+      motionSize: 0,
       changes: {
         files: { value: 0, percentage: 0 },
         size: { value: 0, percentage: 0 },
@@ -707,10 +745,10 @@ const refreshTrends = async () => {
 }
 
 // 计算柱状图高度
-const getBarHeight = (value, type) => {
+const getBarHeight = (value: number, type: string) => {
   if (!stats.value.trends.length) return 0
   
-  const values = stats.value.trends.map(trend => {
+  const values = stats.value.trends.map((trend: any) => {
     if (type === 'files') return trend.total_files
     if (type === 'size') return trend.total_size
     return 0
@@ -725,16 +763,47 @@ const getBarHeight = (value, type) => {
 }
 
 // 格式化趋势日期
-const formatTrendDate = (dateStr) => {
+const formatTrendDate = (dateStr: string) => {
   const date = new Date(dateStr)
   const month = date.getMonth() + 1
   const day = date.getDate()
   return `${month}/${day}`
 }
 
+// 移动端弧形轮播触摸滑动（保存引用以便清理）
+const handleArcTouchStart = (e: TouchEvent) => {
+  touchStartX = e.touches[0].clientX
+  touchStartY = e.touches[0].clientY
+}
+const handleArcTouchEnd = (e: TouchEvent) => {
+  const dx = e.changedTouches[0].clientX - touchStartX
+  const dy = e.changedTouches[0].clientY - touchStartY
+  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
+    if (dx < 0 && currentArcIndex.value < statCards.value.length - 1) {
+      currentArcIndex.value++
+    } else if (dx > 0 && currentArcIndex.value > 0) {
+      currentArcIndex.value--
+    }
+  }
+}
+
 onMounted(() => {
   loadDashboardData()
+  const el = carouselRef.value
+  if (el) {
+    el.addEventListener('touchstart', handleArcTouchStart, { passive: true })
+    el.addEventListener('touchend', handleArcTouchEnd, { passive: true })
+  }
 })
+
+onUnmounted(() => {
+  const el = carouselRef.value
+  if (el) {
+    el.removeEventListener('touchstart', handleArcTouchStart)
+    el.removeEventListener('touchend', handleArcTouchEnd)
+  }
+})
+
 </script>
 
 <style lang="scss" scoped>
@@ -885,7 +954,8 @@ onMounted(() => {
         -webkit-text-fill-color: transparent;
         background-clip: text;
         line-height: 1.2;
-        word-break: break-word; // 长用户名换行
+        word-break: normal; // 中文标题避免逐字断行；长英文仍可由 overflow-wrap 处理
+        overflow-wrap: break-word;
         
         // 桌面端大屏幕标题
         @media (min-width: 1440px) {
@@ -913,7 +983,8 @@ onMounted(() => {
         font-weight: 500;
         text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         line-height: 1.4;
-        word-break: break-word; // 长文本换行
+        word-break: normal;
+        overflow-wrap: break-word;
         
         // 桌面端大屏幕副标题
         @media (min-width: 1440px) {
@@ -1236,125 +1307,69 @@ onMounted(() => {
       }
     }
   }
+}
+
+// 独立的统计数据区域样式
+.welcome-stats {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  margin-top: 24px;
+  flex-wrap: wrap;
   
-  // 统计数据区域：下方一排显示 - 桌面端优化
-  .welcome-stats {
+  .stat-item {
     display: flex;
-    justify-content: center;
-    gap: 48px;
-    position: relative;
-    z-index: 1;
-    margin-top: 8px;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 24px 28px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 18px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+    min-width: 160px;
     
-    // 桌面端大屏幕优化
-    @media (min-width: 1440px) {
-      gap: 56px;
-      margin-top: 12px;
+    &:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
     }
     
-    // 中等桌面屏幕
-    @media (min-width: 1200px) and (max-width: 1439px) {
-      gap: 52px;
-      margin-top: 10px;
+    .stat-value {
+      font-size: 32px;
+      font-weight: 800;
+      background: linear-gradient(45deg, #ffffff, #f9fafb);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
     
-    // 小桌面屏幕
-    @media (min-width: 1024px) and (max-width: 1199px) {
-      gap: 48px;
-      margin-top: 8px;
+    .stat-label {
+      font-size: 15px;
+      opacity: 0.9;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      text-align: center;
     }
+  }
+  
+  @media (max-width: 768px) {
+    gap: 16px;
+    margin-top: 20px;
     
     .stat-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      padding: 24px 28px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 18px;
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      transition: all 0.3s ease;
-      min-width: 160px;
-      
-      // 桌面端大屏幕统计项
-      @media (min-width: 1440px) {
-        padding: 28px 32px;
-        border-radius: 20px;
-        min-width: 180px;
-        gap: 12px;
-      }
-      
-      // 中等桌面屏幕统计项
-      @media (min-width: 1200px) and (max-width: 1439px) {
-        padding: 26px 30px;
-        border-radius: 19px;
-        min-width: 170px;
-        gap: 11px;
-      }
-      
-      // 小桌面屏幕统计项
-      @media (min-width: 1024px) and (max-width: 1199px) {
-        padding: 24px 28px;
-        border-radius: 18px;
-        min-width: 160px;
-        gap: 10px;
-      }
-      
-      &:hover {
-        background: rgba(255, 255, 255, 0.15);
-        transform: translateY(-3px);
-        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
-        border-color: rgba(255, 255, 255, 0.3);
-      }
+      padding: 16px 20px;
+      min-width: 100px;
       
       .stat-value {
-        font-size: 32px;
-        font-weight: 800;
-        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        background: linear-gradient(45deg, #ffffff, #f9fafb);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        
-        // 桌面端大屏幕数值
-        @media (min-width: 1440px) {
-          font-size: 36px;
-        }
-        
-        // 中等桌面屏幕数值
-        @media (min-width: 1200px) and (max-width: 1439px) {
-          font-size: 34px;
-        }
-        
-        // 小桌面屏幕数值
-        @media (min-width: 1024px) and (max-width: 1199px) {
-          font-size: 30px;
-        }
+        font-size: 24px;
       }
       
       .stat-label {
-        font-size: 15px;
-        opacity: 0.9;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        text-align: center;
-        
-        // 桌面端大屏幕标签
-        @media (min-width: 1440px) {
-          font-size: 16px;
-        }
-        
-        // 中等桌面屏幕标签
-        @media (min-width: 1200px) and (max-width: 1439px) {
-          font-size: 15px;
-        }
-        
-        // 小桌面屏幕标签
-        @media (min-width: 1024px) and (max-width: 1199px) {
-          font-size: 14px;
-        }
+        font-size: 12px;
       }
     }
   }
@@ -1491,6 +1506,217 @@ onMounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 24px;
+  margin-top: 32px;
+}
+
+// 桌面端统计网格：桌面端显示，移动端隐藏
+.stats-grid-desktop {
+  display: grid;
+}
+
+@media (max-width: 768px) {
+  .stats-grid-desktop {
+    display: none !important;
+  }
+}
+
+// 弧形轮播：桌面端隐藏，移动端显示
+.stats-arc-carousel {
+  display: none;
+}
+
+// 移动端弧形轮播卡片定位（基于 DOM 顺序 + active 状态）
+@media (max-width: 768px) {
+  .stats-arc-carousel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0 20px;
+    position: relative;
+    overflow: hidden;
+
+    .arc-track {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      padding: 16px 0;
+      width: 100%;
+      position: relative;
+      perspective: 900px;
+      perspective-origin: 50% 60%;
+      height: 180px;
+    }
+
+    .arc-card {
+      position: absolute;
+      width: 78%;
+      max-width: 290px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.14);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+      padding: 20px;
+      transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.5s ease, filter 0.5s ease, box-shadow 0.5s ease;
+      cursor: pointer;
+      will-change: transform, opacity, filter;
+      transform-origin: center bottom;
+      left: 50%;
+      top: 50%;
+      margin-left: -39%;
+
+      // 中心卡片（当前选中）
+      &.active {
+        transform: translateX(0) translateY(-50%) scale(1) translateZ(0);
+        opacity: 1;
+        filter: blur(0);
+        z-index: 5;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25), 0 0 0 2px rgba(255, 255, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      }
+
+      // 右侧卡片
+      &.right-1 {
+        transform: translateX(88%) translateY(-50%) scale(0.8) translateZ(-60px);
+        opacity: 0.45;
+        filter: blur(3px);
+        z-index: 3;
+      }
+      &.right-2 {
+        transform: translateX(176%) translateY(-50%) scale(0.62) translateZ(-110px);
+        opacity: 0.2;
+        filter: blur(6px);
+        z-index: 2;
+      }
+      &.right-3 {
+        transform: translateX(264%) translateY(-50%) scale(0.48) translateZ(-150px);
+        opacity: 0;
+        filter: blur(9px);
+        z-index: 1;
+      }
+
+      // 左侧卡片
+      &.left-1 {
+        transform: translateX(-88%) translateY(-50%) scale(0.8) translateZ(-60px);
+        opacity: 0.45;
+        filter: blur(3px);
+        z-index: 3;
+      }
+      &.left-2 {
+        transform: translateX(-176%) translateY(-50%) scale(0.62) translateZ(-110px);
+        opacity: 0.2;
+        filter: blur(6px);
+        z-index: 2;
+      }
+      &.left-3 {
+        transform: translateX(-264%) translateY(-50%) scale(0.48) translateZ(-150px);
+        opacity: 0;
+        filter: blur(9px);
+        z-index: 1;
+      }
+
+      // 图标颜色
+      &.image-card .arc-icon { color: #60a5fa; }
+      &.video-card .arc-icon { color: #f87171; }
+      &.motion-card .arc-icon { color: #c084fc; }
+      &.folder-card .arc-icon { color: #34d399; }
+
+      .arc-card-inner {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+
+        .arc-card-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 4px;
+
+          .arc-icon {
+            font-size: 26px;
+            display: flex;
+            align-items: center;
+          }
+
+          .arc-trend {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 20px;
+
+            .el-icon {
+              font-size: 12px;
+            }
+
+            &.trend-positive {
+              color: #4ade80;
+              background: rgba(74, 222, 128, 0.18);
+            }
+            &.trend-negative {
+              color: #f87171;
+              background: rgba(248, 113, 113, 0.18);
+            }
+          }
+        }
+
+        .arc-number {
+          font-size: 36px;
+          font-weight: 800;
+          color: #ffffff;
+          line-height: 1;
+          text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+          letter-spacing: -0.02em;
+        }
+
+        .arc-label {
+          font-size: 14px;
+          font-weight: 600;
+          color: rgba(255, 255, 255, 0.85);
+        }
+
+        .arc-detail {
+          font-size: 11px;
+          color: rgba(255, 255, 255, 0.5);
+        }
+      }
+    }
+
+    // 指示点
+    .arc-indicators {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 0 4px;
+
+      .arc-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.3);
+        transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        cursor: pointer;
+
+        &.active {
+          width: 22px;
+          background: #ffffff;
+          box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
+        }
+      }
+    }
+
+    // 滑动提示
+    .arc-hint {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.35);
+      letter-spacing: 0.06em;
+      padding-top: 4px;
+    }
+  }
 }
 
 .stat-card {
@@ -2097,6 +2323,7 @@ onMounted(() => {
   .stats-grid {
     grid-template-columns: repeat(4, 1fr);
     gap: 28px;
+    margin-top: 32px;
   }
 }
 
@@ -2137,6 +2364,7 @@ onMounted(() => {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 24px;
+    margin-top: 32px;
   }
 }
 
@@ -2145,143 +2373,167 @@ onMounted(() => {
     padding: 0; // 移除内边距，由MainLayout统一控制
     gap: 24px;
   }
-  
-  .welcome-section {
-    padding: 40px;
-    
-    .welcome-main {
-      gap: 32px;
-      margin-bottom: 28px;
-    }
-    
-    .welcome-header {
-      gap: 24px;
-      
-      .welcome-text {
-        .welcome-title {
-          font-size: 36px;
-        }
-        
-        .welcome-subtitle {
-          font-size: 18px;
-        }
-      }
-    }
-    
-    .welcome-actions {
-      gap: 16px;
-    }
-    
-    .welcome-stats {
-      gap: 32px;
-    }
-  }
-  
+
+  // 欢迎区见文末「平板 / 窄桌面主区（1024–1199）」规则
+
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 20px;
+    margin-top: 32px;
   }
 }
 
-// 平板端响应式设计
+// 平板端响应式设计（768–1023）：纵向堆叠、文案横排、层次清晰
 @media (min-width: 768px) and (max-width: 1023px) {
   .dashboard {
     padding: 0; // 移除内边距，由MainLayout统一控制
     gap: 20px;
   }
-  
-  .welcome-section {
-    padding: 32px;
-    
+
+  .dashboard .welcome-section {
+    padding: 28px 24px 26px;
+    border-radius: 20px;
+
     .welcome-main {
-      flex-direction: column;
-      gap: 24px;
-      margin-bottom: 24px;
+      flex-direction: column !important;
+      align-items: stretch !important;
+      justify-content: flex-start !important;
+      gap: 20px !important;
+      margin-bottom: 20px !important;
+      min-height: 0 !important;
     }
-    
+
     .welcome-header {
-      gap: 20px;
-      
+      width: 100%;
+      flex: none !important;
+      align-items: flex-start !important;
+      gap: 16px !important;
+
+      .user-avatar :deep(.el-avatar) {
+        width: 60px !important;
+        height: 60px !important;
+        border-width: 3px !important;
+      }
+
       .welcome-text {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        text-align: left !important;
+
         .welcome-title {
-          font-size: 32px;
+          font-size: 1.625rem !important;
+          font-weight: 800 !important;
+          line-height: 1.22 !important;
+          margin-bottom: 8px !important;
+          word-break: normal !important;
+          overflow-wrap: break-word !important;
+          color: #fff !important;
+          -webkit-text-fill-color: #fff !important;
+          background: none !important;
+          background-clip: unset !important;
+          -webkit-background-clip: unset !important;
+          text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
         }
-        
+
         .welcome-subtitle {
-          font-size: 16px;
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: flex-start !important;
+          gap: 4px !important;
+          margin: 0 !important;
+          word-break: normal !important;
+          overflow-wrap: break-word !important;
+        }
+
+        .welcome-date {
+          font-size: 12px !important;
+          line-height: 1.45 !important;
+          color: rgba(255, 255, 255, 0.55) !important;
+          font-weight: 500 !important;
+        }
+
+        .welcome-meta {
+          font-size: 14px !important;
+          line-height: 1.5 !important;
+          color: rgba(255, 255, 255, 0.82) !important;
+          font-weight: 500 !important;
+          max-width: 100% !important;
         }
       }
     }
-    
+
     .welcome-actions {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 16px;
-      width: 100%;
-      
-      .action-btn {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      gap: 12px !important;
+      width: 100% !important;
+      max-width: none !important;
+      min-width: 0 !important;
+
+      .action-btn,
+      .action-btn.el-button,
+      .action-btn.el-button--large,
+      .action-btn.el-button--primary {
         width: 100% !important;
-        height: 72px !important;
-        min-height: 72px !important;
-        max-height: 72px !important;
-        padding: 0 !important;
+        height: 48px !important;
+        min-height: 48px !important;
+        max-height: 48px !important;
+        padding: 0 14px !important;
         margin: 0 !important;
-        font-size: 17px !important;
+        font-size: 15px !important;
+        border-radius: 12px !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        
-        &.el-button,
-        &.el-button--large,
-        &.el-button--primary {
-          width: 100% !important;
-          height: 72px !important;
-          min-height: 72px !important;
-          max-height: 72px !important;
-          padding: 0 !important;
-          margin: 0 !important;
-          font-size: 17px !important;
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-        }
-        
-        .el-icon {
-          font-size: 20px !important;
-          width: 20px !important;
-          height: 20px !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-        
-        span {
-          font-size: 17px !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
+      }
+
+      .action-btn {
+        background: rgba(255, 255, 255, 0.08) !important;
+        color: #fff !important;
+        border: 1px solid rgba(255, 255, 255, 0.22) !important;
+      }
+
+      .action-btn.primary,
+      .action-btn.el-button--primary {
+        background: #fff !important;
+        color: #111827 !important;
+        border-color: #fff !important;
+      }
+
+      .action-btn .el-icon {
+        font-size: 18px !important;
+        width: 18px !important;
+        height: 18px !important;
+      }
+
+      .action-btn span {
+        font-size: 15px !important;
+        font-weight: 600 !important;
       }
     }
-    
+
     .welcome-stats {
-      gap: 24px;
-      
+      gap: 20px;
+
       .stat-item {
-        padding: 14px 18px;
-        
+        padding: 14px 16px;
+
         .stat-value {
-          font-size: 24px;
+          font-size: 22px;
         }
-        
+
         .stat-label {
-          font-size: 13px;
+          font-size: 12px;
         }
       }
     }
   }
-  
+
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 20px;
+    margin-top: 24px;
   }
 }
 
@@ -2394,6 +2646,7 @@ onMounted(() => {
   .stats-grid {
     grid-template-columns: 1fr;
     gap: 16px;
+    margin-top: 16px;
     
     .stat-card {
       padding: 20px;
@@ -2512,7 +2765,23 @@ onMounted(() => {
         }
         
         .welcome-subtitle {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 4px;
           font-size: 14px;
+        }
+
+        .welcome-date {
+          font-size: 12px;
+          opacity: 0.75;
+          line-height: 1.4;
+        }
+
+        .welcome-meta {
+          font-size: 14px;
+          line-height: 1.45;
+          opacity: 0.95;
         }
       }
     }
@@ -2592,6 +2861,19 @@ onMounted(() => {
         }
         
         .welcome-subtitle {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 4px;
+          font-size: 14px;
+        }
+
+        .welcome-date {
+          font-size: 12px;
+          opacity: 0.75;
+        }
+
+        .welcome-meta {
           font-size: 14px;
         }
       }
@@ -2650,6 +2932,8 @@ onMounted(() => {
   }
   
   .stats-grid {
+    margin-top: 16px;
+    
     .stat-card {
       padding: 16px;
       
@@ -2819,7 +3103,8 @@ onMounted(() => {
   
   .stats-grid {
     gap: 12px;
-    
+    margin-top: 16px;
+
     .stat-card {
       padding: 20px;
       border-radius: 16px;
@@ -2872,6 +3157,11 @@ onMounted(() => {
           text-overflow: ellipsis;
         }
       }
+    }
+
+    // 移动端隐藏桌面统计网格
+    .stats-grid-desktop {
+      display: none !important;
     }
   }
 }
@@ -3114,6 +3404,424 @@ onMounted(() => {
             }
           }
         }
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 桌面端欢迎区：层次更清晰、操作区更紧凑（仅 ≥1200px，避免 1024–1199 主区域过窄挤压文案）
+// ---------------------------------------------------------------------------
+@media (min-width: 1200px) {
+  .dashboard .welcome-section {
+    padding: 36px 44px 28px;
+    border-radius: 20px;
+
+    &::after {
+      opacity: 0.35;
+    }
+
+    .welcome-main {
+      margin-bottom: 20px !important;
+      min-height: 0 !important;
+      gap: 32px !important;
+      align-items: center;
+    }
+
+    .welcome-header {
+      gap: 24px !important;
+      align-items: center;
+
+      .user-avatar :deep(.el-avatar) {
+        width: 72px !important;
+        height: 72px !important;
+        border-width: 3px !important;
+      }
+
+      .welcome-text {
+        .welcome-title {
+          font-size: 2.25rem !important;
+          font-weight: 800 !important;
+          margin-bottom: 10px !important;
+          letter-spacing: -0.03em;
+          line-height: 1.15;
+          color: #fff !important;
+          -webkit-text-fill-color: #fff !important;
+          background: none !important;
+          background-clip: unset !important;
+          -webkit-background-clip: unset !important;
+          text-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+          // 避免主内容区变窄时中文被 word-break 拆成「一字一行」
+          word-break: normal !important;
+          overflow-wrap: break-word !important;
+        }
+
+        .welcome-subtitle {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: flex-start !important;
+          gap: 2px !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          font-size: inherit !important;
+          opacity: 1 !important;
+          font-weight: 400 !important;
+          text-shadow: none !important;
+          word-break: normal !important;
+          overflow-wrap: break-word !important;
+        }
+
+        .welcome-date {
+          font-size: 12px !important;
+          line-height: 1.45;
+          color: rgba(255, 255, 255, 0.52) !important;
+          letter-spacing: 0.02em;
+          font-weight: 500 !important;
+        }
+
+        .welcome-meta {
+          font-size: 14px !important;
+          line-height: 1.5;
+          color: rgba(255, 255, 255, 0.78) !important;
+          font-weight: 500 !important;
+          max-width: 34rem;
+          word-break: normal !important;
+          overflow-wrap: break-word !important;
+        }
+      }
+    }
+
+    .welcome-actions {
+      display: grid !important;
+      grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)) !important;
+      grid-template-rows: none !important;
+      gap: 10px !important;
+      min-width: 0 !important;
+      width: 100% !important;
+      max-width: 500px !important;
+      align-items: stretch !important;
+      justify-items: stretch !important;
+
+      .action-btn,
+      .action-btn.el-button,
+      .action-btn.el-button--large,
+      .action-btn.el-button--primary {
+        height: 44px !important;
+        min-height: 44px !important;
+        max-height: 44px !important;
+        border-radius: 10px !important;
+        font-size: 14px !important;
+        line-height: 1.2 !important;
+        padding: 0 12px !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+      }
+
+      .action-btn {
+        background: rgba(255, 255, 255, 0.08) !important;
+        color: #fff !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+      }
+
+      .action-btn.primary,
+      .action-btn.el-button--primary {
+        background: #fff !important;
+        color: #111827 !important;
+        border-color: #fff !important;
+      }
+
+      .action-btn::before {
+        display: none !important;
+      }
+
+      .action-btn .el-icon {
+        font-size: 18px !important;
+        width: 18px !important;
+        height: 18px !important;
+      }
+
+      .action-btn span {
+        font-size: 14px !important;
+        font-weight: 600 !important;
+      }
+
+      .action-btn.primary .el-icon,
+      .action-btn.el-button--primary .el-icon {
+        color: #374151 !important;
+      }
+
+      .action-btn:hover {
+        transform: none !important;
+      }
+
+      .action-btn.primary:hover,
+      .action-btn.el-button--primary:hover {
+        background: #f3f4f6 !important;
+        border-color: #f3f4f6 !important;
+      }
+
+      .action-btn:not(.primary):not(.el-button--primary):hover {
+        background: rgba(255, 255, 255, 0.14) !important;
+      }
+    }
+
+    > .welcome-stats {
+      margin-top: 0 !important;
+      padding-top: 18px !important;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      gap: 20px !important;
+      justify-content: space-between !important;
+      flex-wrap: nowrap !important;
+
+      .stat-item {
+        flex: 1 1 0;
+        min-width: 0;
+        padding: 12px 16px !important;
+        border-radius: 12px !important;
+        background: rgba(255, 255, 255, 0.06) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        transform: none !important;
+        box-shadow: none !important;
+      }
+
+      .stat-item:hover {
+        background: rgba(255, 255, 255, 0.1) !important;
+        transform: none !important;
+        box-shadow: none !important;
+      }
+
+      .stat-value {
+        font-size: 24px !important;
+        font-weight: 700 !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        background: none !important;
+      }
+
+      .stat-label {
+        font-size: 10px !important;
+        letter-spacing: 0.06em !important;
+        text-transform: uppercase !important;
+        opacity: 0.62 !important;
+        font-weight: 600 !important;
+      }
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .dashboard .welcome-section .welcome-header .welcome-text .welcome-title {
+      font-size: 2.5rem !important;
+    }
+  }
+
+  @media (min-width: 1440px) {
+    .dashboard .welcome-section .welcome-header .welcome-text .welcome-title {
+      font-size: 2.75rem !important;
+    }
+
+    .dashboard .welcome-section .welcome-header .welcome-text .welcome-meta {
+      font-size: 15px !important;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 中等桌面 / 带侧栏主区偏窄（1200–1439）：纵向堆叠，避免左右分栏挤压文案
+// ---------------------------------------------------------------------------
+@media (min-width: 1200px) and (max-width: 1439px) {
+  .dashboard .welcome-section {
+    padding: 32px 36px 26px;
+    border-radius: 20px;
+
+    .welcome-main {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      justify-content: flex-start !important;
+      gap: 20px !important;
+      margin-bottom: 20px !important;
+      min-height: 0 !important;
+    }
+
+    .welcome-header {
+      width: 100%;
+      flex: none !important;
+      align-items: flex-start !important;
+      gap: 20px !important;
+
+      .user-avatar :deep(.el-avatar) {
+        width: 68px !important;
+        height: 68px !important;
+        border-width: 3px !important;
+      }
+
+      .welcome-text {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+
+        .welcome-title {
+          line-height: 1.18 !important;
+          margin-bottom: 8px !important;
+          word-break: normal !important;
+          overflow-wrap: break-word !important;
+        }
+
+        .welcome-subtitle {
+          gap: 4px !important;
+          word-break: normal !important;
+          overflow-wrap: break-word !important;
+        }
+
+        .welcome-meta {
+          max-width: 100% !important;
+        }
+      }
+    }
+
+    .welcome-actions {
+      display: grid !important;
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+      grid-template-rows: none !important;
+      gap: 10px !important;
+      width: 100% !important;
+      max-width: none !important;
+      min-width: 0 !important;
+      align-items: stretch !important;
+      justify-items: stretch !important;
+    }
+
+    @media (max-width: 1320px) {
+      .welcome-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 平板 / 窄桌面主区（1024–1199）：欢迎区纵向堆叠，避免文案被挤成「一字一行」
+// ---------------------------------------------------------------------------
+@media (min-width: 1024px) and (max-width: 1199px) {
+  .dashboard .welcome-section {
+    padding: 32px 28px 28px;
+    border-radius: 20px;
+
+    .welcome-main {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      justify-content: flex-start !important;
+      gap: 22px !important;
+      margin-bottom: 22px !important;
+      min-height: 0 !important;
+    }
+
+    .welcome-header {
+      width: 100%;
+      flex: none !important;
+      align-items: flex-start !important;
+      gap: 18px !important;
+
+      .user-avatar :deep(.el-avatar) {
+        width: 64px !important;
+        height: 64px !important;
+        border-width: 3px !important;
+      }
+
+      .welcome-text {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+
+        .welcome-title {
+          font-size: 1.75rem !important;
+          font-weight: 800 !important;
+          line-height: 1.2 !important;
+          margin-bottom: 8px !important;
+          word-break: normal !important;
+          overflow-wrap: break-word !important;
+          color: #fff !important;
+          -webkit-text-fill-color: #fff !important;
+          background: none !important;
+          background-clip: unset !important;
+          -webkit-background-clip: unset !important;
+          text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        .welcome-subtitle {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: flex-start !important;
+          gap: 4px !important;
+          word-break: normal !important;
+          overflow-wrap: break-word !important;
+        }
+
+        .welcome-date {
+          font-size: 12px !important;
+          line-height: 1.45 !important;
+          color: rgba(255, 255, 255, 0.55) !important;
+          font-weight: 500 !important;
+        }
+
+        .welcome-meta {
+          font-size: 14px !important;
+          line-height: 1.5 !important;
+          color: rgba(255, 255, 255, 0.82) !important;
+          font-weight: 500 !important;
+          max-width: 100% !important;
+        }
+      }
+    }
+
+    .welcome-actions {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      grid-template-rows: none !important;
+      gap: 12px !important;
+      width: 100% !important;
+      max-width: none !important;
+      min-width: 0 !important;
+      flex-shrink: 0 !important;
+
+      .action-btn,
+      .action-btn.el-button,
+      .action-btn.el-button--large,
+      .action-btn.el-button--primary {
+        height: 48px !important;
+        min-height: 48px !important;
+        max-height: 48px !important;
+        border-radius: 12px !important;
+        font-size: 15px !important;
+        padding: 0 14px !important;
+      }
+
+      .action-btn .el-icon {
+        font-size: 18px !important;
+        width: 18px !important;
+        height: 18px !important;
+      }
+
+      .action-btn span {
+        font-size: 15px !important;
+        font-weight: 600 !important;
+      }
+
+      .action-btn {
+        background: rgba(255, 255, 255, 0.08) !important;
+        color: #fff !important;
+        border: 1px solid rgba(255, 255, 255, 0.22) !important;
+        box-shadow: none !important;
+      }
+
+      .action-btn.primary,
+      .action-btn.el-button--primary {
+        background: #fff !important;
+        color: #111827 !important;
+        border-color: #fff !important;
+      }
+
+      .action-btn::before {
+        display: none !important;
       }
     }
   }
