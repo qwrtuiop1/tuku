@@ -320,10 +320,8 @@ const uploadStats = computed(() => {
 // 获取系统设置
 const fetchSystemSettings = async () => {
   try {
-    console.log('正在获取系统设置...')
     const response = await api.get('/system/info')
     const systemInfo = response.data
-    console.log('系统设置响应:', systemInfo)
     
     systemSettings.value = {
       maxFileSize: systemInfo.max_file_size || 100,
@@ -332,7 +330,6 @@ const fetchSystemSettings = async () => {
         ? systemInfo.allowed_video_types
         : ['mp4','webm','mov','mkv','m4v','flv','wmv','mpeg','mpg','3gp','ts','m2ts','ogv']
     }
-    console.log('更新后的系统设置:', systemSettings.value)
   } catch (error) {
     console.warn('获取系统设置失败，使用默认值:', error)
     // 使用默认值

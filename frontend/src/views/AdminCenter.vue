@@ -3568,15 +3568,10 @@ const getVerificationTimeLeft = () => {
 }
 // 显示用户统计
 const showUserStats = async (user: User) => {
-  console.log('=== showUserStats 开始 ===')
-  console.log('用户信息:', user)
-  
   try {
     selectedUserStats.value = user
     loadingUserStats.value = true
     showUserStatsDialog.value = true
-    
-    console.log('对话框状态已设置')
     
     // 重置密码验证状态
     showPassword.value = false
@@ -3586,20 +3581,11 @@ const showUserStats = async (user: User) => {
     passwordVerificationExpiry.value = null
     passwordVerifiedOk.value = false
     
-    console.log('密码验证状态已重置')
-    console.log('开始获取用户统计信息，用户ID:', user.id)
-    console.log('API URL:', `/admin/users/${user.id}/stats`)
-    
     // 获取用户统计数据 - 从后端实时获取
-    console.log('准备调用API...')
     const response = await api.get(`/admin/users/${user.id}/stats`)
-    
-    console.log('API调用成功，响应:', response)
-    console.log('响应数据:', response.data)
     
     // 检查API响应结构
     if (response.data.user && response.data.dataStats && response.data.storage) {
-      console.log('API返回成功，开始处理数据')
       // 后端返回的数据结构: {user: {...}, dataStats: {...}, storage: {...}}
       const { user: userData, dataStats, storage } = response.data
       // 使用后端实时用户信息更新悬浮窗基本信息（含用户ID）
@@ -3627,11 +3613,7 @@ const showUserStats = async (user: User) => {
         last_login: dataStats.last_login || null,
         password: userData.password || null
       }
-      
-      console.log('用户统计数据设置完成:', userStats.value)
-      console.log('=== showUserStats 成功完成 ===')
     } else if (response.data.success) {
-      console.log('API返回成功（旧格式），开始处理数据')
       // 确保存储信息是从后端实时获取的真实数据（兼容旧格式字段名）
       userStats.value = {
         ...response.data,
@@ -3656,16 +3638,12 @@ const showUserStats = async (user: User) => {
           } as any
         }
       } catch {}
-      
-      console.log('用户统计数据设置完成:', userStats.value)
-      console.log('=== showUserStats 成功完成 ===')
     } else {
       console.error('API返回失败:', response.data)
       throw new Error(response.data.message || '获取用户统计失败')
     }
     
   } catch (error: any) {
-    console.log('=== showUserStats 发生错误 ===')
     console.error('获取用户统计失败 - 完整错误信息:', {
       message: error.message,
       status: error.response?.status,
@@ -3677,8 +3655,6 @@ const showUserStats = async (user: User) => {
     
     // 检查是否是404错误（API不存在）
     if (error.response?.status === 404) {
-      console.log('用户统计API不存在，使用用户基本信息作为备用数据')
-      
       // 使用用户列表中的基本信息作为备用数据
       userStats.value = {
         used_storage: user.used_storage || 0,
@@ -3709,8 +3685,6 @@ const showUserStats = async (user: User) => {
       console.error('具体错误信息:', errorMsg)
       
       // 如果API调用失败，尝试使用用户基本信息作为备用
-      console.log('API调用失败，尝试使用用户基本信息作为备用数据')
-      
       userStats.value = {
         used_storage: user.used_storage || 0,
         storage_limit: user.storage_limit || 0,
@@ -3730,9 +3704,7 @@ const showUserStats = async (user: User) => {
       ElMessage.warning(`用户统计API调用失败: ${errorMsg}，显示基本信息`)
     }
   } finally {
-    console.log('=== showUserStats finally 执行 ===')
     loadingUserStats.value = false
-    console.log('loadingUserStats 已设置为 false')
   }
 }
 

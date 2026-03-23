@@ -804,11 +804,9 @@ const highestPriorityClass = computed(() => {
 
 // 对话框事件处理
 const onDialogOpened = () => {
-  console.log('对话框已打开')
 }
 
 const onDialogClosed = () => {
-  console.log('对话框已关闭')
   detailNotification.value = null
 }
 
