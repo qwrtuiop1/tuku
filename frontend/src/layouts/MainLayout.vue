@@ -332,44 +332,20 @@
       </div>
     </el-dialog>
 
-    <!-- 移动端底部导航栏 -->
+    <!-- 移动端底部 Dock 导航栏 -->
     <div v-if="isMobile" class="mobile-bottom-nav">
+      <!-- 椭圆玻璃指示器：通过 absolute 定位 + left transition 实现丝滑滑动 -->
+      <div class="nav-indicator" :style="indicatorStyle"></div>
       <div class="nav-items">
-        <div 
-          class="nav-item" 
-          :class="{ active: $route.path === '/' }"
-          @click="$router.push('/')"
+        <div
+          v-for="item in navItems"
+          :key="item.path"
+          class="nav-item"
+          :class="{ active: isActive(item.path) }"
+          @click="$router.push(item.path)"
         >
-          <el-icon class="nav-icon"><Folder /></el-icon>
-          <span class="nav-text">文件</span>
-        </div>
-        
-        <div 
-          class="nav-item" 
-          :class="{ active: $route.path === '/dashboard' }"
-          @click="$router.push('/dashboard')"
-        >
-          <el-icon class="nav-icon"><House /></el-icon>
-          <span class="nav-text">仪表盘</span>
-        </div>
-        
-        <div 
-          v-if="authStore.user?.role === 'admin'"
-          class="nav-item" 
-          :class="{ active: $route.path === '/admin' }"
-          @click="$router.push('/admin')"
-        >
-          <el-icon class="nav-icon"><Setting /></el-icon>
-          <span class="nav-text">管理</span>
-        </div>
-        
-        <div 
-          class="nav-item" 
-          :class="{ active: $route.path === '/user-center' }"
-          @click="$router.push('/user-center')"
-        >
-          <el-icon class="nav-icon"><User /></el-icon>
-          <span class="nav-text">我的</span>
+          <el-icon class="nav-icon"><component :is="iconMap[item.iconKey]" /></el-icon>
+          <span class="nav-text">{{ item.label }}</span>
         </div>
       </div>
     </div>
@@ -398,10 +374,20 @@ import {
   Document,
   Tools,
   Close,
-  Bell
+  Bell,
+  Grid,
+  List
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { formatFileSize, getStorageUsageColor, formatPercentage } from '@/utils/helpers'
+
+// Apple Dock 图标映射（静态对象，无法用动态字符串查找组件）
+const iconMap: Record<string, any> = {
+  Folder,
+  House,
+  Setting,
+  User,
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -446,6 +432,35 @@ const checkScreenSize = () => {
 
 // 当前激活的菜单
 const activeMenu = computed(() => route.path)
+
+// Apple Dock 导航配置
+const navItems = computed(() => {
+  const items = [
+    { path: '/', label: '文件', iconKey: 'Folder' },
+    { path: '/dashboard', label: '仪表盘', iconKey: 'House' },
+    { path: '/user-center', label: '我的', iconKey: 'User' },
+  ]
+  if (authStore.user?.role === 'admin') {
+    items.splice(2, 0, { path: '/admin', label: '管理', iconKey: 'Setting' })
+  }
+  return items
+})
+
+const activeIndex = computed(() => {
+  const idx = navItems.value.findIndex(item => isActive(item.path))
+  return idx >= 0 ? idx : 0
+})
+
+const indicatorStyle = computed(() => {
+  const itemWidth = 100 / navItems.value.length
+  const left = activeIndex.value * itemWidth + itemWidth / 2
+  return {
+    width: `${itemWidth - 12}%`,
+    left: `${left}%`,
+  }
+})
+
+const isActive = (path: string) => route.path === path
 
 // 面包屑导航
 const breadcrumbs = computed(() => {
@@ -1493,50 +1508,94 @@ onUnmounted(() => {
   display: none; // 默认隐藏
 }
 
-// 移动端底部导航栏
+// Apple 玻璃质感 Dock 导航栏
 .mobile-bottom-nav {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 60px;
-  background: #ffffff;
-  border-top: 1px solid #e4e7ed;
-  display: none; // 默认隐藏
   z-index: 1000;
-  
+  padding-bottom: env(safe-area-inset-bottom, 0);
+
+  .nav-indicator {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    height: 44px;
+    background: rgba(255, 255, 255, 0.62);
+    border-radius: 22px;
+    box-shadow:
+      0 0 0 0.5px rgba(255, 255, 255, 0.48),
+      0 2px 8px rgba(0, 0, 0, 0.08),
+      0 4px 16px rgba(0, 0, 0, 0.06);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    transition: left 0.42s cubic-bezier(0.32, 0.72, 0, 1);
+    pointer-events: none;
+  }
+
   .nav-items {
     display: flex;
-    height: 100%;
-    
+    position: relative;
+    margin: 8px 12px;
+    padding: 6px;
+    background: rgba(255, 255, 255, 0.36);
+    border-radius: 28px;
+    border: 0.5px solid rgba(255, 255, 255, 0.5);
+    box-shadow:
+      0 4px 20px rgba(0, 0, 0, 0.1),
+      0 8px 40px rgba(0, 0, 0, 0.06),
+      inset 0 0.5px 0 rgba(255, 255, 255, 0.7),
+      inset 0 -0.5px 0 rgba(0, 0, 0, 0.06);
+    backdrop-filter: blur(40px) saturate(200%);
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+
     .nav-item {
       flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 4px 8px;
+      gap: 3px;
+      padding: 5px 4px;
       cursor: pointer;
-      transition: all 0.3s ease;
-      
-      &:hover {
-        background: rgba(102, 126, 234, 0.1);
-      }
-      
-      &.active {
-        color: #667eea;
-        background: rgba(102, 126, 234, 0.1);
-      }
-      
+      border-radius: 20px;
+      transition: opacity 0.2s ease;
+      position: relative;
+      z-index: 1;
+
       .nav-icon {
-        font-size: 20px;
-        margin-bottom: 2px;
+        font-size: 22px;
+        color: rgba(60, 60, 67, 0.55);
+        transition: color 0.2s ease, transform 0.2s ease;
       }
-      
+
       .nav-text {
         font-size: 10px;
         font-weight: 500;
-        line-height: 1;
+        color: rgba(60, 60, 67, 0.55);
+        transition: color 0.2s ease;
+        letter-spacing: 0.01em;
+      }
+
+      &.active {
+        .nav-icon {
+          color: #007AFF;
+          transform: scale(1.05);
+        }
+        .nav-text {
+          color: #007AFF;
+          font-weight: 600;
+        }
+      }
+
+      &:not(.active):hover {
+        .nav-icon {
+          color: rgba(0, 122, 255, 0.7);
+        }
+        .nav-text {
+          color: rgba(0, 122, 255, 0.7);
+        }
       }
     }
   }
@@ -1777,14 +1836,14 @@ onUnmounted(() => {
     display: block;
   }
   
-  // 移动端底部导航栏
+  // 移动端底部 Dock 导航栏
   .mobile-bottom-nav {
     display: block;
   }
-  
+
   // 为底部导航栏预留空间
   .page-content {
-    padding-bottom: 60px;
+    padding-bottom: 88px;
   }
   
   .header-left {
@@ -1892,14 +1951,14 @@ onUnmounted(() => {
     display: block;
   }
   
-  // 移动端底部导航栏
+  // 移动端底部 Dock 导航栏
   .mobile-bottom-nav {
     display: block;
   }
-  
+
   // 为底部导航栏预留空间
   .page-content {
-    padding-bottom: 60px;
+    padding-bottom: 88px;
   }
   
   .breadcrumb-nav {
@@ -2044,14 +2103,14 @@ onUnmounted(() => {
     display: block;
   }
   
-  // 移动端底部导航栏
+  // 移动端底部 Dock 导航栏
   .mobile-bottom-nav {
     display: block;
   }
-  
+
   // 为底部导航栏预留空间
   .page-content {
-    padding-bottom: 60px;
+    padding-bottom: 88px;
   }
   
   .breadcrumb-nav {

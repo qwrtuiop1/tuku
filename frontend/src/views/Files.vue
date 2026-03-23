@@ -117,52 +117,54 @@
         </el-button>
       </div>
       
-      <!-- 搜索和控制区域 -->
+      <!-- 搜索和控制区域：搜索独占一行，工具按钮另起一行更易点按 -->
       <div class="mobile-controls">
-        <el-input
-          v-model="searchQuery"
-          placeholder="搜索文件..."
-          clearable
-          @input="handleSearch"
-          size="small"
-          class="mobile-search-input"
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
-        </el-input>
-        
-        <el-dropdown @command="handleSortChange" class="mobile-sort-dropdown">
-          <el-button size="small" class="mobile-sort-btn">
-            <el-icon><Sort /></el-icon>
-          </el-button>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item command="name">按名称</el-dropdown-item>
-              <el-dropdown-item command="size">按大小</el-dropdown-item>
-              <el-dropdown-item command="date">按时间</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-        
-        <el-button-group class="mobile-view-toggle">
-          <el-button 
-            :type="viewMode === 'grid' ? 'primary' : ''" 
-            @click="viewMode = 'grid'"
+        <div class="mobile-search-row">
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索文件..."
+            clearable
+            @input="handleSearch"
             size="small"
-            class="mobile-view-btn"
+            class="mobile-search-input"
           >
-            <el-icon><Grid /></el-icon>
-          </el-button>
-          <el-button 
-            :type="viewMode === 'list' ? 'primary' : ''" 
-            @click="viewMode = 'list'"
-            size="small"
-            class="mobile-view-btn"
-          >
-            <el-icon><List /></el-icon>
-          </el-button>
-        </el-button-group>
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+        </div>
+        <div class="mobile-toolbar-tools">
+          <el-dropdown @command="handleSortChange" class="mobile-sort-dropdown" trigger="click">
+            <el-button size="small" class="mobile-sort-btn">
+              <el-icon><Sort /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="name">按名称</el-dropdown-item>
+                <el-dropdown-item command="size">按大小</el-dropdown-item>
+                <el-dropdown-item command="date">按时间</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <el-button-group class="mobile-view-toggle">
+            <el-button
+              :type="viewMode === 'grid' ? 'primary' : ''"
+              @click="viewMode = 'grid'"
+              size="small"
+              class="mobile-view-btn"
+            >
+              <el-icon><Grid /></el-icon>
+            </el-button>
+            <el-button
+              :type="viewMode === 'list' ? 'primary' : ''"
+              @click="viewMode = 'list'"
+              size="small"
+              class="mobile-view-btn"
+            >
+              <el-icon><List /></el-icon>
+            </el-button>
+          </el-button-group>
+        </div>
       </div>
       
       <!-- 批量操作区域 -->
@@ -2217,169 +2219,226 @@ const shareStatusText = computed(() => {
   }
 }
 
-// 移动端工具栏样式
+// 移动端工具栏样式（与页面背景融合、少阴影、层次更清晰）
 .mobile-toolbar {
   display: none;
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e5e7eb;
-  margin-bottom: 8px;
-  
+  background: transparent;
+  border-radius: 0;
+  padding: 0 0 4px;
+  margin-bottom: 12px;
+  border: none;
+  box-shadow: none;
+
   .mobile-actions {
-    display: flex;
-    gap: 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 10px;
     margin-bottom: 12px;
-    
+    align-items: stretch;
+
     .mobile-upload-btn,
     .mobile-folder-btn {
-      flex: 1;
+      min-width: 0;
       height: 44px;
-      border-radius: 12px;
+      border-radius: 14px;
       font-weight: 600;
       font-size: 14px;
-      transition: all 0.3s ease;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      
-      &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+      letter-spacing: 0.02em;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+      box-shadow: none;
+
+      :deep(.el-icon) {
+        font-size: 18px;
       }
-      
+
       &:active {
-        transform: translateY(0);
+        transform: scale(0.98);
       }
     }
-    
+
     .mobile-upload-btn {
-      background: #000000;
-      border: none;
-      color: #ffffff;
-      
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+      border: 1px solid rgba(15, 23, 42, 0.85);
+      color: #f8fafc;
+
       &:hover {
-        background: #374151;
+        background: linear-gradient(180deg, #334155 0%, #1e293b 100%);
+        border-color: #334155;
       }
     }
-    
+
     .mobile-folder-btn {
-      background: #f9fafb;
-      border: 1px solid #d1d5db;
-      color: #374151;
-      
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid #e2e8f0;
+      color: #334155;
+
       &:hover {
-        background: #f3f4f6;
+        background: #fff;
+        border-color: #cbd5e1;
       }
     }
-    
+
     .mobile-refresh-btn {
       width: 44px;
       height: 44px;
-      border-radius: 12px;
+      border-radius: 14px;
       padding: 0;
-      background: #f9fafb;
-      border: 1px solid #d1d5db;
-      color: #374151;
-      transition: all 0.3s ease;
-      
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid #e2e8f0;
+      color: #475569;
+      flex-shrink: 0;
+      transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+
+      :deep(.el-icon) {
+        font-size: 20px;
+      }
+
       &:hover {
-        background: #f3f4f6;
-        transform: translateY(-2px);
+        background: #fff;
+        border-color: #cbd5e1;
+        color: #0f172a;
       }
     }
   }
-  
+
   .mobile-controls {
     display: flex;
-    gap: 8px;
-    align-items: center;
-    
+    flex-direction: column;
+    gap: 10px;
+
+    .mobile-search-row {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .mobile-toolbar-tools {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
     .mobile-search-input {
-      flex: 1;
-      
+      width: 100%;
+
       :deep(.el-input__wrapper) {
-        border-radius: 12px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        border: 1px solid #d1d5db;
-        transition: all 0.3s ease;
-        
+        border-radius: 14px;
+        box-shadow: none;
+        border: 1px solid #e2e8f0;
+        background: rgba(248, 250, 252, 0.95);
+        transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+        padding-left: 12px;
+
         &:hover {
-          border-color: #9ca3af;
+          border-color: #cbd5e1;
+          background: #fff;
         }
-        
+
         &.is-focus {
-          border-color: #000000;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+          border-color: #0f172a;
+          box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
         }
       }
+
+      :deep(.el-input__prefix) {
+        color: #94a3b8;
+      }
     }
-    
+
     .mobile-sort-dropdown {
       .mobile-sort-btn {
-        width: 36px;
-        height: 32px;
-        border-radius: 10px;
-        background: #f9fafb;
-        border: 1px solid #d1d5db;
-        color: #374151;
-        transition: all 0.3s ease;
-        
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        padding: 0;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.92);
+        border: 1px solid #e2e8f0;
+        color: #475569;
+        transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+
+        :deep(.el-icon) {
+          font-size: 18px;
+        }
+
         &:hover {
-          background: #f3f4f6;
-          transform: translateY(-1px);
+          background: #fff;
+          border-color: #cbd5e1;
+          color: #0f172a;
         }
       }
     }
-    
+
     .mobile-view-toggle {
-      .mobile-view-btn {
-        width: 36px;
-        height: 32px;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-        
-        &:hover {
-          transform: translateY(-1px);
+      display: inline-flex;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: none;
+      border: 1px solid #e2e8f0;
+      background: rgba(248, 250, 252, 0.95);
+
+      :deep(.el-button) {
+        margin: 0;
+        border: none;
+        border-radius: 0;
+        background: transparent;
+        color: #64748b;
+        min-height: 40px;
+        padding: 0 14px;
+        transition: background 0.2s ease, color 0.2s ease;
+
+        &:first-child {
+          border-right: 1px solid #e2e8f0;
         }
-        
+
+        &:hover:not(.el-button--primary) {
+          background: rgba(241, 245, 249, 0.9);
+          color: #334155;
+        }
+
         &.el-button--primary {
-          background: #000000;
-          border: none;
-          color: #ffffff;
+          background: #0f172a;
+          color: #f8fafc;
+          box-shadow: none;
+        }
+
+        .el-icon {
+          font-size: 18px;
         }
       }
     }
   }
-  
+
   .mobile-batch-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: #f9fafb;
-    border: 1px solid #d1d5db;
-    border-radius: 12px;
-    padding: 12px 16px;
+    background: rgba(241, 245, 249, 0.9);
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 12px 14px;
     margin-top: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    
+    box-shadow: none;
+
     .batch-info {
       font-size: 14px;
-      color: #374151;
+      color: #334155;
       font-weight: 600;
     }
-    
+
     .batch-actions-mobile {
       display: flex;
       gap: 8px;
-      
+
       .mobile-batch-btn {
-        width: 36px;
-        height: 32px;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-        
-        &:hover {
-          transform: translateY(-1px);
+        width: 40px;
+        height: 36px;
+        border-radius: 10px;
+        transition: background 0.2s ease, transform 0.15s ease;
+
+        &:active {
+          transform: scale(0.96);
         }
       }
     }
@@ -2660,16 +2719,15 @@ const shareStatusText = computed(() => {
   }
 }
 
-// 搜索框聚焦效果
-.search-input,
-.mobile-search-input {
+// 搜索框聚焦效果（桌面端轻微抬起；移动端在 .mobile-toolbar 内保持平面）
+.search-input {
   :deep(.el-input__wrapper) {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    
+
     &:hover {
       transform: translateY(-1px);
     }
-    
+
     &.is-focus {
       transform: translateY(-2px);
     }
@@ -3189,12 +3247,21 @@ const shareStatusText = computed(() => {
     }
     
     .mobile-controls {
-      gap: 6px;
-      
-      .mobile-sort-btn,
-      .mobile-view-btn {
-        width: 32px;
-        height: 28px;
+      gap: 8px;
+
+      .mobile-toolbar-tools {
+        gap: 8px;
+      }
+
+      .mobile-sort-dropdown .mobile-sort-btn {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+      }
+
+      .mobile-view-toggle :deep(.el-button) {
+        min-height: 36px;
+        padding: 0 12px;
       }
     }
     
@@ -3207,8 +3274,8 @@ const shareStatusText = computed(() => {
       }
       
       .mobile-batch-btn {
-        width: 32px;
-        height: 28px;
+        width: 36px;
+        height: 32px;
       }
     }
   }
@@ -3239,116 +3306,6 @@ const shareStatusText = computed(() => {
   // 隐藏桌面端工具栏，显示移动端工具栏
   .desktop-toolbar {
     display: none;
-  }
-  
-  .mobile-top-bar {
-    display: block;
-    background: #ffffff;
-    border-radius: 12px;
-    padding: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    margin-bottom: 12px;
-  }
-  
-  .mobile-actions {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
-    
-    .mobile-upload-btn,
-    .mobile-folder-btn {
-      flex: 1;
-      height: 40px;
-      border-radius: 8px;
-      font-weight: 500;
-    }
-    
-    .mobile-refresh-btn {
-      width: 40px;
-      height: 40px;
-      border-radius: 8px;
-      padding: 0;
-    }
-  }
-  
-  .mobile-controls {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    
-    .mobile-search-input {
-      flex: 1;
-    }
-    
-    .mobile-sort-dropdown,
-    .mobile-view-toggle {
-      flex-shrink: 0;
-    }
-    
-    .mobile-view-toggle {
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-      background: white;
-      border: 1px solid #e4e7ed;
-      
-      :deep(.el-button) {
-        border: none;
-        border-radius: 0;
-        background: transparent;
-        color: #606266;
-        font-size: 14px;
-        padding: 6px 10px;
-        transition: all 0.2s ease;
-        
-        &:first-child {
-          border-top-left-radius: 7px;
-          border-bottom-left-radius: 7px;
-        }
-        
-        &:last-child {
-          border-top-right-radius: 7px;
-          border-bottom-right-radius: 7px;
-        }
-        
-        &:hover:not(.el-button--primary) {
-          background: #f5f7fa;
-          color: #374151;
-        }
-        
-        &.el-button--primary {
-          background: #000000;
-          color: white;
-          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-        }
-        
-        .el-icon {
-          font-size: 16px;
-        }
-      }
-    }
-  }
-  
-  .mobile-batch-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: #f9fafb;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    padding: 12px;
-    margin-top: 12px;
-    
-    .batch-info {
-      font-size: 14px;
-      color: #374151;
-      font-weight: 500;
-    }
-    
-    .batch-actions-mobile {
-      display: flex;
-      gap: 8px;
-    }
   }
   
   .file-grid {
@@ -3482,13 +3439,22 @@ const shareStatusText = computed(() => {
     }
     
     .mobile-controls {
-      gap: 4px;
-      
-      .mobile-sort-btn,
-      .mobile-view-btn {
-        width: 28px;
-        height: 26px;
-        border-radius: 6px;
+      gap: 6px;
+
+      .mobile-toolbar-tools {
+        gap: 6px;
+      }
+
+      .mobile-sort-dropdown .mobile-sort-btn {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        border-radius: 10px;
+      }
+
+      .mobile-view-toggle :deep(.el-button) {
+        min-height: 32px;
+        padding: 0 10px;
       }
     }
     
@@ -3502,9 +3468,9 @@ const shareStatusText = computed(() => {
       }
       
       .mobile-batch-btn {
-        width: 28px;
-        height: 26px;
-        border-radius: 6px;
+        width: 32px;
+        height: 28px;
+        border-radius: 8px;
       }
     }
   }
@@ -3616,49 +3582,45 @@ const shareStatusText = computed(() => {
     display: none;
   }
   
-  .mobile-top-bar {
+  .mobile-toolbar {
     display: block;
-    background: #ffffff;
-    border-radius: 10px;
-    padding: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    margin-bottom: 8px;
-  }
-  
-  .mobile-actions {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 8px;
-    
-    .mobile-upload-btn,
-    .mobile-folder-btn {
-      flex: 1;
-      height: 32px;
-      border-radius: 6px;
-      font-weight: 500;
-      font-size: 13px;
+    padding: 4px 0;
+
+    .mobile-actions {
+      gap: 6px;
+      margin-bottom: 8px;
+
+      .mobile-upload-btn,
+      .mobile-folder-btn {
+        height: 36px;
+        font-size: 12px;
+        border-radius: 12px;
+      }
+
+      .mobile-refresh-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
+      }
     }
-    
-    .mobile-refresh-btn {
-      width: 32px;
-      height: 32px;
-      border-radius: 6px;
-      padding: 0;
-    }
-  }
-  
-  .mobile-controls {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-    
-    .mobile-search-input {
-      flex: 1;
-    }
-    
-    .mobile-sort-dropdown,
-    .mobile-view-toggle {
-      flex-shrink: 0;
+
+    .mobile-controls {
+      gap: 6px;
+
+      .mobile-toolbar-tools {
+        gap: 6px;
+      }
+
+      .mobile-sort-dropdown .mobile-sort-btn {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+      }
+
+      .mobile-view-toggle :deep(.el-button) {
+        min-height: 32px;
+        padding: 0 8px;
+      }
     }
   }
   
