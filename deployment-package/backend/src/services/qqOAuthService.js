@@ -52,22 +52,30 @@ class QQOAuthService {
     }
   }
 
-  // 通过访问令牌获取OpenID
+  // 通过访问令牌获取OpenID（QQ返回JSONP: callback( {"client_id":"...","openid":"..."} ); ）
   async getOpenId(accessToken) {
     try {
       const response = await axios.get(`${this.baseUrl}/oauth2.0/me`, {
-        params: {
-          access_token: accessToken
-        }
+        params: { access_token: accessToken, unionid: 1 },
+        responseType: 'text'
       });
 
-      const data = this.parseUrlEncodedResponse(response.data);
-      
-      if (data.error) {
-        throw new Error(`获取OpenID失败: ${data.error_description || data.error}`);
+      const text = typeof response.data === 'string' ? response.data : String(response.data || '')
+
+      // 优先解析 JSONP 格式
+      const jsonpMatch = text.match(/callback\s*\(\s*(\{[\s\S]*?\})\s*\)\s*;?/)
+      if (jsonpMatch) {
+        const obj = JSON.parse(jsonpMatch[1])
+        if (obj.error) throw new Error(obj.error_description || obj.error)
+        return { openId: obj.openid, unionId: obj.unionid }
       }
 
-      return data.openid;
+      // 兼容极少数返回URL编码形式
+      const data = this.parseUrlEncodedResponse(text)
+      if (data.error) throw new Error(data.error_description || data.error)
+      if (data.openid) return { openId: data.openid, unionId: data.unionid }
+
+      throw new Error('未能解析QQ OpenID响应')
     } catch (error) {
       console.error('获取QQ OpenID失败:', error);
       throw new Error('获取用户信息失败');
@@ -91,15 +99,17 @@ class QQOAuthService {
         throw new Error(`获取用户信息失败: ${data.msg || '未知错误'}`);
       }
 
+      const fixScheme = (url) => url && url.replace(/^http:\/\//i, 'https://')
+
       return {
         openId: openId,
         nickname: data.nickname,
-        avatar: data.figureurl_qq_2 || data.figureurl_qq_1 || data.figureurl_2 || data.figureurl_1,
-        avatar30: data.figureurl, // 30x30像素头像
-        avatar50: data.figureurl_1, // 50x50像素头像
-        avatar100: data.figureurl_2, // 100x100像素头像
-        avatarQQ40: data.figureurl_qq_1, // 40x40像素QQ头像
-        avatarQQ100: data.figureurl_qq_2, // 100x100像素QQ头像
+        avatar: fixScheme(data.figureurl_qq_2 || data.figureurl_qq_1 || data.figureurl_2 || data.figureurl_1),
+        avatar30: fixScheme(data.figureurl),
+        avatar50: fixScheme(data.figureurl_1),
+        avatar100: fixScheme(data.figureurl_2),
+        avatarQQ40: fixScheme(data.figureurl_qq_1),
+        avatarQQ100: fixScheme(data.figureurl_qq_2),
         gender: data.gender === '男' ? 'male' : data.gender === '女' ? 'female' : 'unknown',
         genderType: data.gender_type,
         province: data.province,

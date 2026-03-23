@@ -5,10 +5,13 @@ const { pool } = require('../config/database');
 const { requireAdmin, authenticateToken } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { validatePasswordComplexity, getPasswordRequirements } = require('../utils/passwordValidator');
+const { createVerificationCode, verifyCode, checkRateLimit } = require('../services/verificationService');
+const { sendEmailVerificationCode } = require('../services/emailService');
 
 const router = express.Router();
 
-// 所有管理员路由都需要管理员权限
+// 所有管理员路由都需要认证和管理员权限
+router.use(authenticateToken);
 router.use(requireAdmin);
 
 // 管理员创建用户
@@ -132,19 +135,34 @@ router.post('/users', [
       last_login: new Date().toISOString(),
       login_count: 0,
       storage_limit: 1073741824,
-      used_storage: 0
+      used_storage: 0,
+      created_at: new Date().toISOString()
     }
   });
 }));
 
 // 获取用户列表
 router.get('/users', asyncHandler(async (req, res) => {
-  const { page = 1, limit = 20, search } = req.query;
-  const offset = (page - 1) * limit;
+  const {
+    page = 1,
+    limit = 20,
+    search,
+    role,
+    status,
+    created_from,
+    created_to,
+    last_login_from,
+    last_login_to,
+    sort_by,
+    sort_order
+  } = req.query;
+  const pageNum = parseInt(page)
+  const limitNum = parseInt(limit)
+  const offset = (pageNum - 1) * limitNum;
 
   // 使用安全的字段查询
   let query = `
-    SELECT id, username, email, role, status, storage_limit, used_storage, created_at 
+    SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, created_at, last_login, login_count 
     FROM users 
     WHERE 1=1
   `;
@@ -154,8 +172,44 @@ router.get('/users', asyncHandler(async (req, res) => {
     query += ' AND (username LIKE ? OR email LIKE ?)';
     params.push(`%${search}%`, `%${search}%`);
   }
+  if (role) {
+    query += ' AND role = ?'
+    params.push(role)
+  }
+  if (status) {
+    query += ' AND status = ?'
+    params.push(status)
+  }
+  if (created_from) {
+    query += ' AND created_at >= ?'
+    params.push(created_from)
+  }
+  if (created_to) {
+    query += ' AND created_at <= ?'
+    params.push(created_to)
+  }
+  if (last_login_from) {
+    query += ' AND last_login >= ?'
+    params.push(last_login_from)
+  }
+  if (last_login_to) {
+    query += ' AND last_login <= ?'
+    params.push(last_login_to)
+  }
 
-  query += ` ORDER BY created_at DESC LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
+  // 安全排序白名单
+  const SORT_FIELDS = {
+    created_at: 'created_at',
+    last_login: 'last_login',
+    used_storage: 'used_storage',
+    username: 'username',
+    email: 'email',
+    login_count: 'login_count'
+  }
+  const sortField = SORT_FIELDS[String(sort_by)] || 'created_at'
+  const sortDir = String(sort_order)?.toLowerCase() === 'asc' ? 'ASC' : 'DESC'
+
+  query += ` ORDER BY ${sortField} ${sortDir} LIMIT ${limitNum} OFFSET ${offset}`;
 
   let users;
   try {
@@ -163,7 +217,7 @@ router.get('/users', asyncHandler(async (req, res) => {
   } catch (error) {
     // 如果查询失败，可能是表结构问题，尝试基本查询
     console.log('🔧 尝试基本用户列表查询...');
-    const basicQuery = `
+    let basicQuery = `
       SELECT id, username, email, role, status, created_at 
       FROM users 
       WHERE 1=1
@@ -174,8 +228,16 @@ router.get('/users', asyncHandler(async (req, res) => {
       basicQuery += ' AND (username LIKE ? OR email LIKE ?)';
       basicParams.push(`%${search}%`, `%${search}%`);
     }
+    if (role) {
+      basicQuery += ' AND role = ?'
+      basicParams.push(role)
+    }
+    if (status) {
+      basicQuery += ' AND status = ?'
+      basicParams.push(status)
+    }
     
-    basicQuery += ` ORDER BY created_at DESC LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
+    basicQuery += ` ORDER BY ${sortField} ${sortDir} LIMIT ${limitNum} OFFSET ${offset}`;
     [users] = await pool.execute(basicQuery, basicParams);
   }
 
@@ -186,6 +248,30 @@ router.get('/users', asyncHandler(async (req, res) => {
   if (search) {
     countQuery += ' AND (username LIKE ? OR email LIKE ?)';
     countParams.push(`%${search}%`, `%${search}%`);
+  }
+  if (role) {
+    countQuery += ' AND role = ?'
+    countParams.push(role)
+  }
+  if (status) {
+    countQuery += ' AND status = ?'
+    countParams.push(status)
+  }
+  if (created_from) {
+    countQuery += ' AND created_at >= ?'
+    countParams.push(created_from)
+  }
+  if (created_to) {
+    countQuery += ' AND created_at <= ?'
+    countParams.push(created_to)
+  }
+  if (last_login_from) {
+    countQuery += ' AND last_login >= ?'
+    countParams.push(last_login_from)
+  }
+  if (last_login_to) {
+    countQuery += ' AND last_login <= ?'
+    countParams.push(last_login_to)
   }
 
   let countResult;
@@ -199,13 +285,77 @@ router.get('/users', asyncHandler(async (req, res) => {
   res.json({
     users,
     pagination: {
-      page: parseInt(page),
-      limit: parseInt(limit),
+      page: pageNum,
+      limit: limitNum,
       total: countResult[0].total,
-      pages: Math.ceil(countResult[0].total / limit)
+      pages: Math.ceil(countResult[0].total / limitNum)
     }
   });
 }));
+
+// 获取用户详情
+router.get('/users/:id', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await pool.execute(
+      'SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, nickname, bio, last_login, login_count, created_at, qq_openid, qq_unionid, epass_id FROM users WHERE id = ?',
+      [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ message: '用户不存在' });
+    }
+    return res.json({ data: rows[0] });
+  } catch (error) {
+    console.log('🔧 获取用户详情查询回退:', error.message);
+    const [rows] = await pool.execute(
+      'SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, created_at FROM users WHERE id = ?',
+      [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ message: '用户不存在' });
+    }
+    return res.json({ data: rows[0] });
+  }
+}));
+
+// 管理员：发送查看用户敏感信息的邮箱验证码（先做人机验证）
+router.post('/users/:id/view-password/send-code', asyncHandler(async (req, res) => {
+  const { id } = req.params
+  // 仅管理员已由上方中间件保证
+  const [rows] = await pool.execute('SELECT id, email, username FROM users WHERE id = ?', [id])
+  if (rows.length === 0) return res.status(404).json({ message: '用户不存在' })
+  const email = rows[0].email
+  if (!email) return res.status(400).json({ message: '该用户未设置邮箱，无法发送验证码' })
+
+  const rate = checkRateLimit(email, 'admin_view_sensitive')
+  if (!rate.allowed) {
+    return res.status(429).json({ message: `发送过于频繁，请 ${rate.remainingTime}s 后再试` })
+  }
+  const code = createVerificationCode(email, 'admin_view_sensitive', rows[0].id)
+  try {
+    const r = await sendEmailVerificationCode(email, code, 'admin_view_sensitive')
+    if (r?.success) return res.json({ success: true, message: '验证码已发送至用户邮箱' })
+    return res.status(500).json({ message: '发送验证码失败，请稍后重试' })
+  } catch (e) {
+    return res.status(500).json({ message: '发送验证码失败，请稍后重试' })
+  }
+}))
+
+// 管理员：校验验证码并返回用户密码摘要（不返回明文）
+router.post('/users/:id/view-password/verify', asyncHandler(async (req, res) => {
+  const { id } = req.params
+  const { code } = req.body || {}
+  if (!code) return res.status(400).json({ message: '缺少验证码' })
+  const [rows] = await pool.execute('SELECT id, email, username, password_hash FROM users WHERE id = ?', [id])
+  if (rows.length === 0) return res.status(404).json({ message: '用户不存在' })
+  const user = rows[0]
+  const result = verifyCode(user.email, code, 'admin_view_sensitive', { userId: user.id, username: user.username })
+  if (!result.valid) return res.status(400).json({ message: result.message || '验证码无效' })
+  // 仅返回密码哈希的掩码摘要，避免泄露明文
+  const hash = user.password_hash || ''
+  const masked = hash ? `${hash.slice(0, 8)}****${hash.slice(-6)}` : ''
+  return res.json({ success: true, passwordMaskedHash: masked })
+}))
 
 // 设置用户存储容量
 router.put('/users/:id/storage', [
@@ -586,7 +736,9 @@ router.get('/users/:id/stats', asyncHandler(async (req, res) => {
   });
 }));
 
-// 删除用户
+const { deleteUserCompletely } = require('../services/accountDeletionService');
+
+// 删除用户（复用删除服务，管理员动作，保留审计日志）
 router.delete('/users/:id', asyncHandler(async (req, res) => {
   const userId = req.params.id;
 
@@ -607,67 +759,15 @@ router.delete('/users/:id', asyncHandler(async (req, res) => {
     return res.status(400).json({ message: '不能删除自己的账户' });
   }
 
-  // 开始事务
-  const connection = await pool.getConnection();
-  await connection.beginTransaction();
-
   try {
-    // 1. 删除用户文件
-    console.log(`🗑️ 删除用户 ${user.username} 的文件...`);
-    const [fileResult] = await connection.execute(
-      'DELETE FROM files WHERE user_id = ?',
-      [userId]
-    );
-    console.log(`   删除了 ${fileResult.affectedRows} 个文件`);
+    await deleteUserCompletely(userId, { deleteSystemLogs: true })
+  } catch (error) {
+    console.error('删除用户失败:', error)
+    throw error
+  }
 
-    // 2. 删除用户文件夹
-    console.log(`📁 删除用户 ${user.username} 的文件夹...`);
-    const [folderResult] = await connection.execute(
-      'DELETE FROM folders WHERE user_id = ?',
-      [userId]
-    );
-    console.log(`   删除了 ${folderResult.affectedRows} 个文件夹`);
-
-    // 3. 删除用户token
-    console.log(`🔑 删除用户 ${user.username} 的登录token...`);
-    const [tokenResult] = await connection.execute(
-      'DELETE FROM user_tokens WHERE user_id = ?',
-      [userId]
-    );
-    console.log(`   删除了 ${tokenResult.affectedRows} 个token`);
-
-    // 4. 删除用户通知设置
-    console.log(`🔔 删除用户 ${user.username} 的通知设置...`);
-    const [notificationResult] = await connection.execute(
-      'DELETE FROM user_notification_settings WHERE user_id = ?',
-      [userId]
-    );
-    console.log(`   删除了 ${notificationResult.affectedRows} 个通知设置`);
-
-    // 5. 删除用户偏好设置
-    console.log(`⚙️ 删除用户 ${user.username} 的偏好设置...`);
-    const [preferencesResult] = await connection.execute(
-      'DELETE FROM user_preferences WHERE user_id = ?',
-      [userId]
-    );
-    console.log(`   删除了 ${preferencesResult.affectedRows} 个偏好设置`);
-
-    // 6. 删除用户相关的系统日志（可选，也可以保留用于审计）
-    console.log(`📝 删除用户 ${user.username} 的系统日志...`);
-    const [logResult] = await connection.execute(
-      'DELETE FROM system_logs WHERE user_id = ?',
-      [userId]
-    );
-    console.log(`   删除了 ${logResult.affectedRows} 条日志`);
-
-    // 7. 最后删除用户记录
-    console.log(`👤 删除用户 ${user.username} 的记录...`);
-    await connection.execute('DELETE FROM users WHERE id = ?', [userId]);
-
-    // 提交事务
-    await connection.commit();
-
-    // 记录删除操作到系统日志
+  // 记录删除操作到系统日志
+  try {
     await pool.execute(
       'INSERT INTO system_logs (level, message, source, user_id, timestamp) VALUES (?, ?, ?, ?, NOW())',
       [
@@ -676,28 +776,10 @@ router.delete('/users/:id', asyncHandler(async (req, res) => {
         'ADMIN_PANEL',
         req.user.id
       ]
-    );
+    )
+  } catch (_) {}
 
-    res.json({ 
-      message: `用户 ${user.username} 及其所有相关数据已删除`,
-      deletedData: {
-        files: fileResult.affectedRows,
-        folders: folderResult.affectedRows,
-        tokens: tokenResult.affectedRows,
-        notifications: notificationResult.affectedRows,
-        preferences: preferencesResult.affectedRows,
-        logs: logResult.affectedRows
-      }
-    });
-
-  } catch (error) {
-    // 回滚事务
-    await connection.rollback();
-    console.error('删除用户失败:', error);
-    throw error;
-  } finally {
-    connection.release();
-  }
+  res.json({ message: `用户 ${user.username} 及其所有相关数据已删除` })
 }));
 
 // 获取存储统计
@@ -871,6 +953,17 @@ router.get('/stats', authenticateToken, asyncHandler(async (req, res) => {
     FROM files
   `);
 
+  // 获取动图/实况统计
+  let liveCount = 0;
+  try {
+    const [liveStats] = await pool.execute(`
+      SELECT COUNT(*) as live_count FROM live_media_assets
+    `);
+    liveCount = Number(liveStats[0]?.live_count || 0);
+  } catch (_) {
+    liveCount = 0;
+  }
+
   // 获取文件夹统计
   const [folderStats] = await pool.execute(`
     SELECT 
@@ -895,9 +988,31 @@ router.get('/stats', authenticateToken, asyncHandler(async (req, res) => {
     file_growth: fileStats[0].file_growth,
     image_count: fileStats[0].image_count,
     video_count: fileStats[0].video_count,
+    live_count: liveCount,
     total_folders: folderStats[0].total_folders,
     folder_growth: folderStats[0].folder_growth,
     storage_growth: storageStats[0].storage_growth || 0
+  });
+}));
+
+// 存储分类细分（图片/视频/动图）
+router.get('/storage-breakdown', authenticateToken, asyncHandler(async (req, res) => {
+  const toNum = (v) => Number(v) || 0;
+  const [img] = await pool.execute(`
+    SELECT COUNT(*) as count, SUM(file_size) as bytes FROM files WHERE file_type='image'
+  `);
+  const [vid] = await pool.execute(`
+    SELECT COUNT(*) as count, SUM(file_size) as bytes FROM files WHERE file_type='video'
+  `);
+  let liveCount = 0;
+  try {
+    const [live] = await pool.execute(`SELECT COUNT(*) as count FROM live_media_assets`);
+    liveCount = toNum(live[0]?.count);
+  } catch (_) { liveCount = 0; }
+  res.json({
+    image: { count: toNum(img[0]?.count), bytes: toNum(img[0]?.bytes) },
+    video: { count: toNum(vid[0]?.count), bytes: toNum(vid[0]?.bytes) },
+    motion: { count: liveCount, bytes: null }
   });
 }));
 
@@ -913,6 +1028,12 @@ router.get('/settings', asyncHandler(async (req, res) => {
       value: setting.setting_value,
       description: setting.description
     };
+    
+    // 特别记录 max_file_size 的值
+    if (setting.setting_key === 'max_file_size') {
+      const bytes = parseInt(setting.setting_value);
+      const mb = Math.round(bytes / (1024 * 1024));
+    }
   });
   
   res.json({ settings: settingsMap });
@@ -960,6 +1081,9 @@ router.put('/settings', [
     'session_timeout': { type: 'string', required: false },
     'enable_two_factor': { type: 'string', required: false },
     'password_complexity': { type: 'string', required: false },
+    // 分享设置
+    'sharing_enabled': { type: 'string', required: false },
+    'share_disabled_at': { type: 'string', required: false },
     
     // 通知设置
     'enable_email_notification': { type: 'string', required: false },
@@ -972,6 +1096,17 @@ router.put('/settings', [
     'enable_system_notification': { type: 'string', required: false },
     'notification_retention_days': { type: 'string', required: false },
     
+    // 用户通知偏好设置
+    'enable_login_notification': { type: 'string', required: false },
+    'enable_upload_notification': { type: 'string', required: false },
+    'enable_storage_warning': { type: 'string', required: false },
+    'enable_security_alert': { type: 'string', required: false },
+    'enable_maintenance_notification': { type: 'string', required: false },
+    
+    // 通知频率设置
+    'email_frequency': { type: 'string', required: false },
+    'system_frequency': { type: 'string', required: false },
+    
     // 外观设置
     'theme_mode': { type: 'string', required: false },
     'primary_color': { type: 'string', required: false },
@@ -979,6 +1114,7 @@ router.put('/settings', [
     'enable_animation': { type: 'string', required: false },
     'logo_url': { type: 'string', maxLength: 500, required: false },
     'favicon_url': { type: 'string', maxLength: 500, required: false },
+    'custom_css': { type: 'string', required: false },
     
     // 维护设置
     'maintenance_mode': { type: 'string', required: false }, // 前端传递 'true'/'false'
@@ -1027,24 +1163,47 @@ router.put('/settings', [
     }
   }
   
+  if (validationErrors.length > 0) {
+    return res.status(400).json({ 
+      message: '设置验证失败', 
+      errors: validationErrors 
+    });
+  }
+  
+  // 获取当前设置用于比较
+  const settingKeys = Object.keys(settings);
+  const placeholders = settingKeys.map(() => '?').join(',');
+  const [oldSettings] = await pool.execute(
+    `SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN (${placeholders})`,
+    settingKeys
+  );
   
   const oldSettingsMap = {};
   oldSettings.forEach(setting => {
     oldSettingsMap[setting.setting_key] = setting.setting_value;
   });
   
-  // 更新设置
-  const updatePromises = [];
+  // 更新设置（若不存在则插入）
   for (const [key, value] of Object.entries(settings)) {
-    updatePromises.push(
-      pool.execute(
-        'UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?',
-        [value, key]
-      )
+    let processedValue = value;
+    // 特殊处理：将MB值转换为字节值
+    if (key === 'max_file_size' || key === 'max_storage_per_user') {
+      const mbValue = parseInt(value);
+      if (!isNaN(mbValue) && mbValue > 0) {
+        processedValue = (mbValue * 1024 * 1024).toString();
+      }
+    }
+    const [result] = await pool.execute(
+      'UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?',
+      [processedValue, key]
     );
+    if (!result || result.affectedRows === 0) {
+      await pool.execute(
+        'INSERT INTO system_settings (setting_key, setting_value, description, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())',
+        [key, processedValue, null]
+      );
+    }
   }
-  
-  await Promise.all(updatePromises);
   
   // 记录操作日志
   const changes = [];
@@ -1070,22 +1229,44 @@ router.put('/settings', [
       // 日志记录失败不影响主流程，继续执行
     }
   }
+  // 更新全局配置版本（用于前端强制刷新）
+  try {
+    const version = new Date().toISOString();
+    const [vr] = await pool.execute(
+      'UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ?',[version,'config_version']
+    );
+    if (!vr || vr.affectedRows === 0) {
+      await pool.execute(
+        'INSERT INTO system_settings (setting_key, setting_value, description, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())',
+        ['config_version', version, '前端配置版本号']
+      );
+    }
+  } catch (_) {}
   
-  res.json(response);
+  res.json({ 
+    message: '设置更新成功',
+    updatedCount: Object.keys(settings).length,
+    changes: changes.length > 0 ? changes : ['无变更']
+  });
 }));
 
 
 // 测试第三方连接
 router.post('/test-connection', [
-  body('type').isIn(['qq', 'wechat']).withMessage('连接类型必须是qq或wechat'),
-  body('appId').notEmpty().withMessage('应用ID不能为空')
+  body('type').isIn(['qq', 'wechat', 'email']).withMessage('连接类型必须是qq、wechat或email'),
+  body('appId').optional().notEmpty().withMessage('应用ID不能为空'),
+  body('smtpHost').optional().notEmpty().withMessage('SMTP服务器不能为空'),
+  body('smtpPort').optional().isInt({ min: 1, max: 65535 }).withMessage('SMTP端口必须是1-65535之间的整数'),
+  body('smtpUsername').optional().notEmpty().withMessage('SMTP用户名不能为空'),
+  body('smtpPassword').optional().notEmpty().withMessage('SMTP密码不能为空'),
+  body('senderEmail').optional().isEmail().withMessage('发件人邮箱格式不正确')
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ message: '参数错误', errors: errors.array() });
   }
 
-  const { type, appId, appKey, appSecret } = req.body;
+  const { type, appId, appKey, appSecret, smtpHost, smtpPort, smtpUsername, smtpPassword, senderEmail, senderName } = req.body;
   
   try {
     if (type === 'qq') {
@@ -1129,6 +1310,43 @@ router.post('/test-connection', [
           message: response.data.errmsg || '微信连接测试失败'
         });
       }
+    } else if (type === 'email') {
+      // 测试邮件连接
+      const nodemailer = require('nodemailer');
+      
+      // 创建邮件传输器
+      const transporter = nodemailer.createTransporter({
+        host: smtpHost,
+        port: parseInt(smtpPort),
+        secure: smtpPort == 465, // true for 465, false for other ports
+        auth: {
+          user: smtpUsername,
+          pass: smtpPassword
+        }
+      });
+      
+      // 验证连接
+      await transporter.verify();
+      
+      // 发送测试邮件
+      const testEmail = {
+        from: `"${senderName || '图库系统'}" <${senderEmail}>`,
+        to: senderEmail, // 发送给自己作为测试
+        subject: '邮件连接测试 - 图库系统',
+        html: `
+          <h2>邮件连接测试成功</h2>
+          <p>这是一封测试邮件，用于验证SMTP配置是否正确。</p>
+          <p>测试时间：${new Date().toLocaleString('zh-CN')}</p>
+          <p>如果您收到这封邮件，说明邮件通知功能配置正确。</p>
+        `
+      };
+      
+      await transporter.sendMail(testEmail);
+      
+      res.json({
+        success: true,
+        message: '邮件连接测试成功，测试邮件已发送'
+      });
     }
   } catch (error) {
     console.error(`${type}连接测试失败:`, error);
@@ -1215,6 +1433,443 @@ router.put('/users/:id/password', [
   res.json({
     message: '密码重置成功'
   });
+}));
+
+// 获取通知历史记录
+router.get('/notifications', asyncHandler(async (req, res) => {
+  const { userId, type, limit = 50, offset = 0 } = req.query;
+  const currentUserId = req.user.id; // 当前登录的管理员ID
+  
+  // 管理员需要能看到所有通知，同时显示自己的已读状态
+  let query = `
+    SELECT nh.*, su.username AS sender_username, 
+           un.is_read, un.read_at, un.created_at as user_notification_created_at
+    FROM notification_history nh
+    LEFT JOIN users su ON nh.sender_id = su.id
+    LEFT JOIN user_notifications un ON nh.id = un.notification_id AND un.user_id = ?
+    WHERE 1=1
+  `;
+  const params = [currentUserId];
+
+  if (userId) {
+    // 可选：按发送者过滤（注意这不是接收者）
+    query += ' AND nh.sender_id = ?';
+    params.push(userId);
+  }
+
+  if (type) {
+    query += ' AND nh.notification_type = ?';
+    params.push(type);
+  }
+
+  query += ' ORDER BY nh.created_at DESC LIMIT ? OFFSET ?';
+  params.push(parseInt(limit), parseInt(offset));
+
+  const [notifications] = await pool.execute(query, params);
+
+  // 统计总数
+  let countQuery = 'SELECT COUNT(*) as total FROM notification_history nh WHERE 1=1';
+  const countParams = [];
+  if (userId) { countQuery += ' AND nh.sender_id = ?'; countParams.push(userId); }
+  if (type) { countQuery += ' AND nh.notification_type = ?'; countParams.push(type); }
+  const [countResult] = await pool.execute(countQuery, countParams);
+
+  res.json({
+    notifications,
+    total: countResult[0].total,
+    limit: parseInt(limit),
+    offset: parseInt(offset)
+  });
+}));
+
+// 标记通知为已读
+router.put('/notifications/:id/read', asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+  
+  const notificationService = require('../services/notificationService');
+  const success = await notificationService.markNotificationAsRead(id, userId);
+  
+  if (success) {
+    res.json({ message: '通知已标记为已读' });
+  } else {
+    res.status(404).json({ message: '通知不存在或无权限' });
+  }
+}));
+
+// 获取通知统计
+router.get('/notifications/stats', asyncHandler(async (req, res) => {
+  const { userId } = req.query;
+  
+  let query = 'SELECT ns.*, u.username FROM notification_stats ns JOIN users u ON ns.user_id = u.id';
+  let params = [];
+  
+  if (userId) {
+    query += ' WHERE ns.user_id = ?';
+    params.push(userId);
+  }
+  
+  query += ' ORDER BY ns.total_sent DESC';
+  
+  const [stats] = await pool.execute(query, params);
+  
+  res.json({ stats });
+}));
+
+// 清理过期通知
+router.delete('/notifications/cleanup', asyncHandler(async (req, res) => {
+  const notificationService = require('../services/notificationService');
+  const cleanedCount = await notificationService.cleanExpiredNotifications();
+  
+  res.json({ 
+    message: `清理完成，删除了 ${cleanedCount} 条过期通知`,
+    cleanedCount 
+  });
+}));
+
+// 创建通知
+// 辅助函数：格式化为 MySQL DATETIME 字符串
+function formatToMySqlDateTime(input) {
+  if (!input) return null;
+  const date = typeof input === 'string' || typeof input === 'number' ? new Date(input) : input;
+  if (Number.isNaN(date?.getTime?.())) return null;
+  const pad = (n) => String(n).padStart(2, '0');
+  const Y = date.getFullYear();
+  const M = pad(date.getMonth() + 1);
+  const D = pad(date.getDate());
+  const h = pad(date.getHours());
+  const m = pad(date.getMinutes());
+  const s = pad(date.getSeconds());
+  return `${Y}-${M}-${D} ${h}:${m}:${s}`;
+}
+
+router.post('/notifications', [
+  body('title').notEmpty().withMessage('通知标题不能为空'),
+  body('content').notEmpty().withMessage('通知内容不能为空'),
+  body('notification_type').isIn(['system', 'maintenance', 'security_alert', 'storage_warning', 'email']).withMessage('通知类型无效'),
+  body('priority').isIn(['low', 'normal', 'high', 'urgent']).withMessage('优先级无效'),
+  body('send_at').notEmpty().withMessage('发送时间不能为空'),
+  body('target').isIn(['all', 'admin', 'user']).withMessage('发送范围无效')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ message: '参数错误', errors: errors.array() });
+  }
+
+  const { title, content, notification_type, priority, send_at, delete_at, target } = req.body;
+  
+  const sendAtFormatted = formatToMySqlDateTime(send_at);
+  const deleteAtFormatted = delete_at ? formatToMySqlDateTime(delete_at) : null;
+  if (!sendAtFormatted) {
+    return res.status(400).json({ message: '发送时间格式无效，请使用 YYYY-MM-DD HH:mm:ss' });
+  }
+  
+  try {
+    // 插入单条通知主记录
+    const senderId = req.user?.id || null; // 允许为null（系统创建）
+    const [result] = await pool.execute(
+      'INSERT INTO notification_history (sender_id, notification_type, title, content, priority, send_at, delete_at, target, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+      [senderId, notification_type, title, content, priority, sendAtFormatted, deleteAtFormatted, target]
+    );
+
+    // 立即为目标用户创建投递记录，但不为发送者本人创建
+    const sendTime = new Date(sendAtFormatted);
+    const now = new Date();
+    if (sendTime <= now) {
+      await sendNotificationToUsers(result.insertId, senderId, target);
+    }
+
+    res.json({
+      success: true,
+      message: '通知创建成功',
+      data: { id: result.insertId }
+    });
+  } catch (error) {
+    console.error('创建通知失败:', error);
+    res.status(500).json({ 
+      message: '创建通知失败', 
+      error: error.message,
+      code: error.code || null,
+      sqlMessage: error.sqlMessage || null
+    });
+  }
+}));
+
+// 更新通知
+router.put('/notifications/:id', [
+  body('title').notEmpty().withMessage('通知标题不能为空'),
+  body('content').notEmpty().withMessage('通知内容不能为空'),
+  body('notification_type').isIn(['system', 'maintenance', 'security_alert', 'storage_warning', 'email']).withMessage('通知类型无效'),
+  body('priority').isIn(['low', 'normal', 'high', 'urgent']).withMessage('优先级无效'),
+  body('send_at').notEmpty().withMessage('发送时间不能为空'),
+  body('target').isIn(['all', 'admin', 'user']).withMessage('发送范围无效')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ message: '参数错误', errors: errors.array() });
+  }
+
+  const notificationId = req.params.id;
+  const { title, content, notification_type, priority, send_at, delete_at, target } = req.body;
+  
+  try {
+    // 更新通知记录
+    const [result] = await pool.execute(
+      'UPDATE notification_history SET notification_type = ?, title = ?, content = ?, priority = ?, send_at = ?, delete_at = ?, target = ?, updated_at = NOW() WHERE id = ?',
+      [notification_type, title, content, priority, send_at, delete_at || null, target, notificationId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: '通知不存在' });
+    }
+
+    res.json({
+      success: true,
+      message: '通知更新成功'
+    });
+  } catch (error) {
+    console.error('更新通知失败:', error);
+    res.status(500).json({ message: '更新通知失败', error: error.message });
+  }
+}));
+
+// 删除通知
+router.delete('/notifications/:id', asyncHandler(async (req, res) => {
+  const notificationId = req.params.id;
+  
+  try {
+    const [result] = await pool.execute(
+      'DELETE FROM notification_history WHERE id = ?',
+      [notificationId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: '通知不存在' });
+    }
+
+    res.json({
+      success: true,
+      message: '通知删除成功'
+    });
+  } catch (error) {
+    console.error('删除通知失败:', error);
+    res.status(500).json({ message: '删除通知失败', error: error.message });
+  }
+}));
+
+// 修复缺失的用户通知记录
+router.post('/notifications/fix-missing', requireAdmin, asyncHandler(async (req, res) => {
+  try {
+    console.log('🔍 检查缺失的用户通知记录...');
+    
+    // 查找所有没有 user_notifications 记录的通知
+    const [orphanedNotifications] = await pool.execute(`
+      SELECT nh.id, nh.title, nh.target, nh.sender_id, nh.created_at
+      FROM notification_history nh
+      LEFT JOIN user_notifications un ON nh.id = un.notification_id
+      WHERE un.notification_id IS NULL
+      ORDER BY nh.id DESC
+    `);
+    
+    console.log(`发现 ${orphanedNotifications.length} 条缺失用户通知记录的通知`);
+    
+    if (orphanedNotifications.length === 0) {
+      return res.json({ success: true, message: '没有发现缺失的用户通知记录', fixed: 0 });
+    }
+    
+    let fixedCount = 0;
+    
+    for (const notification of orphanedNotifications) {
+      console.log(`处理通知 ID: ${notification.id}`);
+      
+      // 根据通知的目标范围确定用户
+      let query = 'SELECT id FROM users WHERE status = "active"';
+      let params = [];
+      
+      if (notification.target === 'admin') {
+        query += ' AND role = "admin"';
+      } else if (notification.target === 'user') {
+        query += ' AND role = "user"';
+      }
+      
+      if (notification.sender_id) {
+        query += ' AND id <> ?';
+        params.push(notification.sender_id);
+      }
+      
+      const [users] = await pool.execute(query, params);
+      
+      // 为每个用户创建通知记录
+      for (const user of users) {
+        try {
+          await pool.execute(
+            'INSERT IGNORE INTO user_notifications (notification_id, user_id, is_read, created_at) VALUES (?, ?, 0, NOW())',
+            [notification.id, user.id]
+          );
+          fixedCount++;
+        } catch (error) {
+          console.error(`为用户 ${user.id} 创建通知记录失败:`, error.message);
+        }
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `修复完成，共创建 ${fixedCount} 条用户通知记录`,
+      fixed: fixedCount,
+      notifications: orphanedNotifications.length
+    });
+    
+  } catch (error) {
+    console.error('修复过程中出错:', error);
+    res.status(500).json({ message: '修复失败', error: error.message });
+  }
+}));
+
+// 发送通知给用户：仅写入 user_notifications 投递记录；不再向 notification_history 重复插入
+const sendNotificationToUsers = async (notificationId, senderId, target) => {
+  try {
+    let query = 'SELECT id FROM users WHERE status = "active"';
+    let params = [];
+
+    if (target === 'admin') {
+      query += ' AND role = "admin"';
+    } else if (target === 'user') {
+      query += ' AND role = "user"';
+    }
+
+    // 不再排除发送者，让所有目标用户都能收到通知
+    // if (senderId) {
+    //   query += ' AND id <> ?';
+    //   params.push(senderId);
+    // }
+
+    const [users] = await pool.execute(query, params);
+
+    // 为每个目标用户创建投递记录
+    for (const user of users) {
+      await pool.execute(
+        'INSERT IGNORE INTO user_notifications (notification_id, user_id, is_read, created_at) VALUES (?, ?, 0, NOW())',
+        [notificationId, user.id]
+      );
+    }
+
+    // 推送给在线用户（SSE）
+    try {
+      const pushService = require('../services/notificationPushService');
+      pushService.publishToUsers(users.map(u => u.id), {
+        type: 'notification:new',
+        notificationId
+      });
+    } catch (_) {}
+
+    console.log(`✅ 通知 ${notificationId} 已发送给 ${users.length} 个用户`);
+  } catch (error) {
+    console.error('发送通知给用户失败:', error);
+  }
+};
+
+// 手动迁移通知相关表结构（管理员接口）
+router.post('/notifications/migrate', asyncHandler(async (req, res) => {
+  try {
+    // 创建 notification_history（如果不存在）
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS notification_history (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NULL,
+        sender_id INT NULL,
+        notification_type VARCHAR(50) NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        content TEXT NOT NULL,
+        priority VARCHAR(20) DEFAULT 'normal',
+        send_at DATETIME NULL,
+        delete_at DATETIME NULL,
+        target VARCHAR(20) DEFAULT 'all',
+        is_read TINYINT(1) DEFAULT 0,
+        read_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // 校验并补齐列
+    const [cols] = await pool.execute('DESCRIBE notification_history');
+    const colNames = cols.map(c => c.Field);
+    const userIdCol = cols.find(c => c.Field === 'user_id');
+    const safeAdd = async (sql) => { try { await pool.execute(sql); } catch (e) { /* ignore */ } };
+    if (!colNames.includes('sender_id')) await safeAdd(`ALTER TABLE notification_history ADD COLUMN sender_id INT NULL`);
+    if (!colNames.includes('priority')) await safeAdd(`ALTER TABLE notification_history ADD COLUMN priority VARCHAR(20) DEFAULT 'normal'`);
+    if (!colNames.includes('send_at')) await safeAdd(`ALTER TABLE notification_history ADD COLUMN send_at DATETIME NULL`);
+    if (!colNames.includes('delete_at')) await safeAdd(`ALTER TABLE notification_history ADD COLUMN delete_at DATETIME NULL`);
+    if (!colNames.includes('target')) await safeAdd(`ALTER TABLE notification_history ADD COLUMN target VARCHAR(20) DEFAULT 'all'`);
+    if (!colNames.includes('updated_at')) await safeAdd(`ALTER TABLE notification_history ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`);
+
+    // 将 user_id 列改为可为空（用于系统级通知主表记录）
+    try {
+      if (userIdCol && userIdCol.Null === 'NO') {
+        await pool.execute('ALTER TABLE notification_history MODIFY COLUMN user_id INT NULL');
+      }
+    } catch (e) {
+      // 忽略可能的权限或已修改错误
+    }
+
+    // 创建 user_notifications（如果不存在）
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS user_notifications (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        notification_id INT NOT NULL,
+        user_id INT NOT NULL,
+        is_read TINYINT(1) DEFAULT 0,
+        read_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY unique_notification_user (notification_id, user_id),
+        INDEX idx_user_id_is_read (user_id, is_read)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    res.json({ success: true, message: '通知相关表结构校验/创建完成' });
+  } catch (error) {
+    console.error('通知表结构迁移失败:', error);
+    res.status(500).json({ success: false, message: '迁移失败', error: error.message });
+  }
+}));
+
+// 发送测试通知
+router.post('/notifications/test', [
+  body('type').isIn(['email', 'system']).withMessage('通知类型必须是email或system'),
+  body('recipient').notEmpty().withMessage('收件人不能为空'),
+  body('subject').notEmpty().withMessage('主题不能为空'),
+  body('content').notEmpty().withMessage('内容不能为空')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ message: '参数错误', errors: errors.array() });
+  }
+
+  const { type, recipient, subject, content } = req.body;
+  const notificationService = require('../services/notificationService');
+  
+  try {
+    if (type === 'email') {
+      await notificationService.sendEmailNotification(recipient, subject, content);
+      res.json({ message: '测试邮件发送成功' });
+    } else if (type === 'system') {
+      // 查找用户ID
+      const [users] = await pool.execute(
+        'SELECT id FROM users WHERE email = ? OR username = ?',
+        [recipient, recipient]
+      );
+      
+      if (users.length === 0) {
+        return res.status(404).json({ message: '用户不存在' });
+      }
+      
+      await notificationService.sendSystemNotification(users[0].id, 'test', subject, content);
+      res.json({ message: '测试系统通知发送成功' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: '发送测试通知失败', error: error.message });
+  }
 }));
 
 // 版本检查接口（不需要认证）

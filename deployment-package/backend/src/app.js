@@ -10,11 +10,17 @@ const fileRoutes = require('./routes/files');
 const folderRoutes = require('./routes/folders');
 const adminRoutes = require('./routes/admin');
 const avatarRoutes = require('./routes/avatars');
+const systemRoutes = require('./routes/system');
+const liveMediaRoutes = require('./routes/liveMedia');
+const shareRoutes = require('./routes/share');
+const nginxConfigRoutes = require('./routes/nginxConfig');
 const { errorHandler } = require('./middleware/errorHandler');
 const { authenticateToken } = require('./middleware/auth');
 const { checkMaintenanceMode } = require('./middleware/maintenance');
 const { startCleanupTask } = require('./services/verificationService');
 const TrendService = require('./services/trendService');
+const nginxAutoUpdateService = require('./services/nginxAutoUpdateService');
+const databaseInitService = require('./services/databaseInitService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,6 +38,7 @@ const corsOptions = {
       'https://tukufrontend.vtart.cn',
       'https://tukubackend.vtart.cn',
       'http://localhost:5173',
+      'http://localhost:5174',
       'http://localhost:3000',
       'http://localhost:3001',
       'http://localhost:3008',
@@ -40,17 +47,13 @@ const corsOptions = {
     
     // 允许没有origin的请求（如移动应用、Postman等）
     if (!origin) {
-      console.log('CORS: Allowing request without origin');
       return callback(null, true);
     }
     
     // 检查origin是否在允许列表中
     if (allowedOrigins.includes(origin)) {
-      console.log('CORS: Allowing origin:', origin);
       callback(null, true);
     } else {
-      console.log('CORS: Blocking origin:', origin);
-      console.log('CORS: Allowed origins:', allowedOrigins);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -64,7 +67,10 @@ const corsOptions = {
     'Origin',
     'Access-Control-Request-Method',
     'Access-Control-Request-Headers',
-    'Cache-Control'
+    'Cache-Control',
+    'X-File-Name',
+    'X-File-Size',
+    'X-File-Type'
   ],
   exposedHeaders: [
     'Content-Type', 
@@ -80,24 +86,36 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// CORS调试中间件
+// 统一CORS响应头（确保错误/非简单响应也携带CORS头）
 app.use((req, res, next) => {
-  console.log('=== CORS Debug Info ===');
-  console.log('Request Origin:', req.headers.origin);
-  console.log('Request Method:', req.method);
-  console.log('Request URL:', req.url);
-  console.log('Request Headers:', req.headers);
-  console.log('========================');
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'https://tukufrontend.vtart.cn',
+    'https://tukubackend.vtart.cn',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3008',
+    'http://localhost:3010'
+  ];
+  if (!origin || allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin || 'https://tukufrontend.vtart.cn');
+    res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers, Cache-Control, X-File-Name, X-File-Size, X-File-Type');
+    res.header('Access-Control-Expose-Headers', 'Content-Type, Content-Length, Cache-Control, Last-Modified, ETag, Access-Control-Allow-Origin, Access-Control-Allow-Credentials');
+  }
   next();
 });
 
 // 手动处理OPTIONS请求
 app.options('*', (req, res) => {
-  console.log('Handling OPTIONS request for:', req.url);
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers, Cache-Control, X-File-Name, X-File-Size, X-File-Type');
   res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400'); // 24小时
   res.sendStatus(200);
 });
 
@@ -129,20 +147,26 @@ app.use('/api/folders', apiLimiter);
 app.use('/api/admin', apiLimiter);
 app.use('/api/files', apiLimiter);
 
-// 解析中间件
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// 解析中间件 - 支持大文件上传
+app.use(express.json({ limit: '2gb' }));
+app.use(express.urlencoded({ extended: true, limit: '2gb' }));
 
 // 静态文件服务 - 必须在认证中间件之前
-app.use('/uploads', express.static(process.env.UPLOAD_PATH || './storage', {
+app.use('/uploads', express.static(process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage', {
   setHeaders: (res, path) => {
+    // 仅设置与跨源资源策略/缓存相关的安全头，避免重复设置 CORS 头导致浏览器报错
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
     res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Content-Length, Cache-Control, Last-Modified, ETag');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable, no-transform');
+    // 开发环境下由 Node 设置 CORS；生产环境交由 Nginx（避免重复/冲突）
+    const devCors = (process.env.NODE_ENV || '').toLowerCase() !== 'production' && (process.env.ENABLE_UPLOADS_CORS || 'true').toLowerCase() === 'true';
+    if (devCors) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    }
   }
 }));
 
@@ -154,19 +178,29 @@ app.use('/api/files', checkMaintenanceMode);
 
 // 路由
 app.use('/api/auth', authRoutes);
+app.use('/api/system', systemRoutes); // 系统公共接口，无需认证
 app.use('/api/folders', authenticateToken, folderRoutes);
 app.use('/api/admin', authenticateToken, adminRoutes);
 app.use('/api/avatars', authenticateToken, avatarRoutes);
+app.use('/api/nginx-config', nginxConfigRoutes); // Nginx配置管理
 
 // 头像静态文件服务 - 必须在 /api/files 路由之前
-app.use('/api/files/avatar', express.static(path.join(process.env.UPLOAD_PATH || './storage', 'users'), {
+app.use('/api/files/avatar', express.static(path.join(process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage', 'users'), {
   setHeaders: (res, path) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.setHeader('Cache-Control', 'public, max-age=3600');
   }
 }));
 
 // 文件路由 - 必须在头像静态服务之后
 app.use('/api/files', authenticateToken, fileRoutes);
+app.use('/api/live-media', authenticateToken, liveMediaRoutes);
+app.use('/api/share', shareRoutes); // 公开分享，无需认证
 
 // 健康检查
 app.get('/api/health', (req, res) => {
@@ -174,6 +208,28 @@ app.get('/api/health', (req, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV 
+  });
+});
+
+// CORS测试端点
+app.get('/api/cors-test', (req, res) => {
+  
+  res.json({
+    message: 'CORS测试成功',
+    origin: req.headers.origin,
+    method: req.method,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 文件大小测试端点
+app.post('/api/upload-test', (req, res) => {
+  
+  res.json({
+    message: '文件上传测试成功',
+    contentType: req.headers['content-type'],
+    contentLength: req.headers['content-length'],
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -212,6 +268,14 @@ const scheduleTrendCollection = () => {
 
 // 启动趋势数据收集任务
 scheduleTrendCollection();
+
+// 启动Nginx配置自动更新服务
+nginxAutoUpdateService.start();
+
+// 数据库初始化（异步执行，不阻塞服务启动）
+databaseInitService.initialize().catch(error => {
+  console.error('❌ 数据库初始化失败:', error.message);
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 图库系统后端服务启动成功`);

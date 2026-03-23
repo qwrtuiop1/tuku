@@ -17,11 +17,40 @@ COPY backend/ .
 # 创建存储目录
 RUN mkdir -p storage/users
 
+# 安装运行时依赖：ffmpeg（用于视频转码/首帧截图）
+RUN apk add --no-cache ffmpeg
+
 # 暴露端口
 EXPOSE 3000
 
 # 启动命令
 CMD ["npm", "start"]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

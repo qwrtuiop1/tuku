@@ -143,6 +143,13 @@ const initDatabase = async () => {
         await connection.execute(`ALTER TABLE users ADD COLUMN avatar_url VARCHAR(255)`);
       }
       
+      // 枚举扩展：third_party_type 增加 'epass'（容错执行）
+      try {
+        await connection.execute("ALTER TABLE users MODIFY third_party_type ENUM('qq','wechat','local','epass') DEFAULT 'local'");
+      } catch (e) {
+        // 可能已存在或无此列，忽略
+      }
+
       console.log('✅ 数据库表结构检查完成');
     } catch (error) {
       console.error('❌ 数据库表结构检查失败:', error.message);
@@ -236,6 +243,13 @@ const initDatabase = async () => {
         UNIQUE KEY unique_user_notification_settings (user_id)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
+
+    // 扩展登录日志 login_method 枚举，增加 'epass'（容错执行）
+    try {
+      await connection.execute("ALTER TABLE user_login_logs MODIFY login_method ENUM('password','qq','email','epass') DEFAULT 'password'");
+    } catch (e) {
+      // 表可能不存在或已包含，忽略
+    }
 
     // 创建用户趋势数据表
     await connection.execute(`

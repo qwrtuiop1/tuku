@@ -6,19 +6,18 @@ const sharp = require('sharp');
 const { v4: uuidv4 } = require('uuid');
 const mime = require('mime-types');
 const { pool } = require('../config/database');
+const child_process = require('child_process');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { authenticateToken } = require('../middleware/auth');
+const liveMediaService = require('../services/liveMediaService');
 
 const router = express.Router();
 
 // 确保上传目录存在
 const ensureUploadDir = async (userId, folderId = null) => {
-  // 使用相对路径 - 后端根目录为dist
-  const baseUploadPath = process.env.UPLOAD_PATH || './storage';
+  // 使用绝对路径 - 避免dist更新时文件丢失
+  const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
   const userDir = path.join(baseUploadPath, 'users', `user_${userId}`);
-  
-  console.log(`📁 基础上传路径: ${baseUploadPath}`);
-  console.log(`📁 用户目录: ${userDir}`);
   
   // 如果有文件夹ID，创建文件夹路径
   let folderDirPath = '';
@@ -30,11 +29,6 @@ const ensureUploadDir = async (userId, folderId = null) => {
   const videosDir = path.join(userDir, folderDirPath, 'videos');
   const thumbnailsDir = path.join(userDir, folderDirPath, 'thumbnails');
   const avatarsDir = path.join(userDir, 'avatars'); // 头像始终在用户根目录
-
-  console.log(`📁 图片目录: ${imagesDir}`);
-  console.log(`📁 视频目录: ${videosDir}`);
-  console.log(`📁 缩略图目录: ${thumbnailsDir}`);
-  console.log(`📁 头像目录: ${avatarsDir}`);
 
   await fs.ensureDir(imagesDir);
   await fs.ensureDir(videosDir);
@@ -99,27 +93,142 @@ const storage = multer.diskStorage({
   }
 });
 
-// 文件过滤器
-const fileFilter = (req, file, cb) => {
-  const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
-  const allowedVideoTypes = ['video/mp4', 'video/webm', 'video/quicktime'];
-  
-  if (allowedImageTypes.includes(file.mimetype) || allowedVideoTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('不支持的文件类型'), false);
+// 动态获取允许的文件类型（带规范化与兜底）
+const getAllowedFileTypes = async () => {
+  try {
+    const [imageResult] = await pool.execute(
+      'SELECT setting_value FROM system_settings WHERE setting_key = ?',
+      ['allowed_image_types']
+    );
+    
+    const [videoResult] = await pool.execute(
+      'SELECT setting_value FROM system_settings WHERE setting_key = ?',
+      ['allowed_video_types']
+    );
+    // 规范化图片 MIME
+    const imageExts = (imageResult.length > 0 ? String(imageResult[0].setting_value) : 'jpg,jpeg,png,gif,webp,svg')
+      .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+    const imageMimes = new Set([
+      'image/jpeg','image/png','image/gif','image/webp','image/svg+xml','image/heic','image/heif'
+    ])
+    for (const ext of imageExts) {
+      if (ext === 'jpg' || ext === 'jpeg') imageMimes.add('image/jpeg')
+      else if (ext === 'png') imageMimes.add('image/png')
+      else if (ext === 'gif') imageMimes.add('image/gif')
+      else if (ext === 'webp') imageMimes.add('image/webp')
+      else if (ext === 'svg' || ext === 'svg+xml') imageMimes.add('image/svg+xml')
+      else if (ext === 'heic') imageMimes.add('image/heic')
+      else if (ext === 'heif') imageMimes.add('image/heif')
+    }
+
+    // 规范化视频 MIME
+    const videoExts = (videoResult.length > 0 ? String(videoResult[0].setting_value) : 'mp4,webm,mov,avi,mkv,m4v,flv,wmv,mpeg,mpg,3gp,ts,m2ts,ogv')
+      .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+    const videoMimes = new Set(['video/mp4','video/webm','video/quicktime']) // 兜底
+    const mapVideo = (ext) => {
+      if (ext === 'mp4') return ['video/mp4']
+      if (ext === 'm4v') return ['video/x-m4v','video/mp4']
+      if (ext === 'webm') return ['video/webm']
+      if (ext === 'mov') return ['video/quicktime']
+      if (ext === 'avi') return ['video/x-msvideo']
+      if (ext === 'mkv') return ['video/x-matroska','video/webm']
+      if (ext === 'flv') return ['video/x-flv']
+      if (ext === 'wmv') return ['video/x-ms-wmv']
+      if (ext === 'mpeg' || ext === 'mpg') return ['video/mpeg']
+      if (ext === '3gp') return ['video/3gpp']
+      if (ext === 'ts' || ext === 'm2ts') return ['video/mp2t']
+      if (ext === 'ogv' || ext === 'ogg') return ['video/ogg']
+      return []
+    }
+    for (const ext of videoExts) {
+      for (const m of mapVideo(ext)) videoMimes.add(m)
+    }
+
+    return { allowedImageTypes: Array.from(imageMimes), allowedVideoTypes: Array.from(videoMimes) };
+  } catch (error) {
+    console.error('获取文件类型设置失败:', error);
+    // 使用默认设置
+    return {
+      allowedImageTypes: ['image/jpeg','image/png','image/gif','image/webp','image/svg+xml','image/heic','image/heif'],
+      allowedVideoTypes: ['video/mp4','video/webm','video/quicktime','video/x-matroska','video/x-msvideo']
+    };
   }
 };
 
-const upload = multer({
-  storage,
-  fileFilter,
-  limits: {
-    fileSize: 100 * 1024 * 1024 // 100MB
-  },
-  // 确保正确处理文件名编码
-  preservePath: true
-});
+// 文件过滤器 - 使用数据库设置
+const createFileFilter = async () => {
+  const { allowedImageTypes, allowedVideoTypes } = await getAllowedFileTypes();
+  const allowedTextTypes = ['text/plain', 'text/html', 'text/css', 'text/javascript', 'application/json'];
+  const allowedDocumentTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+  
+  return (req, file, cb) => {
+    // 检查文件类型
+    if (allowedImageTypes.includes(file.mimetype) || 
+        allowedVideoTypes.includes(file.mimetype) || 
+        allowedTextTypes.includes(file.mimetype) ||
+        allowedDocumentTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('不支持的文件类型'), false);
+    }
+  };
+};
+
+// 动态获取文件大小限制 - 临时修复：强制支持大文件
+const getFileSizeLimit = async () => {
+  // 临时解决方案：直接返回2GB限制，绕过数据库查询
+  const hardcodedLimit = 2 * 1024 * 1024 * 1024; // 2GB
+  return hardcodedLimit;
+  
+  // 原始代码（暂时注释掉）
+  /*
+  try {
+    const [result] = await pool.execute(
+      'SELECT setting_value FROM system_settings WHERE setting_key = ?',
+      ['max_file_size']
+    );
+    
+    if (result.length > 0) {
+      const maxFileSizeBytes = parseInt(result[0].setting_value);
+      // 确保至少支持1GB，最大支持2GB
+      const limit = Math.max(maxFileSizeBytes, 1024 * 1024 * 1024); // 至少1GB
+      const maxLimit = Math.min(limit, 2 * 1024 * 1024 * 1024); // 最大2GB
+      return maxLimit;
+    }
+    
+    // 默认1GB
+    const defaultLimit = 1024 * 1024 * 1024;
+    return defaultLimit;
+  } catch (error) {
+    console.error('获取文件大小限制失败:', error);
+    // 默认1GB
+    const defaultLimit = 1024 * 1024 * 1024;
+    return defaultLimit;
+  }
+  */
+};
+
+// 创建动态multer配置
+const createUploadMiddleware = async () => {
+  const fileSizeLimit = await getFileSizeLimit();
+  const fileFilter = await createFileFilter();
+  
+  
+  return multer({
+    storage,
+    fileFilter,
+    limits: {
+      fileSize: fileSizeLimit,
+      fieldSize: 2 * 1024 * 1024 * 1024, // 2GB字段大小限制
+      fieldNameSize: 100,
+      fieldValueSize: 2 * 1024 * 1024 * 1024, // 2GB字段值大小限制
+      fileCount: 1,
+      partCount: 1
+    },
+    // 确保正确处理文件名编码
+    preservePath: true
+  });
+};
 
 // 获取文件列表
 router.get('/', authenticateToken, asyncHandler(async (req, res) => {
@@ -181,7 +290,7 @@ router.get('/', authenticateToken, asyncHandler(async (req, res) => {
 
   // 为每个文件添加完整的访问URL
   const backendDomain = process.env.BACKEND_DOMAIN || 'https://tukubackend.vtart.cn';
-  const baseUploadPath = process.env.UPLOAD_PATH || './storage';
+  const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
   
   const filesWithUrls = files.map(file => {
     // 处理文件名乱码问题
@@ -211,10 +320,10 @@ router.get('/', authenticateToken, asyncHandler(async (req, res) => {
             displayName = urlDecoded;
           }
         } catch (e) { /* ignore */ }
+        }
+      } catch (error) {
+        // 编码处理失败，使用原始名称
       }
-    } catch (error) {
-      console.log('文件名解码失败:', error);
-    }
     
     // 处理文件路径
     let normalizedFilePath = file.file_path.replace(/\\/g, '/');
@@ -252,15 +361,136 @@ router.get('/', authenticateToken, asyncHandler(async (req, res) => {
   });
 }));
 
+// 测试端点 - 验证配置
+router.get('/test-config', authenticateToken, asyncHandler(async (req, res) => {
+  
+  res.json({
+    message: '配置测试成功',
+    fileSizeLimit: fileSizeLimit,
+    fileSizeLimitMB: Math.round(fileSizeLimit / (1024 * 1024)),
+    timestamp: new Date().toISOString()
+  });
+}));
+
 // 上传文件
-router.post('/upload', authenticateToken, upload.single('file'), asyncHandler(async (req, res) => {
+router.post('/upload', authenticateToken, asyncHandler(async (req, res) => {
+  
+  // 动态创建multer中间件
+  const upload = await createUploadMiddleware();
+  const fileSizeLimit = await getFileSizeLimit();
+  
+  // 使用动态配置处理文件上传
+  upload.single('file')(req, res, async (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          const fileSizeLimit = await getFileSizeLimit();
+          const limitMB = Math.round(fileSizeLimit / (1024 * 1024));
+          return res.status(400).json({ message: `文件大小不能超过 ${limitMB}MB` });
+        } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+          return res.status(400).json({ message: '文件字段名错误' });
+        } else if (err.code === 'LIMIT_FILE_COUNT') {
+          return res.status(400).json({ message: '文件数量超限' });
+        } else if (err.code === 'LIMIT_FIELD_KEY') {
+          return res.status(400).json({ message: '字段名超限' });
+        } else if (err.code === 'LIMIT_FIELD_VALUE') {
+          return res.status(400).json({ message: '字段值超限' });
+        } else if (err.code === 'LIMIT_FIELD_COUNT') {
+          return res.status(400).json({ message: '字段数量超限' });
+        } else if (err.code === 'LIMIT_PART_COUNT') {
+          return res.status(400).json({ message: '部分数量超限' });
+        }
+      }
+      return res.status(400).json({ message: err.message });
+    }
+    
+    // 继续处理文件上传逻辑
+    try {
+      await handleFileUpload(req, res);
+    } catch (error) {
+      console.error('文件上传处理失败:', error);
+      res.status(500).json({ message: '文件上传失败' });
+    }
+  });
+}));
+
+// 处理文件上传的核心逻辑
+async function isMotionPhotoJpeg(filePath) {
+  // 多点采样 + 关键字/MP4 box 检测，兼容微信/三星/小米等 Motion Photo 实现
+  const ftyp = Buffer.from('ftyp');
+  const decoder = new TextDecoder();
+  try {
+    const stat = await fs.stat(filePath);
+    const sampleSize = Math.min(512 * 1024, stat.size); // 每段最多 512KB
+    const positions = [
+      0,
+      Math.max(0, Math.floor(stat.size * 0.25) - sampleSize / 2),
+      Math.max(0, Math.floor(stat.size * 0.5) - sampleSize / 2),
+      Math.max(0, Math.floor(stat.size * 0.75) - sampleSize / 2),
+      Math.max(0, stat.size - sampleSize)
+    ];
+    for (const pos of positions) {
+      const fd = await fs.open(filePath, 'r');
+      const buf = Buffer.alloc(sampleSize);
+      await fd.read(buf, 0, sampleSize, pos);
+      await fd.close();
+      // MP4 box 标记
+      if (buf.indexOf(ftyp) !== -1) return true;
+      const text = decoder.decode(buf);
+      if (/G(Camera|Image)|MicroVideo|MotionPhoto|XMP|MotionPhotoPresentationTimestamp|MicroVideoOffset/i.test(text)) return true;
+    }
+  } catch (_) {
+    return false;
+  }
+  return false;
+}
+
+// 提取视频元数据（需要系统已安装 ffprobe）
+async function extractVideoMeta(fullPath) {
+  return await new Promise((resolve) => {
+    try {
+      const ffprobe = child_process.spawn('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,duration', '-of', 'json', fullPath]);
+      let out = '';
+      ffprobe.stdout.on('data', (d) => out += String(d));
+      ffprobe.on('close', () => {
+        try {
+          const json = JSON.parse(out || '{}');
+          const s = (json.streams && json.streams[0]) || {};
+          resolve({ width: s.width || null, height: s.height || null, duration: s.duration ? Math.round(parseFloat(s.duration)) : null });
+        } catch (_) { resolve(null) }
+      })
+      ffprobe.on('error', () => resolve(null))
+    } catch (_) { resolve(null) }
+  })
+}
+
+// 生成视频缩略图（需要 ffmpeg），落地到用户缩略图目录
+async function generateVideoThumbnail(fullPath, userId, folderId) {
+  return await new Promise(async (resolve) => {
+    try {
+      const { thumbnailsDir } = await ensureUploadDir(userId, folderId);
+      const outFile = path.join(thumbnailsDir, `thumb_${path.basename(fullPath)}.jpg`);
+      const ffmpeg = child_process.spawn('ffmpeg', ['-y', '-i', fullPath, '-ss', '00:00:01', '-vframes', '1', '-vf', 'scale=300:-1', outFile]);
+      ffmpeg.on('close', async (code) => {
+        try {
+          if (code === 0 && await fs.pathExists(outFile)) return resolve(outFile);
+        } catch (_) {}
+        resolve(null)
+      })
+      ffmpeg.on('error', () => resolve(null))
+    } catch (_) { resolve(null) }
+  })
+}
+
+const handleFileUpload = asyncHandler(async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: '没有上传文件' });
   }
 
-  const { folder_id } = req.body;
+  const { folder_id, live_basename, live_role } = req.body;
   const file = req.file;
   const userId = req.user.id;
+  
 
   // 检查存储空间
   const [userResult] = await pool.execute(
@@ -269,6 +499,7 @@ router.post('/upload', authenticateToken, upload.single('file'), asyncHandler(as
   );
 
   const user = userResult[0];
+  
   if (user.used_storage + file.size > user.storage_limit) {
     // 删除已上传的文件
     await fs.remove(file.path);
@@ -278,19 +509,48 @@ router.post('/upload', authenticateToken, upload.single('file'), asyncHandler(as
   // 获取文件信息
   const fileType = file.mimetype.startsWith('image/') ? 'image' : 'video';
   let width = null, height = null, duration = null;
+  // 为审核提供的额外文本（如OCR、ASR、文件特征）
+  let moderationHints = [];
+  
 
   if (fileType === 'image') {
+    // 兜底：安卓 Motion Photo 检测，命中则转交 live 通道
+    if ((file.mimetype === 'image/jpeg' || path.extname(file.originalname).toLowerCase() === '.jpg' || path.extname(file.originalname).toLowerCase() === '.jpeg') && await isMotionPhotoJpeg(file.path)) {
+      try {
+        const jobId = await liveMediaService.createUploadJob(userId, [
+          { path: file.path, originalname: file.originalname, mimetype: file.mimetype }
+        ]);
+        return res.status(202).json({ message: '检测到 Motion Photo，已转交实况处理', jobId });
+      } catch (e) {
+        // 若转交失败，则继续按普通图片处理
+      }
+    }
     try {
       const metadata = await sharp(file.path).metadata();
       width = metadata.width || null;
-      height = metadata.height || null;
-    } catch (error) {
-      console.error('获取图片元数据失败:', error);
-      width = null;
-      height = null;
+        height = metadata.height || null;
+      } catch (error) {
+        width = null;
+        height = null;
     }
+  } else if (fileType === 'video') {
+    // 提取视频元数据与缩略图（若系统安装了 ffprobe/ffmpeg）
+    try {
+      const meta = await extractVideoMeta(file.path).catch(() => null)
+      if (meta) {
+        duration = meta.duration || null
+        width = meta.width || null
+        height = meta.height || null
+      }
+      const thumb = await generateVideoThumbnail(file.path, userId, folder_id).catch(() => null)
+      if (thumb) thumbnailPath = thumb
+    } catch (_) {}
+    // 生成OCR可用的提示（文件名）
+    try { moderationHints.push(String(path.basename(file.originalname || ''))) } catch (_) {}
   }
 
+  // 保存文件后追加：将审核提示写入扩展列（幂等添加 columns）
+  try { await pool.execute("ALTER TABLE files ADD COLUMN IF NOT EXISTS moderation_hints TEXT NULL") } catch (_) {}
   // 生成缩略图
   let thumbnailPath = null;
   if (fileType === 'image') {
@@ -302,10 +562,10 @@ router.post('/upload', authenticateToken, upload.single('file'), asyncHandler(as
       await sharp(file.path)
         .resize(300, 300, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 80 })
-        .toFile(thumbnailPath);
-    } catch (error) {
-      console.error('生成缩略图失败:', error);
-    }
+          .toFile(thumbnailPath);
+      } catch (error) {
+        // 缩略图生成失败，继续处理
+      }
   }
 
   // 处理文件名编码问题
@@ -350,23 +610,20 @@ router.post('/upload', authenticateToken, upload.single('file'), asyncHandler(as
   }
 
   // 生成相对路径用于存储 - 相对于存储根目录
-  const baseUploadPath = process.env.UPLOAD_PATH || './storage';
+  const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
   const relativePath = path.relative(baseUploadPath, file.path);
   
   // 确保路径格式正确
   const normalizedRelativePath = relativePath.replace(/\\/g, '/');
   
-  console.log(`📁 基础上传路径: ${baseUploadPath}`);
-  console.log(`📁 文件绝对路径: ${file.path}`);
-  console.log(`📁 文件相对路径: ${relativePath}`);
-  console.log(`📁 当前工作目录: ${process.cwd()}`);
-
   // 保存文件信息到数据库
+  
   const [result] = await pool.execute(
     `INSERT INTO files (user_id, filename, original_name, file_type, file_size, file_path, thumbnail_path, folder_id, mime_type, width, height, duration) 
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [userId, file.filename, originalName, fileType, file.size, normalizedRelativePath, thumbnailPath, folder_id || null, file.mimetype, width, height, duration]
   );
+  
 
   // 更新用户存储使用量
   await pool.execute(
@@ -394,7 +651,40 @@ router.post('/upload', authenticateToken, upload.single('file'), asyncHandler(as
       thumbnail_path: thumbnailPath
     }
   });
-}));
+
+  // 实况图配对：尝试将图片与同名视频建立关联（需要表结构支持）
+  try {
+    if (live_basename && (live_role === 'image' || live_role === 'video')) {
+      // 确保存在 live_video_id 字段
+      try {
+        await pool.execute("ALTER TABLE files ADD COLUMN IF NOT EXISTS live_video_id INT NULL");
+      } catch (e) {
+        // 某些MySQL版本不支持IF NOT EXISTS，忽略错误
+      }
+      // 如果当前是图片，找同用户/同文件夹下的视频
+      if (live_role === 'image') {
+        const [videos] = await pool.execute(
+          "SELECT id FROM files WHERE user_id=? AND (folder_id <=> ?) AND file_type='video' AND (original_name LIKE ? OR original_name LIKE ? ) ORDER BY id DESC LIMIT 1",
+          [userId, folder_id || null, live_basename + '.%', live_basename + '%']
+        );
+        if (videos.length > 0) {
+          await pool.execute('UPDATE files SET live_video_id=? WHERE id=?', [videos[0].id, result.insertId]);
+        }
+      } else if (live_role === 'video') {
+        // 当前是视频，找图片并回填其live_video_id
+        const [images] = await pool.execute(
+          "SELECT id FROM files WHERE user_id=? AND (folder_id <=> ?) AND file_type='image' AND (original_name LIKE ? OR original_name LIKE ? ) ORDER BY id DESC LIMIT 1",
+          [userId, folder_id || null, live_basename + '.%', live_basename + '%']
+        );
+        if (images.length > 0) {
+          await pool.execute('UPDATE files SET live_video_id=? WHERE id=?', [result.insertId, images[0].id]);
+        }
+      }
+    }
+  } catch (e) {
+    // 关联失败不影响主流程
+  }
+});
 
 // 重命名文件
 router.put('/:id', authenticateToken, asyncHandler(async (req, res) => {
@@ -520,10 +810,6 @@ router.post('/:id/copy', authenticateToken, asyncHandler(async (req, res) => {
   const relativeDestPath = path.relative(process.cwd(), destPath);
   const relativeThumbnailPath = newThumbnailPath ? path.relative(process.cwd(), newThumbnailPath) : null;
   
-  console.log(`📁 复制文件绝对路径: ${destPath}`);
-  console.log(`📁 复制文件相对路径: ${relativeDestPath}`);
-  console.log(`📁 缩略图相对路径: ${relativeThumbnailPath}`);
-
   // 插入新的文件记录
   const [result] = await pool.execute(
     `INSERT INTO files (user_id, filename, original_name, file_type, file_size, file_path, thumbnail_path, folder_id, mime_type, width, height, duration) 
@@ -569,7 +855,7 @@ router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
   // 删除物理文件
   try {
     // 解析文件路径
-    const baseUploadPath = process.env.UPLOAD_PATH || './storage';
+    const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
     let filePath;
     
     if (path.isAbsolute(file.file_path)) {
@@ -584,17 +870,12 @@ router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
       }
       
       filePath = path.resolve(baseUploadPath, normalizedPath);
-    }
-    
-    console.log(`🗑️ 准备删除文件: ${filePath}`);
-    
-    // 删除主文件
-    if (await fs.pathExists(filePath)) {
-      await fs.remove(filePath);
-      console.log(`✅ 主文件删除成功: ${filePath}`);
-    } else {
-      console.log(`⚠️ 主文件不存在: ${filePath}`);
-    }
+      }
+      
+      // 删除主文件
+      if (await fs.pathExists(filePath)) {
+        await fs.remove(filePath);
+      }
     
     // 删除缩略图
     if (file.thumbnail_path) {
@@ -610,23 +891,22 @@ router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
         }
         
         thumbnailPath = path.resolve(baseUploadPath, normalizedThumbnailPath);
-      }
-      
-      console.log(`🗑️ 准备删除缩略图: ${thumbnailPath}`);
-      
-      if (await fs.pathExists(thumbnailPath)) {
-        await fs.remove(thumbnailPath);
-        console.log(`✅ 缩略图删除成功: ${thumbnailPath}`);
-      } else {
-        console.log(`⚠️ 缩略图不存在: ${thumbnailPath}`);
-      }
+        }
+        
+        if (await fs.pathExists(thumbnailPath)) {
+          await fs.remove(thumbnailPath);
+        }
     }
   } catch (error) {
-    console.error('删除物理文件失败:', error);
+    // 删除物理文件失败，继续处理
   }
 
   // 从数据库删除记录
   await pool.execute('DELETE FROM files WHERE id = ?', [fileId]);
+  // 清理与该文件的实况关联（如有）
+  try {
+    await pool.execute('UPDATE files SET live_video_id = NULL WHERE live_video_id = ? AND user_id = ?', [fileId, userId]);
+  } catch (e) {}
 
   // 更新用户存储使用量
   await pool.execute(
@@ -664,7 +944,7 @@ router.delete('/batch', authenticateToken, asyncHandler(async (req, res) => {
     // 删除物理文件
     try {
       // 解析文件路径
-      const baseUploadPath = process.env.UPLOAD_PATH || './storage';
+      const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
       let filePath;
       
       if (path.isAbsolute(file.file_path)) {
@@ -679,17 +959,12 @@ router.delete('/batch', authenticateToken, asyncHandler(async (req, res) => {
         }
         
         filePath = path.resolve(baseUploadPath, normalizedPath);
-      }
-      
-      console.log(`🗑️ 批量删除文件: ${filePath}`);
-      
-      // 删除主文件
-      if (await fs.pathExists(filePath)) {
-        await fs.remove(filePath);
-        console.log(`✅ 批量删除主文件成功: ${filePath}`);
-      } else {
-        console.log(`⚠️ 批量删除主文件不存在: ${filePath}`);
-      }
+        }
+        
+        // 删除主文件
+        if (await fs.pathExists(filePath)) {
+          await fs.remove(filePath);
+        }
       
       // 删除缩略图
       if (file.thumbnail_path) {
@@ -705,19 +980,14 @@ router.delete('/batch', authenticateToken, asyncHandler(async (req, res) => {
           }
           
           thumbnailPath = path.resolve(baseUploadPath, normalizedThumbnailPath);
-        }
-        
-        console.log(`🗑️ 批量删除缩略图: ${thumbnailPath}`);
-        
-        if (await fs.pathExists(thumbnailPath)) {
-          await fs.remove(thumbnailPath);
-          console.log(`✅ 批量删除缩略图成功: ${thumbnailPath}`);
-        } else {
-          console.log(`⚠️ 批量删除缩略图不存在: ${thumbnailPath}`);
-        }
+          }
+          
+          if (await fs.pathExists(thumbnailPath)) {
+            await fs.remove(thumbnailPath);
+          }
       }
     } catch (error) {
-      console.error('批量删除物理文件失败:', error);
+      // 批量删除物理文件失败，继续处理
     }
   });
 
@@ -774,23 +1044,19 @@ router.get('/preview/:id', authenticateToken, asyncHandler(async (req, res) => {
   const fileId = req.params.id;
   const userId = req.user.id;
 
-  console.log(`🔍 文件预览请求: fileId=${fileId}, userId=${userId}`);
-
   const [files] = await pool.execute(
     'SELECT * FROM files WHERE id = ? AND user_id = ?',
     [fileId, userId]
   );
 
   if (files.length === 0) {
-    console.log(`❌ 文件不存在: fileId=${fileId}, userId=${userId}`);
     return res.status(404).json({ message: '文件不存在' });
   }
 
   const file = files[0];
-  console.log(`📁 文件信息: ${JSON.stringify(file, null, 2)}`);
 
   // 处理文件路径 - 基于存储根目录解析
-  const baseUploadPath = process.env.UPLOAD_PATH || './storage';
+  const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
   let filePath;
   
   if (path.isAbsolute(file.file_path)) {
@@ -807,62 +1073,58 @@ router.get('/preview/:id', authenticateToken, asyncHandler(async (req, res) => {
     
     // 使用绝对路径解析，确保路径正确
     filePath = path.resolve(baseUploadPath, normalizedPath);
-  }
-  
-  console.log(`📁 基础上传路径: ${baseUploadPath}`);
-  console.log(`📁 解析后文件路径: ${filePath}`);
-  console.log(`📁 原始文件路径: ${file.file_path}`);
-
-  if (!await fs.pathExists(filePath)) {
-    console.log(`❌ 文件路径不存在: ${filePath}`);
+    }
+    
+    if (!await fs.pathExists(filePath)) {
     
     // 尝试其他可能的路径
     const alternativePaths = [
-      path.join('/www/wwwroot/tuku/backend/dist', file.file_path),
       path.join('/www/wwwroot/tuku/backend', file.file_path),
+      path.join('/www/wwwroot/tuku/backend/dist', file.file_path),
       path.join(baseUploadPath, file.file_path),
       path.resolve(file.file_path),
       file.file_path // 直接使用原始路径
     ];
     
-    for (const altPath of alternativePaths) {
-      console.log(`🔍 尝试路径: ${altPath}`);
-      if (await fs.pathExists(altPath)) {
-        filePath = altPath;
-        console.log(`✅ 找到文件: ${filePath}`);
-        break;
+      for (const altPath of alternativePaths) {
+        if (await fs.pathExists(altPath)) {
+          filePath = altPath;
+          break;
+        }
+      }
+      
+      if (!await fs.pathExists(filePath)) {
+        return res.status(404).json({ message: '文件不存在' });
       }
     }
-    
-    if (!await fs.pathExists(filePath)) {
-      console.log(`❌ 所有路径都不存在`);
-      return res.status(404).json({ message: '文件不存在' });
-    }
-  }
 
-  console.log(`✅ 发送文件: ${filePath}`);
-  
   // 设置正确的Content-Type
   const mimeType = mime.lookup(filePath) || 'application/octet-stream';
-  res.setHeader('Content-Type', mimeType);
-  
-  // 设置CORS头
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Content-Length, Cache-Control, Last-Modified, ETag');
-  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
-  
-  // 设置缓存头
-  res.setHeader('Cache-Control', 'public, max-age=31536000'); // 1年缓存
-  
-  res.sendFile(filePath);
+
+  // 使用流式输出，显式设置 Content-Length，避免部分反代/HTTP2 下的协议问题
+  const stat = await fs.stat(filePath);
+  res.writeHead(200, {
+    'Content-Type': mimeType,
+    'Content-Length': stat.size,
+    // CORS 头
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+    'Access-Control-Expose-Headers': 'Content-Type, Content-Length, Cache-Control, Last-Modified, ETag',
+    // 跨源资源策略/嵌入策略，避免浏览器阻断跨域图片/视频
+    'Cross-Origin-Resource-Policy': 'cross-origin',
+    'Cross-Origin-Embedder-Policy': 'unsafe-none',
+    'Cross-Origin-Opener-Policy': 'unsafe-none',
+    // 建议以内联方式展示
+    'Content-Disposition': `inline; filename="${path.basename(filePath)}"`,
+    // 禁止中间层对二进制进行转换/注入
+    'Cache-Control': 'public, max-age=31536000, immutable, no-transform'
+  });
+  fs.createReadStream(filePath).pipe(res);
 }));
 
 // 头像上传
 router.post('/upload/avatar', authenticateToken, asyncHandler(async (req, res) => {
-  console.log('收到头像上传请求，用户ID:', req.user.id);
   
   const upload = multer({
     storage: multer.diskStorage({
@@ -892,10 +1154,8 @@ router.post('/upload/avatar', authenticateToken, asyncHandler(async (req, res) =
   }).single('avatar');
 
   upload(req, res, async (err) => {
-    console.log('Multer上传处理开始');
     
     if (err) {
-      console.error('Multer上传错误:', err);
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({ message: '头像文件大小不能超过 10MB' });
@@ -905,11 +1165,8 @@ router.post('/upload/avatar', authenticateToken, asyncHandler(async (req, res) =
     }
 
     if (!req.file) {
-      console.log('没有收到文件');
       return res.status(400).json({ message: '请选择头像文件' });
     }
-    
-    console.log('文件上传成功:', req.file.filename, '大小:', req.file.size);
 
            try {
              const userId = req.user.id;
@@ -921,10 +1178,9 @@ router.post('/upload/avatar', authenticateToken, asyncHandler(async (req, res) =
              const maxSize = 2 * 1024 * 1024; // 2MB
              let finalImagePath = originalPath;
              
-             if (fileStats.size > maxSize) {
-               console.log(`头像文件 ${fileStats.size} bytes 超过2MB，开始压缩...`);
-               
-               // 压缩图片到2MB以下 - 优化版本
+              if (fileStats.size > maxSize) {
+                
+                // 压缩图片到2MB以下 - 优化版本
                const compressedFilename = `compressed_${req.file.filename}`;
                const compressedPath = path.join(avatarsDir, compressedFilename);
                
@@ -960,17 +1216,14 @@ router.post('/upload/avatar', authenticateToken, asyncHandler(async (req, res) =
                    )
                    .jpeg({ quality: 60 })
                    .toFile(compressedPath);
-               }
-               
-               console.log(`压缩完成，最终大小: ${(await fs.stat(compressedPath)).size} bytes`);
-               
-               // 删除原始文件
-               try {
-                 await fs.remove(originalPath);
-                 console.log('删除原始文件成功');
-               } catch (error) {
-                 console.log('删除原始文件失败，忽略错误:', error.message);
-               }
+                }
+                
+                // 删除原始文件
+                try {
+                  await fs.remove(originalPath);
+                } catch (error) {
+                  // 删除失败，忽略错误
+                }
                
                finalImagePath = compressedPath;
              }
@@ -996,32 +1249,27 @@ router.post('/upload/avatar', authenticateToken, asyncHandler(async (req, res) =
                
                // 生成访问URL - 直接使用后端域名
                const backendDomain = process.env.BACKEND_DOMAIN || 'https://tukubackend.vtart.cn';
-               const avatarFileName = path.basename(resizedPath);
-               avatarUrls[`size_${size}`] = `${backendDomain}/uploads/users/user_${userId}/avatars/${avatarFileName}`;
-               console.log(`生成头像URL size_${size}: ${avatarUrls[`size_${size}`]}`);
+                const avatarFileName = path.basename(resizedPath);
+                avatarUrls[`size_${size}`] = `${backendDomain}/uploads/users/user_${userId}/avatars/${avatarFileName}`;
              }
 
              // 删除压缩后的临时文件（如果存在且不是最终文件）
              if (finalImagePath !== originalPath) {
-               try {
-                 await fs.remove(finalImagePath);
-                 console.log('删除临时压缩文件成功');
-               } catch (error) {
-                 console.log('删除临时压缩文件失败，忽略错误:', error.message);
-               }
+              try {
+                await fs.remove(finalImagePath);
+              } catch (error) {
+                // 删除失败，忽略错误
+              }
              }
 
       // 更新用户头像URL
       const avatarUrl = avatarUrls.size_120; // 默认使用120px尺寸
-      console.log('准备更新用户头像URL:', avatarUrl);
       
       await pool.execute(
         'UPDATE users SET avatar_url = ? WHERE id = ?',
         [avatarUrl, userId]
       );
       
-      console.log('用户头像URL更新完成');
-
       res.json({
         success: true,
         message: fileStats.size > maxSize ? '头像上传成功（已自动压缩）' : '头像上传成功',
@@ -1034,14 +1282,13 @@ router.post('/upload/avatar', authenticateToken, asyncHandler(async (req, res) =
         }
       });
     } catch (error) {
-      console.error('头像上传失败:', error);
       
       // 清理上传的文件（忽略权限错误）
       if (req.file) {
         try {
           await fs.remove(req.file.path);
         } catch (cleanupError) {
-          console.log('清理上传文件失败，忽略错误:', cleanupError.message);
+          // 清理失败，忽略错误
         }
       }
       
@@ -1080,18 +1327,60 @@ router.get('/stats', authenticateToken, asyncHandler(async (req, res) => {
           other_size: 0
         };
     
+    // 计算动图/实况（live_media_assets）数量与大小
+    let motionCount = 0;
+    let motionSize = 0;
+    try {
+      const [assets] = await pool.execute(
+        'SELECT poster_path, video_mp4_path, video_webm_path, original_image_path, original_video_path FROM live_media_assets WHERE owner_user_id=?',
+        [userId]
+      );
+      motionCount = Array.isArray(assets) ? assets.length : 0;
+      const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
+      const seen = new Set();
+      const toAbs = (p) => {
+        if (!p) return null;
+        let normalized = String(p).replace(/\\/g, '/');
+        if (path.isAbsolute(normalized)) return normalized;
+        if (normalized.startsWith('storage/')) normalized = normalized.substring(8);
+        return path.resolve(baseUploadPath, normalized);
+      };
+      const statSize = async (p) => {
+        try {
+          if (!p) return 0;
+          const exists = await fs.pathExists(p);
+          if (!exists) return 0;
+          const st = await fs.stat(p);
+          return st.isFile() ? st.size : 0;
+        } catch { return 0; }
+      };
+      for (const a of (assets || [])) {
+        const candidates = [a.video_mp4_path, a.video_webm_path, a.original_video_path, a.original_image_path, a.poster_path]
+          .map(toAbs)
+          .filter(Boolean);
+        for (const abs of candidates) {
+          const key = abs;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          motionSize += await statSize(abs);
+        }
+      }
+    } catch (_) { /* ignore motion errors */ }
+
     res.json({
       success: true,
       data: {
         ...latestTrend,
+        motion_count: motionCount,
+        live_count: motionCount,
+        motion_size: motionSize,
         trends: trendResult.data.trends,
         changes: trendResult.data.changes
       }
     });
-  } catch (error) {
-    console.error('获取文件统计失败:', error);
-    res.status(500).json({
-      success: false,
+    } catch (error) {
+      res.status(500).json({
+        success: false,
       message: '获取文件统计失败'
     });
   }
@@ -1109,10 +1398,9 @@ router.get('/trends', authenticateToken, asyncHandler(async (req, res) => {
       success: true,
       data: result.data
     });
-  } catch (error) {
-    console.error('获取趋势数据失败:', error);
-    res.status(500).json({
-      success: false,
+    } catch (error) {
+      res.status(500).json({
+        success: false,
       message: '获取趋势数据失败'
     });
   }
@@ -1124,7 +1412,7 @@ router.get('/storage-details', authenticateToken, asyncHandler(async (req, res) 
     const userId = req.user.id;
     
     // 获取用户存储目录
-    const userDir = path.join(process.env.UPLOAD_PATH || './storage', 'users', `user_${userId}`);
+    const userDir = path.join(process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage', 'users', `user_${userId}`);
     
     // 初始化统计数据
     let imageSize = 0;
@@ -1195,10 +1483,9 @@ router.get('/storage-details', authenticateToken, asyncHandler(async (req, res) 
         totalCount: imageCount + videoCount + otherCount
       }
     });
-  } catch (error) {
-    console.error('获取存储详情失败:', error);
-    res.status(500).json({
-      success: false,
+    } catch (error) {
+      res.status(500).json({
+        success: false,
       message: '获取存储详情失败'
     });
   }
