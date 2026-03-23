@@ -33,9 +33,12 @@ router.post('/upload', authenticateToken, upload.array('files', 5), asyncHandler
   const files = req.files || [];
   if (!files.length) return res.status(400).json({ message: '未接收到文件' });
   const folderId = req.body && req.body.folder_id ? parseInt(req.body.folder_id, 10) : null;
+  // 显式配对 ID（iOS PhotosPicker 专用）：前端用同一 pairingId 绑定 image + video，
+  // 后端优先按 pairingId 配对，不再依赖文件名匹配
+  const pairingId = req.body && req.body.pairing_id ? String(req.body.pairing_id).trim() : null;
 
   try {
-    const jobId = await liveMediaService.createUploadJob(userId, files, folderId);
+    const jobId = await liveMediaService.createUploadJob(userId, files, folderId, { pairingId });
     res.status(202).json({ message: '处理已接受', jobId });
   } catch (e) {
     res.status(400).json({ message: e.message || '处理失败' });

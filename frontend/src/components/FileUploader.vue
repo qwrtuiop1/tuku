@@ -14,10 +14,23 @@
         <el-icon class="upload-icon"><Upload /></el-icon>
         <h3 class="upload-title">拖拽文件到此处上传</h3>
         <p class="upload-subtitle">或点击选择文件</p>
-        <div class="upload-tips">
+                <div class="upload-tips">
           <span class="tip-item">支持图片、HEIC/HEIF 和 MP4/MOV 视频</span>
           <span class="tip-item">单个文件最大{{ maxFileSizeMB }}MB</span>
-          <span class="tip-item">同名“图片+短视频”将自动识别为实况图（长按预览）</span>
+          <span class="tip-item">同名"图片+短视频"将自动识别为实况图（长按预览）</span>
+          <!-- iOS 16.4+ PhotosPicker 原生实况图入口 -->
+          <span v-if="photosPickerSupported" class="tip-item tip-live">
+            <el-button
+              type="primary"
+              size="small"
+              link
+              :loading="photosPickerLoading"
+              @click.stop="openPhotosPicker"
+            >
+              <el-icon><VideoPlay /></el-icon>
+              iOS 原生选择实况图（推荐）
+            </el-button>
+          </span>
         </div>
       </div>
       
@@ -177,6 +190,7 @@ import {
 import { useFilesStore } from '@/stores/files'
 import { formatFileSize } from '@/utils/helpers'
 import api from '@/utils/api'
+import { useLivePhotoPicker } from '@/composables/useLivePhotoPicker'
 
 interface UploadItem {
   id: string
@@ -203,6 +217,43 @@ const uploadList = ref<UploadItem[]>([])
 const liveJobs = ref<Array<{ id: string, status: string, progress: number, assetId?: number }>>([])
 const liveControllers: Record<string, AbortController> = {}
 const jobTimers: Record<string, number> = {}
+
+/**
+ * iOS 16.4+ PhotosPicker API 专用实况图采集
+ * 核心修复：iOS Safari 标准 file input 只返回 HEIC 图片，不返回关联 MOV；
+ * PhotosPicker 的 showLivePhotos 选项可以同时获取 Live Photo 的 image + video。
+ */
+const photosPickerRef = ref<HTMLInputElement>()
+const { isSupported: photosPickerSupported, isLoading: photosPickerLoading, openPhotosPicker } = useLivePhotoPicker({
+  onPicked: async (results) => {
+    for (const result of results) {
+      const fd = new FormData()
+      fd.append('files', result.imageFile, result.filename)
+      if (result.videoBlob) {
+        // video Blob 扩展名从 image 名称推断（Live Photo 的 video 通常是 MOV）
+        const videoExt = result.filename.replace(/\.[^.]+$/, '.mov')
+        fd.append('files', result.videoBlob, videoExt)
+      }
+      fd.append('pairing_id', result.pairingId)
+      if (filesStore.currentFolder) fd.append('folder_id', String(filesStore.currentFolder))
+      try {
+        const resp = await api.post('/live-media/upload', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        const jobId = normalizeJobId(resp.data?.jobId)
+        if (jobId) startJobPolling(jobId)
+        else ElMessage.warning('后端未返回 jobId，已受理但无法跟踪进度')
+      } catch (err: any) {
+        ElMessage.error(err.response?.data?.message || '实况图上传失败')
+      }
+    }
+  },
+  onError: (msg) => {
+    ElMessage.error(msg)
+    // PhotosPicker 失败时，回退到标准文件输入
+    triggerLiveInput()
+  }
+})
 
 // 规范化后端返回的 jobId，兼容字符串/数字/对象形态
 const normalizeJobId = (raw: any): string | null => {
@@ -468,12 +519,14 @@ const handleLiveSelect = async (e: Event) => {
   }
 }
 
-// 批量创建 live 任务
-const createLiveJob = async (batch: File[]) => {
+// 批量创建 live 任务（支持显式 pairingId）
+const createLiveJob = async (batch: File[], pairingId?: string) => {
   try {
     const fd = new FormData()
     for (const f of batch) fd.append('files', f)
     if (filesStore.currentFolder) fd.append('folder_id', String(filesStore.currentFolder))
+    // 显式配对 ID（PhotosPicker 专用，优先于文件名匹配）
+    if (pairingId) fd.append('pairing_id', pairingId)
     const controller = new AbortController()
     const resp = await api.post('/live-media/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' }, signal: controller.signal as any })
     console.log('Live upload response (batch):', resp.data)

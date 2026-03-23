@@ -228,7 +228,7 @@ function toRelative(p) {
 
 module.exports = {
   // 简易内存任务队列（服务重启后丢失，满足前端轮询需求）
-  async createUploadJob(userId, files, folderId) {
+  async createUploadJob(userId, files, folderId, options = {}) {
     const jobId = `${Date.now()}_${Math.floor(Math.random()*1e6)}`;
     await pool.execute(
       `INSERT INTO live_media_jobs (id, owner_user_id, status, progress) VALUES (?,?, 'queued', 0)`,
@@ -251,7 +251,7 @@ module.exports = {
       while (retries <= maxRetries) {
         try {
           await update({ status: 'processing', progress: 10 });
-          const result = await this.processUploadBatch(userId, files, async (p) => { await update({ progress: Math.min(99, p) }); }, folderId);
+          const result = await this.processUploadBatch(userId, files, async (p) => { await update({ progress: Math.min(99, p) }); }, folderId, options);
           await update({ progress: 100, status: 'completed', asset_id: result.assetId });
           await cleanupFiles();
           break;
@@ -288,8 +288,9 @@ module.exports = {
     return true;
   },
 
-  async processUploadBatch(userId, files, onProgress, folderId) {
-    // 识别上传内容（支持 HEIC+MOV 或 JPEG+MOV 配对，优先按同名基名匹配）
+  async processUploadBatch(userId, files, onProgress, folderId, options = {}) {
+    const { pairingId } = options || {};
+    // 识别上传内容（支持 HEIC+MOV 或 JPEG+MOV 配对，优先按显式 pairingId 匹配）
     const isMov = (f) => /\.(mov|qt)$/i.test(f.originalname) || f.mimetype === 'video/quicktime'
     const isHeic = (f) => /\.heic$/i.test(f.originalname) || f.mimetype === 'image/heic'
     const isJpeg = (f) => /\.jpe?g$/i.test(f.originalname) || f.mimetype === 'image/jpeg'
@@ -302,8 +303,20 @@ module.exports = {
     const toBase = (n) => String(n || '').replace(/\.[^.]+$/, '').toLowerCase()
     let imageFile = null
     let videoFile = null
-    // 先尝试基名一一配对
-    if (images.length && movies.length) {
+
+    // ============================================================
+    // 核心修复：iOS PhotosPicker 专用配对逻辑
+    // 前端用 pairingId 把 Live Photo 的 image + video 一起上传，
+    // 后端优先按 pairingId 匹配（同一 pairingId = 同一 Live Photo），
+    // 不再依赖文件名，降低误配对概率。
+    // ============================================================
+    if (pairingId && images.length && movies.length) {
+      // pairingId 模式：假设 files[0]=image, files[1]=video（前端保证顺序）
+      // 直接取第一张图和第一段视频作为配对
+      imageFile = images[0]
+      videoFile = movies[0]
+    } else if (images.length && movies.length) {
+      // 兼容旧逻辑：按同名基名匹配（Android / 桌面端拖拽上传）
       const movMap = new Map()
       for (const m of movies) movMap.set(toBase(m.originalname), m)
       for (const img of images) {
