@@ -60,8 +60,7 @@
                   maxlength="6"
                   size="large"
                 />
-                <el-button 
-                  type="primary" 
+                <el-button
                   size="large"
                   :disabled="emailCodeCooldown > 0"
                   @click="sendEmailCode"
@@ -154,14 +153,18 @@
         </div>
         
         <div class="social-register">
-          <el-button class="social-btn qq-btn" @click="handleQQLogin">
-            <el-icon><User /></el-icon>
-            QQ注册
-          </el-button>
-          <el-button class="social-btn wechat-btn" @click="handleEPassLogin">
-            <el-icon><User /></el-icon>
-            微信注册
-          </el-button>
+          <div class="social-btn-wrapper">
+            <el-button class="social-btn qq-btn" @click="handleQQLogin">
+              <el-icon><User /></el-icon>
+              QQ注册
+            </el-button>
+          </div>
+          <div class="social-btn-wrapper">
+            <el-button class="social-btn wechat-btn" @click="handleEPassLogin">
+              <el-icon><User /></el-icon>
+              E通行证登录
+            </el-button>
+          </div>
         </div>
         
         <div class="register-footer">
@@ -317,17 +320,6 @@ const ensureGeetest = async (): Promise<boolean> => {
       }, (handler: any) => {
         geetestHandler = handler
         geetestReady.value = !!handler
-        // 调试日志：监听极验事件
-        try {
-          if (geetestHandler?.onReady) geetestHandler.onReady(() => console.log('[GeeTest] ready'))
-          if (geetestHandler?.onSuccess) geetestHandler.onSuccess(() => {
-            const v = geetestHandler?.getValidate ? geetestHandler.getValidate() : null
-            console.log('[GeeTest] success', v)
-          })
-          if (geetestHandler?.onError) geetestHandler.onError((err: any) => console.log('[GeeTest] error', err))
-          if (geetestHandler?.onClose) geetestHandler.onClose(() => console.log('[GeeTest] close'))
-        } catch {}
-        
         resolve(geetestReady.value)
       })
     } catch (_) {
@@ -713,12 +705,11 @@ const handleEPassLogin = async () => {
   justify-content: center; // 居中整个两列块，左右留白一致
   padding: var(--nav-offset) 24px 24px; // 两侧留安全边距
   min-height: 100vh;
-  height: 100vh; // 固定视口高度，启用内部滚动容器
+  height: auto; // 改为自适应，允许内容撑开容器
   overflow-y: auto; // 允许垂直滚动
   overflow-x: hidden; // 隐藏水平滚动
   -webkit-overflow-scrolling: touch; // 移动端顺滑滚动
   scroll-padding-top: var(--nav-offset); // 使用统一变量
-  overscroll-behavior: contain; // 阻止顶部回弹导致内容越界
   box-sizing: border-box; // 防止因内边距导致宽度溢出
 }
 
@@ -839,247 +830,344 @@ const handleEPassLogin = async () => {
     }
   }
 
-  // 密码强度提示样式
+  // 含密码强度提示的表单项：内容区横向铺满，避免提示块比输入框窄
+  .el-form-item:has(.password-hint) {
+    :deep(.el-form-item__content) {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      width: 100%;
+      max-width: 100%;
+    }
+
+    :deep(.el-form-item__error) {
+      margin-top: 8px;
+    }
+  }
+
+  // 密码强度提示样式（与输入框视觉统一）
   .password-hint {
-    margin-top: 8px;
-    padding: 12px;
-    background: #f8f9fa;
-    border-radius: 6px;
+    margin-top: 10px;
+    padding: 14px 16px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(17, 24, 39, 0.05);
     font-size: 14px;
+    line-height: 1.5;
   }
 
   .password-strength {
     display: flex;
     align-items: center;
-    margin-bottom: 8px;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(17, 24, 39, 0.08);
   }
 
   .strength-label {
-    color: #666;
-    margin-right: 8px;
+    color: #374151;
+    margin-right: 0;
+    font-weight: 500;
+    font-size: 13px;
   }
 
   .strength-level {
-    font-weight: 500;
-    padding: 2px 8px;
-    border-radius: 4px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 6px;
     font-size: 12px;
+    line-height: 1.25;
   }
 
   .strength-level.weak {
-    background: #ffebee;
-    color: #c62828;
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid rgba(185, 28, 28, 0.12);
   }
 
   .strength-level.medium {
-    background: #fff3e0;
-    color: #ef6c00;
+    background: #fffbeb;
+    color: #b45309;
+    border: 1px solid rgba(180, 83, 9, 0.12);
   }
 
   .strength-level.strong {
-    background: #e8f5e8;
-    color: #2e7d32;
+    background: #ecfdf5;
+    color: #047857;
+    border: 1px solid rgba(4, 120, 87, 0.12);
   }
 
   .password-requirements {
-    margin-top: 8px;
+    margin-top: 12px;
   }
 
-  // 桌面端：密码提示左右布局（左：要求，右：强度）
+  // 桌面端：左右布局 — 强度区最左侧，要求列表靠右并扩展填满
   @media (min-width: 1024px) {
     .password-hint {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      column-gap: 16px;
-      align-items: start;
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 24px;
     }
-    .password-requirements {
-      margin-top: 0;
-    }
+
     .password-strength {
+      flex-shrink: 0;
+      padding-bottom: 0;
+      border-bottom: none;
       margin-bottom: 0;
-      justify-content: flex-end;
-      text-align: right;
+      justify-content: flex-start;
+      text-align: left;
       gap: 8px;
+    }
+
+    .password-requirements {
+      flex: 1;
+      margin-top: 0;
+      min-width: 0;
     }
   }
 
   .requirement-title {
-    color: #666;
+    color: #374151;
     font-size: 12px;
-    margin-bottom: 4px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    letter-spacing: 0.02em;
   }
 
   .requirement-list {
     margin: 0;
-    padding-left: 16px;
+    padding-left: 0;
+    list-style: none;
   }
 
   .requirement-item {
-    color: #999;
-    font-size: 12px;
-    margin-bottom: 2px;
-  }
-  
-  // 邮箱验证码样式
-.email-verification-section {
-    margin-top: 16px;
-    padding: 20px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.86), rgba(246,247,249,0.78));
-  border-radius: 16px;
-  border: 1px solid rgba(17, 17, 17, 0.08);
-  box-shadow: 0 18px 38px rgba(17,24,39,0.12), inset 0 1px 0 rgba(255,255,255,0.55);
-  backdrop-filter: blur(18px) saturate(1.08) contrast(1.02);
-    transition: all 0.3s ease;
-    width: 100%; // 确保与邮箱输入框同宽
-    box-sizing: border-box;
-    overflow: visible; // 确保验证码区域不影响滚动
-    position: relative; // 相对定位，不影响页面布局
-    
-    &:hover {
-      border-color: #d1d5db;
-      box-shadow: 0 6px 25px rgba(17, 24, 39, 0.1);
+    position: relative;
+    color: #4b5563;
+    font-size: 13px;
+    margin-bottom: 6px;
+    line-height: 1.45;
+    padding-left: 14px;
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0.55em;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #9ca3af;
     }
 
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+  
+  // 邮箱验证码区域（与整页输入风格统一：直角圆角、无「药丸」、背景填满）
+  .email-verification-section {
+    margin-top: 14px;
+    padding: 16px 18px;
+    width: 100%;
+    box-sizing: border-box;
+    position: relative;
+    overflow: visible;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(17, 24, 39, 0.06);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+    &:hover {
+      border-color: #d1d5db;
+      box-shadow: 0 2px 8px rgba(17, 24, 39, 0.08);
+    }
+
+    // 极验未注入前不占大块空白
     .geetest-box {
-      min-height: 48px;
-      margin-bottom: 12px;
       position: relative;
       z-index: 2;
+      min-height: 0;
+      margin-bottom: 0;
+
+      &:not(:empty) {
+        min-height: 40px;
+        margin-bottom: 12px;
+      }
+
+      &:empty {
+        display: none;
+      }
     }
-    
+
     .verification-input-row {
       display: grid;
-      grid-template-columns: 6fr 4fr; // 输入框:按钮 = 6:4
-      gap: 12px;
-      align-items: stretch; // 统一高度
-      margin-bottom: 8px; // 减少下方空白
-      width: 100%; // 确保行宽度为100%
-      
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: stretch;
+      width: 100%;
+      margin-bottom: 0;
+
       .email-code-input {
-        width: 100%; // 网格下不依赖 flex:1
-        width: 100%; // 确保输入框宽度
-        
+        min-width: 0;
+        width: 100%;
+
         :deep(.el-input__wrapper) {
           height: 48px !important;
           min-height: 48px !important;
           max-height: 48px !important;
-          border-radius: 12px;
-          box-shadow: 0 2px 8px rgba(17, 24, 39, 0.06);
-          border: 1px solid #e5e7eb;
-          transition: all 0.3s ease;
-          padding: 0 16px;
+          padding: 0 14px;
+          border-radius: 10px !important;
+          overflow: hidden;
           box-sizing: border-box;
-          width: 100%; // 确保包装器宽度
-          
+          width: 100%;
+          // 避免内层背景与圆角错位、消除浏览器 autofill 蓝底
+          background-color: #ffffff !important;
+          background-image: none !important;
+          box-shadow: none !important;
+          border: 1px solid #e5e7eb !important;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
           &:hover {
-            border-color: #9ca3af;
-            box-shadow: 0 4px 12px rgba(17, 24, 39, 0.08);
+            border-color: #cbd5e1 !important;
           }
-          
+
           &.is-focus {
-            border-color: #111827;
-            box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08);
+            border-color: #111827 !important;
+            box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.08) !important;
           }
         }
-        
+
         :deep(.el-input__inner) {
           height: 48px !important;
           line-height: 48px !important;
           font-size: 16px;
           font-weight: 500;
-          color: #2d3748;
-          width: 100%; // 确保输入框内容宽度
+          color: #111827;
+          width: 100%;
+          background: transparent !important;
+          background-color: transparent !important;
+          box-shadow: none !important;
+          caret-color: #111827;
+
+          &:-webkit-autofill,
+          &:-webkit-autofill:hover,
+          &:-webkit-autofill:focus {
+            -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+            -webkit-text-fill-color: #111827 !important;
+            transition: background-color 99999s ease-out;
+          }
         }
       }
-      
+
       .send-code-btn {
-        min-width: 0; // 由网格控制宽度
         height: 48px !important;
         min-height: 48px !important;
         max-height: 48px !important;
-        border-radius: 12px;
+        min-width: 112px;
+        padding: 0 18px !important;
+        border-radius: 10px !important;
         font-weight: 600;
         font-size: 14px;
-        transition: box-shadow 200ms ease, transform 140ms ease, background 200ms ease;
-        background: linear-gradient(180deg, #f3f4f6, #e5e7eb);
-        border: 1px solid rgba(17, 24, 39, 0.18);
-        color: #111827;
-        box-shadow: 0 4px 15px rgba(17, 24, 39, 0.10);
-        flex-shrink: 0; // 兼容性冗余
+        line-height: 48px !important;
+        white-space: nowrap;
+        flex-shrink: 0;
         position: relative;
         overflow: hidden;
-        
+        color: #111827 !important;
+        background: linear-gradient(180deg, #f8fafc, #eef2f6) !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: 0 1px 2px rgba(17, 24, 39, 0.06);
+
+        // 覆盖可能残留的 primary 变量
+        --el-button-bg-color: transparent;
+        --el-button-border-color: transparent;
+        --el-button-hover-bg-color: transparent;
+        --el-button-hover-border-color: transparent;
+
         &::before {
           content: '';
           position: absolute;
           inset: -20%;
-          background: radial-gradient(40% 40% at 50% 50%, rgba(255,255,255,.35), rgba(255,255,255,0) 60%);
+          background: radial-gradient(40% 40% at 50% 50%, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 60%);
           opacity: 0;
-          transition: opacity .25s ease, transform .25s ease;
+          transition: opacity 0.2s ease;
         }
-        
+
         &:hover:not(:disabled) {
           transform: translateY(-1px);
-          box-shadow: 0 12px 26px rgba(17,24,39,0.18), 0 0 0 3px rgba(17,24,39,0.06) inset;
-          &::before { opacity: .7; transform: scale(1.02); }
-          background: linear-gradient(180deg, #f5f6f8, #e8eaee);
+          background: linear-gradient(180deg, #f1f5f9, #e2e8f0) !important;
+          border-color: #94a3b8 !important;
+          box-shadow: 0 4px 12px rgba(17, 24, 39, 0.1);
+
+          &::before {
+            opacity: 0.5;
+          }
         }
-        
+
         &:active:not(:disabled) {
           transform: translateY(0);
         }
-        
+
         &:disabled {
-          opacity: 0.6;
+          opacity: 0.55;
           cursor: not-allowed;
           transform: none;
-          background: #e5e7eb;
+          background: #f1f5f9 !important;
           box-shadow: none;
         }
-        
-        // 强制覆盖Element Plus样式
+
         &.el-button--large {
           height: 48px !important;
           min-height: 48px !important;
           max-height: 48px !important;
-          padding: 0 20px !important;
+          padding: 0 18px !important;
           line-height: 48px !important;
         }
       }
     }
-    
+
     .code-tips {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #f1f5f9;
+      width: 100%;
       font-size: 13px;
-      color: #6b7280;
-      padding-top: 6px; // 进一步压缩底部空白
-      border-top: 1px solid #e5e7eb;
-      width: 100%; // 确保提示区域宽度
-      
+      color: #64748b;
+
       .code-timer {
-        color: #374151;
+        color: #334155;
         font-weight: 600;
         font-size: 13px;
       }
-      
+
       .el-button {
         padding: 4px 8px;
         font-size: 13px;
-        color: #374151;
+        color: #475569;
         font-weight: 500;
-        border-radius: 6px;
-        transition: all 0.3s ease;
-        
+        border-radius: 8px;
+        transition: color 0.2s ease, background 0.2s ease;
+
         &:hover:not(:disabled) {
-          color: #111827;
-          background: rgba(17, 24, 39, 0.06);
+          color: #0f172a;
+          background: rgba(15, 23, 42, 0.06);
         }
-        
+
         &:disabled {
-          opacity: 0.6;
+          opacity: 0.55;
           cursor: not-allowed;
         }
       }
@@ -1426,7 +1514,6 @@ const handleEPassLogin = async () => {
     align-items: flex-start; // 移动端顶部对齐
     overflow-y: auto; // 允许滚动
     overflow-x: hidden;
-    height: auto; // 高度自适应
   }
   
   .info-panel {
@@ -1483,67 +1570,103 @@ const handleEPassLogin = async () => {
       }
     }
     
-    // 移动端邮箱验证码样式
+    // 移动端邮箱验证码：纵向堆叠，与桌面同一套圆角/背景逻辑
     .email-verification-section {
       margin-top: 12px;
-      padding: 16px;
-      border-radius: 12px;
-      
+      padding: 14px 16px;
+
+      .geetest-box:not(:empty) {
+        min-height: 40px;
+        margin-bottom: 10px;
+      }
+
       .verification-input-row {
+        display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 10px;
         align-items: stretch;
-        
+
         .email-code-input {
           :deep(.el-input__wrapper) {
-            height: 44px !important;
-            min-height: 44px !important;
-            max-height: 44px !important;
+            height: 46px !important;
+            min-height: 46px !important;
+            max-height: 46px !important;
             padding: 0 14px;
-            border-radius: 10px;
+            border-radius: 10px !important;
           }
-          
+
           :deep(.el-input__inner) {
-            height: 44px !important;
-            line-height: 44px !important;
-            font-size: 15px;
+            height: 46px !important;
+            line-height: 46px !important;
+            font-size: 16px;
           }
         }
-        
+
         .send-code-btn {
           width: 100%;
-          min-width: auto;
-          height: 44px !important;
-          min-height: 44px !important;
-          max-height: 44px !important;
-          border-radius: 10px;
-          font-size: 14px;
-          
+          min-width: 0 !important;
+          height: 46px !important;
+          min-height: 46px !important;
+          max-height: 46px !important;
+          border-radius: 10px !important;
+          font-size: 15px;
+          line-height: 46px !important;
+
           &.el-button--large {
-            height: 44px !important;
-            min-height: 44px !important;
-            max-height: 44px !important;
+            height: 46px !important;
+            min-height: 46px !important;
+            max-height: 46px !important;
             padding: 0 16px !important;
-            line-height: 44px !important;
+            line-height: 46px !important;
           }
         }
       }
-      
+
       .code-tips {
         font-size: 12px;
         padding-top: 6px;
-        
+
         .code-timer {
           font-size: 12px;
         }
-        
+
         .el-button {
           font-size: 12px;
           padding: 2px 6px;
         }
       }
     }
-    
+
+    // 移动端密码强度提示：略紧凑，与上方输入圆角一致
+    .password-hint {
+      margin-top: 8px;
+      padding: 12px 14px;
+      border-radius: 10px;
+    }
+
+    .password-strength {
+      padding-bottom: 10px;
+    }
+
+    .strength-label {
+      font-size: 12px;
+    }
+
+    .strength-level {
+      font-size: 11px;
+      padding: 3px 8px;
+    }
+
+    .requirement-title {
+      font-size: 11px;
+      margin-bottom: 6px;
+    }
+
+    .requirement-item {
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+
     .agreement-row {
       margin-bottom: 20px;
       
@@ -1637,25 +1760,25 @@ const handleEPassLogin = async () => {
   }
   
   .social-register {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  width: 100%;
-  
-  .social-btn-wrapper {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
     width: 100%;
-  }
-  
-  .social-btn {
-    width: 100%;
-    height: 40px;
-    font-size: 14px;
-    border-radius: 10px;
-    
-    &:hover {
-      transform: translateY(-1px);
+
+    .social-btn-wrapper {
+      width: 100%;
     }
-  }
+
+    .social-btn {
+      width: 100%;
+      height: 40px;
+      font-size: 14px;
+      border-radius: 10px;
+
+      &:hover {
+        transform: translateY(-1px);
+      }
+    }
   }
 
 // 桌面端强制 5:5 等分
@@ -1762,14 +1885,44 @@ const handleEPassLogin = async () => {
         :deep(.el-checkbox__label) {
           font-size: 12px;
         }
-        
+
         .terms-link {
           font-size: 12px;
         }
       }
     }
+
+    // 480px 密码强度提示
+    .password-hint {
+      margin-top: 6px;
+      padding: 10px 12px;
+      border-radius: 8px;
+    }
+
+    .password-strength {
+      padding-bottom: 8px;
+    }
+
+    .strength-label {
+      font-size: 11px;
+    }
+
+    .strength-level {
+      font-size: 10px;
+      padding: 2px 6px;
+    }
+
+    .requirement-title {
+      font-size: 10px;
+      margin-bottom: 5px;
+    }
+
+    .requirement-item {
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
   }
-  
+
   .register-button {
     height: 42px;
     font-size: 14px;
@@ -1907,14 +2060,44 @@ const handleEPassLogin = async () => {
         :deep(.el-checkbox__label) {
           font-size: 11px;
         }
-        
+
         .terms-link {
           font-size: 11px;
         }
       }
     }
+
+    // 360px 密码强度提示
+    .password-hint {
+      margin-top: 4px;
+      padding: 8px 10px;
+      border-radius: 8px;
+    }
+
+    .password-strength {
+      padding-bottom: 6px;
+    }
+
+    .strength-label {
+      font-size: 10px;
+    }
+
+    .strength-level {
+      font-size: 10px;
+      padding: 2px 5px;
+    }
+
+    .requirement-title {
+      font-size: 10px;
+      margin-bottom: 4px;
+    }
+
+    .requirement-item {
+      font-size: 10px;
+      margin-bottom: 3px;
+    }
   }
-  
+
   .register-button {
     height: 40px;
     font-size: 13px;
@@ -1955,9 +2138,13 @@ const handleEPassLogin = async () => {
   }
   
   .social-register {
+    grid-template-columns: 1fr;
+    gap: 8px;
+
     .social-btn-wrapper {
-      margin-bottom: 8px;
+      margin-bottom: 0;
     }
+
     .social-btn {
       width: 100%;
       height: 36px;
@@ -2019,6 +2206,50 @@ const handleEPassLogin = async () => {
           }
         }
       }
+
+      .email-verification-section {
+        background: rgba(40, 40, 40, 0.95);
+        border-color: #404040;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+
+        .email-code-input {
+          :deep(.el-input__wrapper) {
+            background-color: rgba(45, 45, 45, 0.95) !important;
+            border-color: #525252 !important;
+
+            &.is-focus {
+              border-color: #a3a3a3 !important;
+              box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08) !important;
+            }
+          }
+
+          :deep(.el-input__inner) {
+            color: #f5f5f5;
+
+            &:-webkit-autofill,
+            &:-webkit-autofill:hover,
+            &:-webkit-autofill:focus {
+              -webkit-box-shadow: 0 0 0 1000px #2a2a2a inset !important;
+              -webkit-text-fill-color: #f5f5f5 !important;
+            }
+          }
+        }
+
+        .send-code-btn {
+          color: #e5e5e5 !important;
+          background: linear-gradient(180deg, #404040, #2d2d2d) !important;
+          border-color: #525252 !important;
+        }
+
+        .code-tips {
+          border-top-color: #404040;
+          color: #a3a3a3;
+
+          .code-timer {
+            color: #d4d4d4;
+          }
+        }
+      }
       
       .agreement-row {
         .agreement-checkbox {
@@ -2029,6 +2260,32 @@ const handleEPassLogin = async () => {
           .terms-link {
             color: #667eea;
           }
+        }
+      }
+
+      .password-hint {
+        background: linear-gradient(180deg, rgba(55, 55, 55, 0.98) 0%, rgba(40, 40, 40, 0.95) 100%);
+        border-color: #404040;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+      }
+
+      .password-strength {
+        border-bottom-color: rgba(255, 255, 255, 0.1);
+      }
+
+      .strength-label {
+        color: #e5e7eb;
+      }
+
+      .requirement-title {
+        color: #e5e7eb;
+      }
+
+      .requirement-item {
+        color: #d1d5db;
+
+        &::before {
+          background: #6b7280;
         }
       }
     }

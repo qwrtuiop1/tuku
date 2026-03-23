@@ -234,12 +234,6 @@ const ensureGeetest = async (): Promise<boolean> => {
       }, (handler: any) => {
         geetestHandler = handler
         geetestReady.value = !!handler
-        try {
-          if (geetestHandler?.onReady) geetestHandler.onReady(() => console.log('[GeeTest] ready'))
-          if (geetestHandler?.onSuccess) geetestHandler.onSuccess(() => console.log('[GeeTest] success'))
-          if (geetestHandler?.onError) geetestHandler.onError((err: any) => console.log('[GeeTest] error', err))
-          if (geetestHandler?.onClose) geetestHandler.onClose(() => console.log('[GeeTest] close'))
-        } catch {}
         resolve(geetestReady.value)
       })
     } catch (_) {
