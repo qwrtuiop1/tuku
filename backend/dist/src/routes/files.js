@@ -439,41 +439,75 @@ router.post('/upload', authenticateToken, asyncHandler(async (req, res) => {
 }));
 
 // 处理文件上传的核心逻辑
+// 安卓 Live 图可能为 [JPEG][MP4] 且拼接点在文件中部（JPEG 占少、MP4 占多），需扩大搜索
 async function isMotionPhotoJpeg(filePath) {
-  // Android Motion Photo: JPEG ends with FF D9 then optional MP4 (ftyp).
-  // Plain JPEG ends at FF D9; composite file ends with MP4 bytes.
+  const ftyp = Buffer.from('ftyp');
+  const MAX_HEAD = 10 * 1024 * 1024; // 前 10MB：覆盖「JPEG 在前、ftyp 在中部」
+  const MAX_TAIL = 2 * 1024 * 1024;   // 后 2MB：覆盖「JPEG 在后、MP4 在尾巴」
+
+  function validateFtypBox(buf, idx, bufStartInFile) {
+    if (idx < 4) return null;
+    const boxLen = buf.readUInt32BE(idx - 4);
+    const remaining = buf.length - (idx - 4);
+    if (boxLen < 8 || boxLen > 1024 * 1024 || boxLen > remaining) return null;
+    return bufStartInFile + (idx - 4);
+  }
+
   try {
     const stat = await fs.stat(filePath);
     if (stat.size < 16) return false;
 
-    const windowSize = Math.min(2 * 1024 * 1024, stat.size);
-    const buf = Buffer.alloc(windowSize);
     const fd = await fs.open(filePath, 'r');
-    await fd.read(buf, 0, windowSize, stat.size - windowSize);
-    await fd.close();
 
-    let eoiAfter = -1;
-    for (let i = buf.length - 2; i >= 0; i--) {
-      if (buf[i] === 0xFF && buf[i + 1] === 0xD9) {
-        eoiAfter = i + 2;
-        break;
-      }
-    }
-    if (eoiAfter < 0 || eoiAfter >= buf.length - 8) return false;
+    // 1) 前部扫描：JPEG 在前、ftyp 在中部（如 IMG_20251017_191706.jpg）
+    const headSize = Math.min(MAX_HEAD, stat.size);
+    const headBuf = Buffer.alloc(headSize);
+    await fd.read(headBuf, 0, headSize, 0);
 
-    const afterJpeg = buf.subarray(eoiAfter);
     let pos = 0;
     while (true) {
-      const idx = afterJpeg.indexOf(Buffer.from('ftyp'), pos);
+      const idx = headBuf.indexOf(ftyp, pos);
       if (idx === -1) break;
-      if (idx >= 4) {
-        const boxLen = afterJpeg.readUInt32BE(idx - 4);
-        const remaining = afterJpeg.length - (idx - 4);
-        if (boxLen >= 8 && boxLen <= remaining && boxLen <= 1024 * 1024) {
+      const mp4Start = validateFtypBox(headBuf, idx, 0);
+      if (mp4Start !== null) {
+        // 确认 ftyp 之前有 FF D9（JPEG EOI）
+        let eoiBefore = -1;
+        for (let i = idx - 1; i >= 1; i--) {
+          if (headBuf[i - 1] === 0xFF && headBuf[i] === 0xD9) {
+            eoiBefore = i + 1;
+            break;
+          }
+        }
+        if (eoiBefore > 0 && eoiBefore < idx) {
+          await fd.close();
           return true;
         }
       }
       pos = idx + 4;
+    }
+
+    // 2) 尾部扫描：JPEG 在后、ftyp 紧跟 EOI（标准结构）
+    const tailSize = Math.min(MAX_TAIL, stat.size);
+    const tailBuf = Buffer.alloc(tailSize);
+    await fd.read(tailBuf, 0, tailSize, stat.size - tailSize);
+    await fd.close();
+
+    let eoiAfter = -1;
+    for (let i = tailBuf.length - 2; i >= 0; i--) {
+      if (tailBuf[i] === 0xFF && tailBuf[i + 1] === 0xD9) {
+        eoiAfter = i + 2;
+        break;
+      }
+    }
+    if (eoiAfter >= 0 && eoiAfter < tailBuf.length - 8) {
+      const afterJpeg = tailBuf.subarray(eoiAfter);
+      pos = 0;
+      while (true) {
+        const idx = afterJpeg.indexOf(ftyp, pos);
+        if (idx === -1) break;
+        if (validateFtypBox(afterJpeg, idx, 0) !== null) return true;
+        pos = idx + 4;
+      }
     }
     return false;
   } catch (_) {
