@@ -25,6 +25,8 @@ export interface Folder {
   parent_folder_id?: number
   created_at: string
   children?: Folder[]
+  /** 文件夹内最新一张图片的 id，供封面预览 */
+  cover_file_id?: number | null
 }
 
 export interface UploadProgress {
@@ -82,6 +84,7 @@ export const useFilesStore = defineStore('files', () => {
 
   // 获取文件列表
   const fetchFiles = async (page = 1) => {
+    const folderSnapshot = currentFolder.value
     loading.value = true
     try {
       const params: any = {
@@ -89,8 +92,8 @@ export const useFilesStore = defineStore('files', () => {
         limit: pagination.value.limit
       }
 
-      if (currentFolder.value) {
-        params.folder_id = currentFolder.value
+      if (folderSnapshot) {
+        params.folder_id = folderSnapshot
       }
 
       if (fileTypeFilter.value !== 'all') {
@@ -102,22 +105,28 @@ export const useFilesStore = defineStore('files', () => {
       }
 
       const response = await api.get('/files', { params })
+      // 丢弃过时响应：避免首屏根目录请求在「已进入子文件夹」之后才返回，覆盖当前列表
+      if (currentFolder.value !== folderSnapshot) return
       files.value = response.data.files
       pagination.value = response.data.pagination
     } catch (error: any) {
     } finally {
-      loading.value = false
+      if (currentFolder.value === folderSnapshot) {
+        loading.value = false
+      }
     }
   }
 
   // 获取文件夹树
   const fetchFolders = async () => {
+    const folderSnapshot = currentFolder.value
     try {
       const params: any = {}
-      if (currentFolder.value) {
-        params.parent_id = currentFolder.value
+      if (folderSnapshot) {
+        params.parent_id = folderSnapshot
       }
       const response = await api.get('/folders', { params })
+      if (currentFolder.value !== folderSnapshot) return
       folders.value = response.data.folders
     } catch (error: any) {
     }

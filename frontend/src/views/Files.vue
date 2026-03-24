@@ -312,37 +312,53 @@
             />
           </div>
           
-          <div class="card-thumbnail">
-            <!-- 文件夹图标 -->
-            <div v-if="item.isFolder" class="folder-thumbnail">
-              <el-icon class="folder-icon"><Folder /></el-icon>
+          <!-- 文件夹：缩略图 + 信息合并为统一卡片体 -->
+          <div v-if="item.isFolder" class="folder-body">
+            <div class="folder-thumbnail photos-folder-tile">
+              <img
+                v-if="shouldShowFolderCover(item)"
+                class="folder-cover-image"
+                :src="getFolderCoverUrl(item)"
+                loading="lazy"
+                decoding="async"
+                alt=""
+                @error="onFolderCoverImgError(item.cover_file_id)"
+              />
+              <div v-else class="folder-thumbnail-fallback">
+                <el-icon class="folder-icon"><Folder /></el-icon>
+              </div>
+              <div v-if="shouldShowFolderCover(item)" class="folder-cover-scrim" aria-hidden="true" />
             </div>
-            <!-- 文件缩略图 -->
-            <template v-else>
+            <div class="folder-footer">
+              <div class="file-name" :title="item.original_name">{{ item.original_name }}</div>
+              <div class="file-meta"><span>文件夹</span></div>
+            </div>
+          </div>
+
+          <!-- 文件 / 实况：各自独立的缩略图和信息 -->
+          <template v-else>
+            <div class="card-thumbnail">
               <LiveMediaCard v-if="item.isLive" :asset="item.liveAsset" :autoplay="true" @bg-theme="(t)=>setLiveTheme(item.liveAsset.id, t)" />
-            <FileThumbnail 
-              v-else
-              :file="item" 
-              size="medium"
-              @click="(file) => handleFileClick(file)"
-            />
-              
-            </template>
-          </div>
-          
-          <div class="card-info" :class="item.isLive ? (liveTheme[item.liveAsset.id] === 'light' ? 'theme-light' : 'theme-dark') : ''">
-            <div class="file-name" :title="item.original_name">
-              {{ item.isLive ? (item.liveAsset?.kind || '实况') : item.original_name }}
+              <FileThumbnail
+                v-else
+                :file="item"
+                size="medium"
+                @click="(file) => handleFileClick(file)"
+              />
             </div>
-            <div class="file-meta">
-              <span v-if="item.isFolder">文件夹</span>
-              <span v-else-if="item.isLive">
-                {{ item.liveAsset?.duration_ms ? Math.round(item.liveAsset.duration_ms/1000) + 's' : '实况' }}
-                <template v-if="item.liveAsset?.created_at"> • {{ formatTime(item.liveAsset.created_at) }}</template>
-              </span>
-              <span v-else>{{ formatFileSize(item.file_size) }} • {{ formatTime(item.created_at) }}</span>
+            <div class="card-info" :class="item.isLive ? (liveTheme[item.liveAsset.id] === 'light' ? 'theme-light' : 'theme-dark') : ''">
+              <div class="file-name" :title="item.original_name">
+                {{ item.isLive ? (item.liveAsset?.kind || '实况') : item.original_name }}
+              </div>
+              <div class="file-meta">
+                <span v-if="item.isLive">
+                  {{ item.liveAsset?.duration_ms ? Math.round(item.liveAsset.duration_ms/1000) + 's' : '实况' }}
+                  <template v-if="item.liveAsset?.created_at"> • {{ formatTime(item.liveAsset.created_at) }}</template>
+                </span>
+                <span v-else>{{ formatFileSize(item.file_size) }} • {{ formatTime(item.created_at) }}</span>
+              </div>
             </div>
-          </div>
+          </template>
           
           <div class="card-actions" @touchstart.stop @touchmove.stop @touchend.stop>
             <el-button v-if="!item.isFolder && !item.isLive" type="text" size="small" @click.stop="downloadFile(item)" class="action-btn">
@@ -666,6 +682,27 @@ const selectedFiles = ref<any[]>([])
 const currentPage = ref(1)
 const pageSize = ref(20)
 
+/** 文件夹封面预览加载失败时降级为默认图标 */
+const folderCoverFailedIds = ref<number[]>([])
+const shouldShowFolderCover = (item: any) => {
+  const raw = item.cover_file_id
+  const id = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(id) || id <= 0) return false
+  return !folderCoverFailedIds.value.includes(id)
+}
+const getFolderCoverUrl = (item: any) => {
+  const raw = item.cover_file_id
+  const id = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(id) || id <= 0) return ''
+  return getFilePreviewUrl(id)
+}
+const onFolderCoverImgError = (coverId: unknown) => {
+  const id = typeof coverId === 'number' ? coverId : Number(coverId)
+  if (!Number.isFinite(id) || id <= 0) return
+  if (folderCoverFailedIds.value.includes(id)) return
+  folderCoverFailedIds.value = [...folderCoverFailedIds.value, id]
+}
+
 // 文件夹详情
 const showFolderDetailsDialog = ref(false)
 const folderDetails = ref<any>(null)
@@ -703,10 +740,16 @@ const openFolderDetails = async (folder: any) => {
 
 const handleEnterFolderFromDetails = async (folderId?: number) => {
   if (!folderId) return
+  // 预清空 + 打开加载态，旧内容立即消失
+  filesStore.loading = true
+  filesStore.files = [] as any
+  filesStore.folders = [] as any
   filesStore.currentFolder = folderId
   await updateFolderPath(folderId)
-  await filesStore.fetchFiles(1)
-  await filesStore.fetchFolders()
+  await Promise.all([
+    filesStore.fetchFiles(1),
+    filesStore.fetchFolders()
+  ])
   showFolderDetailsDialog.value = false
 }
 
@@ -879,6 +922,7 @@ const paginatedFiles = computed(() => {
 
 // 方法
 const refreshFiles = () => {
+  folderCoverFailedIds.value = []
   filesStore.fetchFiles(1)
   filesStore.fetchFolders()
   // 同步刷新实况资源，确保普通视图合并区也更新
@@ -891,6 +935,10 @@ const goToAdmin = () => {
 }
 
 const goToRootFolder = () => {
+  // 预清空 + 打开加载态，旧内容立即消失
+  filesStore.loading = true
+  filesStore.files = [] as any
+  filesStore.folders = [] as any
   filesStore.currentFolder = null
   folderPath.value = []
   filesStore.fetchFiles(1)
@@ -1326,16 +1374,23 @@ const handleItemClick = async (item: any, event?: Event) => {
   if (event && (event.target as HTMLElement).closest('.card-checkbox')) {
     return
   }
-  
+
   if (item.isFolder) {
     // 重置长按状态
     resetLongPressState()
-    
+
+    // 预清空 + 打开加载态，旧内容立即消失
+    filesStore.loading = true
+    filesStore.files = [] as any
+    filesStore.folders = [] as any
+
     // 处理文件夹点击 - 只进入文件夹，不显示操作选项
     filesStore.currentFolder = item.id
     await updateFolderPath(item.id)
-    await filesStore.fetchFiles(1)
-    await filesStore.fetchFolders() // 刷新文件夹列表
+    await Promise.all([
+      filesStore.fetchFiles(1),
+      filesStore.fetchFolders()
+    ])
     ElMessage.info(`进入文件夹: ${item.folder_name}`)
   } else {
     // 处理文件点击 - 预览文件
@@ -1540,12 +1595,17 @@ const deleteContextFile = () => {
 
 const enterContextFolder = async () => {
   if (contextFile.value && contextFile.value.isFolder) {
+    // 预清空 + 打开加载态，旧内容立即消失
+    filesStore.loading = true
+    filesStore.files = [] as any
+    filesStore.folders = [] as any
+
     filesStore.currentFolder = contextFile.value.id
     await updateFolderPath(contextFile.value.id)
-    await filesStore.fetchFiles(1)
-    await filesStore.fetchFolders()
-    // 移除重复的提示消息，因为handleItemClick已经显示了
-    // ElMessage.info(`进入文件夹: ${contextFile.value.folder_name}`)
+    await Promise.all([
+      filesStore.fetchFiles(1),
+      filesStore.fetchFolders()
+    ])
   }
   showContextMenu.value = false
 }
@@ -2824,53 +2884,135 @@ const shareStatusText = computed(() => {
     
     &.folder-card {
       border: none;
-      
+      background: transparent;
+      box-shadow: none;
+      overflow: visible;
+
       &:hover {
         border: none;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      }
-      
-      // 文件夹默认不显示操作按钮
-      .card-actions {
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
-        display: flex; // 保持flex布局，但不可见
-      }
-      
-      // 文件夹长按时显示操作按钮
-      &.long-pressed .card-actions {
-        opacity: 1;
-        visibility: visible;
-        pointer-events: auto;
+        transform: translateY(-3px);
       }
     }
-  
-  .card-thumbnail {
-    position: relative;
-    height: 120px;
-    background: #f9fafb;
+
+  // 文件夹：一体化卡片体（缩略图+信息无缝）
+  .folder-body {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    
+    flex-direction: column;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
+    cursor: pointer;
+
+    &:hover {
+      box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.10),
+        0 8px 24px rgba(0, 0, 0, 0.10),
+        0 16px 40px rgba(0, 0, 0, 0.08);
+      transform: translateY(-2px);
+    }
+
+    &:active {
+      transform: scale(0.98);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
     .folder-thumbnail {
       width: 100%;
-      height: 100%;
+      aspect-ratio: 1;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #6b7280;
-      border-radius: 8px;
-      
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(145deg, #e8eaed 0%, #d1d5db 100%);
+
+      .folder-cover-image {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transition: transform 0.3s ease;
+        &:hover { transform: scale(1.03); }
+      }
+
+      .folder-cover-scrim {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(
+          to bottom,
+          rgba(0, 0, 0, 0) 50%,
+          rgba(0, 0, 0, 0.22) 100%
+        );
+      }
+
+      .folder-thumbnail-fallback {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, #6b7280 0%, #374151 100%);
+      }
+
       .folder-icon {
-        font-size: 48px;
-        color: white;
+        font-size: 42px;
+        color: rgba(255, 255, 255, 0.92);
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
       }
     }
-    
-    // 缩略图样式现在由 FileThumbnail 组件处理
+
+    .folder-footer {
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-top: 1px solid rgba(0, 0, 0, 0.05);
+
+      .file-name {
+        color: #111827;
+        text-shadow: none;
+        font-weight: 600;
+        font-size: 13px;
+        letter-spacing: -0.01em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .file-meta {
+        color: #6b7280;
+        text-shadow: none;
+        font-size: 11px;
+        margin-top: 2px;
+      }
+    }
+
+    // 文件夹默认不显示操作按钮
+    .card-actions {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      display: flex;
+    }
+    &.long-pressed .card-actions {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+  }
+
+  .card-thumbnail {
+    position: relative;
+    height: 120px;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    // 缩略图样式由 FileThumbnail 组件处理
   }
   
   .card-info {

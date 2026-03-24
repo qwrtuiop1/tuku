@@ -13,6 +13,19 @@ const liveMediaService = require('../services/liveMediaService');
 
 const router = express.Router();
 
+/** 安卓等客户端常把 GIF/部分图片报成 application/octet-stream 或空 MIME，需结合扩展名判断 */
+function inferFileCategory(file) {
+  const m = String(file.mimetype || '').toLowerCase();
+  if (m.startsWith('image/')) return 'image';
+  if (m.startsWith('video/')) return 'video';
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const imageExts = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif', '.svg', '.bmp', '.avif']);
+  if (imageExts.has(ext)) return 'image';
+  const videoExts = new Set(['.mp4', '.webm', '.mov', '.m4v', '.avi', '.mkv', '.flv', '.wmv', '.mpeg', '.mpg', '.3gp', '.ts', '.m2ts', '.ogv']);
+  if (videoExts.has(ext)) return 'video';
+  return 'video';
+}
+
 // 确保上传目录存在
 const ensureUploadDir = async (userId, folderId = null) => {
   // 使用绝对路径 - 避免dist更新时文件丢失
@@ -43,7 +56,7 @@ const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
     const folderId = req.body.folder_id || null;
     const { imagesDir, videosDir } = await ensureUploadDir(req.user.id, folderId);
-    const isImage = file.mimetype.startsWith('image/');
+    const isImage = inferFileCategory(file) === 'image';
     cb(null, isImage ? imagesDir : videosDir);
   },
   filename: (req, file, cb) => {
@@ -169,7 +182,18 @@ const createFileFilter = async () => {
         allowedDocumentTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('不支持的文件类型'), false);
+      // 安卓等：GIF/图片可能为 application/octet-stream 或空，用扩展名 + mime-types 推断
+      const guessed = mime.lookup(file.originalname || '') || '';
+      if (allowedImageTypes.includes(guessed) || allowedVideoTypes.includes(guessed)) {
+        cb(null, true);
+      } else if (!file.mimetype || file.mimetype === 'application/octet-stream') {
+        const cat = inferFileCategory(file);
+        if (cat === 'image' && allowedImageTypes.length) cb(null, true);
+        else if (cat === 'video' && allowedVideoTypes.length) cb(null, true);
+        else cb(new Error('不支持的文件类型'), false);
+      } else {
+        cb(new Error('不支持的文件类型'), false);
+      }
     }
   };
 };
@@ -506,9 +530,10 @@ const handleFileUpload = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: '存储空间不足' });
   }
 
-  // 获取文件信息
-  const fileType = file.mimetype.startsWith('image/') ? 'image' : 'video';
+  // 获取文件信息（必须与 multer destination 的分类一致）
+  const fileType = inferFileCategory(file) === 'image' ? 'image' : 'video';
   let width = null, height = null, duration = null;
+  let thumbnailPath = null;
   // 为审核提供的额外文本（如OCR、ASR、文件特征）
   let moderationHints = [];
   
@@ -551,21 +576,20 @@ const handleFileUpload = asyncHandler(async (req, res) => {
 
   // 保存文件后追加：将审核提示写入扩展列（幂等添加 columns）
   try { await pool.execute("ALTER TABLE files ADD COLUMN IF NOT EXISTS moderation_hints TEXT NULL") } catch (_) {}
-  // 生成缩略图
-  let thumbnailPath = null;
+  // 生成缩略图（仅成功写入后才记录路径）
   if (fileType === 'image') {
     try {
       const thumbnailFilename = `thumb_${path.basename(file.filename)}`;
       const { thumbnailsDir } = await ensureUploadDir(userId, folder_id);
-      thumbnailPath = path.join(thumbnailsDir, thumbnailFilename);
-      
+      const thumbFull = path.join(thumbnailsDir, thumbnailFilename);
       await sharp(file.path)
         .resize(300, 300, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 80 })
-          .toFile(thumbnailPath);
-      } catch (error) {
-        // 缩略图生成失败，继续处理
-      }
+        .toFile(thumbFull);
+      thumbnailPath = thumbFull;
+    } catch (error) {
+      thumbnailPath = null;
+    }
   }
 
   // 处理文件名编码问题
@@ -615,13 +639,16 @@ const handleFileUpload = asyncHandler(async (req, res) => {
   
   // 确保路径格式正确
   const normalizedRelativePath = relativePath.replace(/\\/g, '/');
+  const normalizedThumbnailRelative = thumbnailPath
+    ? path.relative(baseUploadPath, thumbnailPath).replace(/\\/g, '/')
+    : null;
   
-  // 保存文件信息到数据库
+  // 保存文件信息到数据库（路径统一为相对 POSIX 路径，避免 Windows 反斜杠写入 DB 导致 Linux 上预览失败）
   
   const [result] = await pool.execute(
     `INSERT INTO files (user_id, filename, original_name, file_type, file_size, file_path, thumbnail_path, folder_id, mime_type, width, height, duration) 
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [userId, file.filename, originalName, fileType, file.size, normalizedRelativePath, thumbnailPath, folder_id || null, file.mimetype, width, height, duration]
+    [userId, file.filename, originalName, fileType, file.size, normalizedRelativePath, normalizedThumbnailRelative, folder_id || null, file.mimetype, width, height, duration]
   );
   
 
@@ -634,7 +661,7 @@ const handleFileUpload = asyncHandler(async (req, res) => {
   // 生成文件访问URL
   const backendDomain = process.env.BACKEND_DOMAIN || 'https://tukubackend.vtart.cn';
   const fileUrl = `${backendDomain}/uploads/${normalizedRelativePath}`;
-  const thumbnailUrl = thumbnailPath ? `${backendDomain}/uploads/${path.relative(baseUploadPath, thumbnailPath).replace(/\\/g, '/')}` : null;
+  const thumbnailUrl = normalizedThumbnailRelative ? `${backendDomain}/uploads/${normalizedThumbnailRelative}` : null;
 
   res.status(201).json({
     message: '文件上传成功',
@@ -648,7 +675,7 @@ const handleFileUpload = asyncHandler(async (req, res) => {
       height,
       file_url: fileUrl,
       thumbnail_url: thumbnailUrl,
-      thumbnail_path: thumbnailPath
+      thumbnail_path: normalizedThumbnailRelative
     }
   });
 

@@ -397,9 +397,9 @@ const validateFile = (file: File): boolean => {
   }
   
   if (!allowedTypes.has(file.type)) {
-    // iOS/Safari 有时返回空 MIME，尝试按扩展名推断
+    // iOS/Safari 有时返回空 MIME；安卓相册常把 GIF 等报成 application/octet-stream
     let inferred = file.type
-    if (!inferred || inferred === '') {
+    if (!inferred || inferred === '' || inferred === 'application/octet-stream') {
       const n = (file.name || '').toLowerCase()
       if (n.endsWith('.heic')) inferred = 'image/heic'
       else if (n.endsWith('.heif')) inferred = 'image/heif'

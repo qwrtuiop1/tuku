@@ -55,6 +55,21 @@ export const getFileIcon = (mimeType: string): string => {
 
 import { imageCache } from './imageCache'
 
+/** 与 axios baseURL 一致，避免出现 https://host/api/api/files/... */
+function getApiOriginForStaticAssets(): string {
+  const raw = import.meta.env.VITE_API_BASE_URL
+  let base = typeof raw === 'string' ? raw.trim() : ''
+  if (base) {
+    base = base.replace(/\/+$/, '')
+    if (/\/api$/i.test(base)) base = base.replace(/\/api$/i, '')
+    return base
+  }
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin
+  }
+  return 'https://tukubackend.vtart.cn'
+}
+
 // 获取文件预览URL
 export const getFilePreviewUrl = (fileId: number): string => {
   // 直接从localStorage和sessionStorage获取token，避免在组件外部使用store
@@ -97,7 +112,7 @@ export const getFilePreviewUrl = (fileId: number): string => {
     }
   }
   
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://tukubackend.vtart.cn'
+  const baseUrl = getApiOriginForStaticAssets()
   
   if (token) {
     return `${baseUrl}/api/files/preview/${fileId}?token=${token}`
@@ -244,7 +259,7 @@ export const getAvatarUrl = (avatarUrl: string | undefined | null): string => {
   if (avatarUrl.startsWith('http')) {
     return avatarUrl.replace(/^http:\/\//i, 'https://')
   }
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://tukubackend.vtart.cn'
+  const baseUrl = getApiOriginForStaticAssets()
   return `${baseUrl}${avatarUrl}`
 }
 // 验证用户名格式

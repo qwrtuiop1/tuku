@@ -311,7 +311,7 @@ const downloadFile = () => {
 
 // 复制文件链接
 const copyFileUrl = async () => {
-  const url = `${window.location.origin}${getFilePreviewUrl(props.file.id)}`
+  const url = getFilePreviewUrl(props.file.id)
   const success = await copyToClipboard(url)
   
   if (success) {
