@@ -18,6 +18,11 @@
           <span class="tip-item">支持图片、HEIC/HEIF 和 MP4/MOV 视频</span>
           <span class="tip-item">单个文件最大{{ maxFileSizeMB }}MB</span>
           <span class="tip-item">同名"图片+短视频"将自动识别为实况图（长按预览）</span>
+          <!-- Android 设备提示 -->
+          <span v-if="isDeviceAndroid" class="tip-item tip-android">
+            <el-icon><Monitor /></el-icon>
+            Android 设备，已启用 GIF 选择支持
+          </span>
           <!-- iOS 16.4+ PhotosPicker 原生实况图入口 -->
           <span v-if="photosPickerSupported" class="tip-item tip-live">
             <el-button
@@ -65,6 +70,16 @@
       accept=".heic,.heif,.jpg,.jpeg,.mov,.gif,.webp,image/heic,image/heif,image/jpeg,video/quicktime,image/gif,image/webp"
       style="display: none"
       @change="handleLiveSelect"
+    />
+    <!-- Android 专用输入：显式囊括所有图片类型，解决系统相册过滤 GIF 的问题 -->
+    <input
+      v-if="isDeviceAndroid"
+      ref="androidFileInputRef"
+      type="file"
+      multiple
+      accept="image/*,image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,video/*,.mp4,.mov,.webm,.mkv"
+      style="display: none"
+      @change="handleAndroidFileSelect"
     />
     
     <!-- 上传进度列表 -->
@@ -185,12 +200,14 @@ import {
   VideoPlay,
   Clock,
   Check,
-  Close
+  Close,
+  Monitor
 } from '@element-plus/icons-vue'
 import { useFilesStore } from '@/stores/files'
 import { formatFileSize } from '@/utils/helpers'
 import api from '@/utils/api'
 import { useLivePhotoPicker } from '@/composables/useLivePhotoPicker'
+import { useDeviceInfo } from '@/composables/useDeviceInfo'
 
 interface UploadItem {
   id: string
@@ -210,6 +227,7 @@ const filesStore = useFilesStore()
 const dropZoneRef = ref<HTMLElement>()
 const fileInputRef = ref<HTMLInputElement>()
 const liveFileInputRef = ref<HTMLInputElement>()
+const androidFileInputRef = ref<HTMLInputElement>()
 const isDragOver = ref(false)
 const isUploading = ref(false)
 const uploadProgress = ref(0)
@@ -295,18 +313,28 @@ const computedVideoAccept = computed(() => {
 
 const computedUnifiedAccept = computed(() => {
   // iOS 简化 accept，避免系统相册过滤异常
-  if (isIOS.value) {
+  if (isDeviceIOS.value) {
     return ['image/*','image/heic','image/heif','video/*','video/quicktime'].join(',')
   }
-  const imageMimes = ['image/*','image/heic','image/heif']
-  const imageExts = ['.heic','.heif','.jpg','.jpeg','.png','.gif','.webp']
-  const videoList = computedVideoAccept.value
-  const videoExtsOnly = (systemSettings.value.allowedVideoTypes || []).map(v => `.${v}`)
-  return [...videoList, ...videoExtsOnly, ...imageMimes, ...imageExts].join(',')
+  // Android：使用 composable 提供的最优 accept，显式包含 image/gif 避免被系统相册过滤
+  return getDeviceOptimalAccept()
 })
 
 const isMobile = computed(() => /Android|webOS|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent))
 const isIOS = computed(() => /iPhone|iPad|iPod/i.test(navigator.userAgent))
+
+// 设备信息（立即获取，无需等待 onMounted）
+const {
+  isIOS: isDeviceIOS,
+  isAndroid: isDeviceAndroid,
+  isMobile: isDeviceMobile,
+  isWechat: isDeviceWechat,
+  isAndroidQQ: isDeviceAndroidQQ,
+  isAndroidWechat: isDeviceAndroidWechat,
+  deviceLabel,
+  getOptimalAccept: getDeviceOptimalAccept,
+  supportsFileSystemAccess,
+} = useDeviceInfo()
 
 // 上传统计
 const uploadStats = computed(() => {
@@ -440,7 +468,18 @@ const handleDrop = async (e: DragEvent) => {
 
 // 触发文件选择
 const triggerFileInput = () => {
-  // 在 iOS/移动端点击前强制设置一次 accept，确保顺序与列表生效
+  // Android：优先使用专用 input，避免系统相册过滤 GIF
+  if (isDeviceAndroid.value && androidFileInputRef.value) {
+    androidFileInputRef.value.accept = [
+      'image/*', 'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'image/heic', 'image/heif', 'video/*',
+      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif',
+      '.mp4', '.mov', '.webm', '.mkv', '.avi', '.3gp', '.m4v'
+    ].join(',')
+    androidFileInputRef.value.click()
+    return
+  }
+  // iOS/其他：使用统一 accept
   if (fileInputRef.value) {
     fileInputRef.value.accept = computedUnifiedAccept.value
   }
@@ -450,6 +489,27 @@ const triggerFileInput = () => {
 // 移动端统一入口：直接使用统一 accept 调起一次选择
 const triggerImageInput = () => { fileInputRef.value?.click() }
 const triggerVideoInput = () => { fileInputRef.value?.click() }
+
+/**
+ * Android 专用文件选择处理
+ * Android 系统相册在某些版本/浏览器下会默认过滤 GIF，
+ * 通过专用的 accept 字符串（显式包含 image/gif）确保 GIF 可选
+ */
+const handleAndroidFileSelect = async (e: Event) => {
+  const target = e.target as HTMLInputElement
+  const files = Array.from(target.files || [])
+  if (files.length > 0) {
+    // 检测是否选中了 GIF
+    const hasGif = files.some(f => /\.(gif)$/i.test(f.name))
+    if (hasGif) {
+      // Android GIF：静默走普通上传通道，不触发实况逻辑
+      await processFiles(files)
+    } else {
+      await processFiles(files)
+    }
+  }
+  target.value = ''
+}
 
 // 触发实况选择
 const triggerLiveInput = () => {
@@ -463,7 +523,7 @@ const handleFileSelect = async (e: Event) => {
   const target = e.target as HTMLInputElement
   const files = Array.from(target.files || [])
   // iOS 引导：若仅选到 静态图(HEIC/JPEG) 而无 MOV，提示用户补选 MOV（可触发实况输入）
-  if (isIOS.value && files.length > 0) {
+  if (isDeviceIOS.value && files.length > 0) {
     const names = files.map(f => (f.name || '').toLowerCase())
     const hasHeicOrJpeg = names.some(n => n.endsWith('.heic') || n.endsWith('.heif') || n.endsWith('.jpg') || n.endsWith('.jpeg'))
     const hasMov = names.some(n => n.endsWith('.mov'))
@@ -864,6 +924,12 @@ onMounted(() => {
         border-radius: 20px;
         font-weight: 500;
         border: 1px solid rgba(55, 65, 81, 0.2);
+      }
+
+      .tip-android {
+        background: rgba(61, 194, 89, 0.12);
+        color: #1a7a35;
+        border-color: rgba(61, 194, 89, 0.3);
       }
     }
   }
