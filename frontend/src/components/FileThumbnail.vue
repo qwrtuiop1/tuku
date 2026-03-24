@@ -1,5 +1,8 @@
 <template>
-  <div class="file-thumbnail" :class="{ 'loading': loading, 'error': hasError }">
+  <div
+    class="file-thumbnail"
+    :class="{ loading: loading, error: hasError, 'uniform-tile': uniformTile }"
+  >
     <!-- 图片缩略图 -->
     <div v-if="file.file_type === 'image'" class="image-thumbnail">
       <img
@@ -17,18 +20,18 @@
         <el-icon class="error-icon"><Picture /></el-icon>
         <span class="error-text">加载失败</span>
       </div>
-      
+
       <!-- 图片类型标识 -->
       <div class="file-type-badge image-badge">
         <el-icon><Picture /></el-icon>
       </div>
-      
+
       <!-- 加载遮罩 -->
       <div v-if="loading" class="loading-overlay">
         <el-icon class="loading-icon"><Loading /></el-icon>
       </div>
     </div>
-    
+
     <!-- 视频缩略图 -->
     <div v-else-if="file.file_type === 'video'" class="video-thumbnail">
       <div class="video-poster" @click="$emit('click', file)">
@@ -45,29 +48,29 @@
         <div v-else class="video-placeholder">
           <el-icon class="video-icon"><VideoPlay /></el-icon>
         </div>
-        
+
         <!-- 播放按钮 -->
         <div class="play-button">
           <el-icon><VideoPlay /></el-icon>
         </div>
-        
+
         <!-- 视频时长 -->
         <div v-if="file.duration" class="duration-badge">
           {{ formatDuration(file.duration) }}
         </div>
       </div>
-      
+
       <!-- 视频类型标识 -->
       <div class="file-type-badge video-badge">
         <el-icon><VideoPlay /></el-icon>
       </div>
-      
+
       <!-- 加载遮罩 -->
       <div v-if="loading" class="loading-overlay">
         <el-icon class="loading-icon"><Loading /></el-icon>
       </div>
     </div>
-    
+
     <!-- 未知文件类型 -->
     <div v-else class="unknown-thumbnail" @click="$emit('click', file)">
       <el-icon class="unknown-icon"><Document /></el-icon>
@@ -79,154 +82,178 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { Picture, VideoPlay, Document, Loading } from '@element-plus/icons-vue'
-import { getCachedImageUrl, getFileThumbnailUrl, getFilePreviewUrlSmart } from '@/utils/helpers'
+import { ref, computed, onMounted } from "vue";
+import { Picture, VideoPlay, Document, Loading } from "@element-plus/icons-vue";
+import {
+  getCachedImageUrl,
+  getFileThumbnailUrl,
+  getFilePreviewUrlSmart,
+} from "@/utils/helpers";
 
 interface FileItem {
-  id: number
-  filename: string
-  original_name: string
-  file_type: 'image' | 'video'
-  file_size: number
-  file_path: string
-  thumbnail_path?: string
-  thumbnail_url?: string | null
-  preview_url?: string | null
-  folder_id?: number
-  mime_type: string
-  width?: number
-  height?: number
-  duration?: number
-  created_at: string
+  id: number;
+  filename: string;
+  original_name: string;
+  file_type: "image" | "video";
+  file_size: number;
+  file_path: string;
+  thumbnail_path?: string;
+  thumbnail_url?: string | null;
+  preview_url?: string | null;
+  folder_id?: number;
+  mime_type: string;
+  width?: number;
+  height?: number;
+  duration?: number;
+  created_at: string;
 }
 
 const props = defineProps<{
-  file: FileItem
-  size?: 'small' | 'medium' | 'large'
-}>()
+  file: FileItem;
+  size?: "small" | "medium" | "large";
+  /** 文件网格卡片：固定区域铺满裁剪，避免竖图 data-aspect-ratio 与外层 1:1 容器不一致 */
+  uniformTile?: boolean;
+}>();
 
 const emit = defineEmits<{
-  click: [file: FileItem]
-}>()
+  click: [file: FileItem];
+}>();
 
 // 响应式数据
-const loading = ref(true)
-const hasError = ref(false)
-const retryCount = ref(0)
-const maxRetries = 2 // 缩略图重试次数较少
-const thumbnailUrl = ref<string>('')
+const loading = ref(true);
+const hasError = ref(false);
+const retryCount = ref(0);
+const maxRetries = 2; // 缩略图重试次数较少
+const thumbnailUrl = ref<string>("");
 
 // 格式化时长
 const formatDuration = (seconds: number): string => {
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = seconds % 60
-  
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
   if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   } else {
-    return `${minutes}:${secs.toString().padStart(2, '0')}`
+    return `${minutes}:${secs.toString().padStart(2, "0")}`;
   }
-}
+};
 
 // 初始化缩略图URL
 const initializeThumbnailUrl = async () => {
   try {
-    loading.value = true
-    hasError.value = false
-    retryCount.value = 0
+    loading.value = true;
+    hasError.value = false;
+    retryCount.value = 0;
 
     // 列表缩略图：优先用后端下发的 thumbnail_url（或由 thumbnail_path 组装）
-    const thumb = getFileThumbnailUrl(props.file)
+    const thumb = getFileThumbnailUrl(props.file);
     if (thumb) {
-      thumbnailUrl.value = thumb
-      return
+      thumbnailUrl.value = thumb;
+      return;
     }
 
     // 无缩略图则退化到预览（可能为原图，尽量少发生）
     // 这里仍保留旧的缓存逻辑，避免空白
-    const url = props.file.preview_url ? getFilePreviewUrlSmart(props.file) : await getCachedImageUrl(props.file.id)
-    thumbnailUrl.value = url
-    
+    const url = props.file.preview_url
+      ? getFilePreviewUrlSmart(props.file)
+      : await getCachedImageUrl(props.file.id);
+    thumbnailUrl.value = url;
+
     // 如果URL设置成功，等待图片加载
     if (url) {
       // 不立即设置loading为false，等待图片的onload事件
-      return
+      return;
     } else {
-      loading.value = false
-      hasError.value = true
+      loading.value = false;
+      hasError.value = true;
     }
   } catch (error) {
-    loading.value = false
-    hasError.value = true
+    loading.value = false;
+    hasError.value = true;
   }
-}
+};
 
 // 图片加载完成
 const onImageLoad = (event: Event) => {
-  loading.value = false
-  hasError.value = false
-  retryCount.value = 0 // 重置重试计数
-  
-  // 检测图片宽高比并添加相应的数据属性
-  const img = event.target as HTMLImageElement
+  loading.value = false;
+  hasError.value = false;
+  retryCount.value = 0; // 重置重试计数
+
+  const img = event.target as HTMLImageElement;
+  if (props.uniformTile && img) {
+    img.removeAttribute("data-aspect-ratio");
+    return;
+  }
+
+  // 检测图片宽高比并添加相应的数据属性（详情页等非网格场景）
   if (img) {
-    const aspectRatio = img.naturalWidth / img.naturalHeight
-    
+    const aspectRatio = img.naturalWidth / img.naturalHeight;
+
     // 移除之前的宽高比类
-    img.removeAttribute('data-aspect-ratio')
-    
+    img.removeAttribute("data-aspect-ratio");
+
     // 根据宽高比添加相应的数据属性
     if (aspectRatio > 1.5) {
-      img.setAttribute('data-aspect-ratio', 'landscape')
+      img.setAttribute("data-aspect-ratio", "landscape");
     } else if (aspectRatio < 0.67) {
-      img.setAttribute('data-aspect-ratio', 'portrait')
+      img.setAttribute("data-aspect-ratio", "portrait");
     } else {
-      img.setAttribute('data-aspect-ratio', 'square')
+      img.setAttribute("data-aspect-ratio", "square");
     }
   }
-}
+};
 
 // 图片加载错误
 const onImageError = (event: Event) => {
-  retryCount.value++
-  
+  retryCount.value++;
+
   if (retryCount.value <= maxRetries) {
     // 重试加载
-    
+
     setTimeout(() => {
-      const img = event.target as HTMLImageElement
+      const img = event.target as HTMLImageElement;
       if (img) {
         // 添加时间戳防止缓存，并添加随机参数避免HTTP2问题
-        const originalSrc = img.src
-        const separator = originalSrc.includes('?') ? '&' : '?'
-        const timestamp = Date.now()
-        const random = Math.random().toString(36).substring(7)
-        img.src = originalSrc + separator + `retry=${timestamp}&r=${random}`
+        const originalSrc = img.src;
+        const separator = originalSrc.includes("?") ? "&" : "?";
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substring(7);
+        img.src = originalSrc + separator + `retry=${timestamp}&r=${random}`;
       }
-    }, 1000 * retryCount.value) // 递增延迟
+    }, 1000 * retryCount.value); // 递增延迟
   } else {
     // 重试次数用完，显示错误
-    loading.value = false
-    hasError.value = true
-    
+    loading.value = false;
+    hasError.value = true;
   }
-}
+};
 
 // 初始化
 onMounted(() => {
   // 初始化缩略图URL
-  initializeThumbnailUrl()
-  
+  initializeThumbnailUrl();
+
   // 如果没有缩略图，直接显示为加载完成
-  if (!props.file.thumbnail_path && props.file.file_type === 'video') {
-    loading.value = false
+  if (!props.file.thumbnail_path && props.file.file_type === "video") {
+    loading.value = false;
   }
-})
+});
 </script>
 
 <style lang="scss" scoped>
+.file-thumbnail.uniform-tile {
+  border-radius: 0;
+
+  .thumbnail-image {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    object-fit: cover;
+  }
+}
+
 .file-thumbnail {
   position: relative;
   width: 100%;
@@ -236,18 +263,18 @@ onMounted(() => {
   background: #f5f7fa;
   cursor: pointer;
   transition: all 0.3s ease;
-  
+
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   }
-  
+
   &.loading {
     .loading-overlay {
       opacity: 1;
     }
   }
-  
+
   &.error {
     .error-placeholder {
       opacity: 1;
@@ -270,7 +297,7 @@ onMounted(() => {
   background: #f5f7fa; // 添加背景色填充空白区域
   min-height: 120px; // 设置最小高度防止空白
   min-width: 120px; // 设置最小宽度防止空白
-  
+
   // 长图片特殊处理
   &[data-aspect-ratio="portrait"] {
     // 竖图：保持宽度填满，高度自适应
@@ -278,20 +305,20 @@ onMounted(() => {
     height: auto;
     max-height: 100%;
   }
-  
+
   &[data-aspect-ratio="landscape"] {
     // 横图：保持高度填满，宽度自适应
     width: auto;
     height: 100%;
     max-width: 100%;
   }
-  
+
   &[data-aspect-ratio="square"] {
     // 正方形图片：保持原有样式
     width: 100%;
     height: 100%;
   }
-  
+
   // 确保图片在加载时可见
   &:not([src]) {
     display: none;
@@ -314,7 +341,7 @@ onMounted(() => {
   justify-content: center;
   width: 100%;
   height: 100%;
-  
+
   .video-icon {
     font-size: 48px;
     color: #909399;
@@ -336,7 +363,7 @@ onMounted(() => {
   color: white;
   font-size: 20px;
   transition: all 0.3s ease;
-  
+
   &:hover {
     background: rgba(0, 0, 0, 0.9);
     transform: translate(-50%, -50%) scale(1.1);
@@ -369,15 +396,15 @@ onMounted(() => {
   color: white;
   font-size: 12px;
   background: #000000; // 黑底
-  
+
   &.image-badge {
     background: #000000; // 黑底
   }
-  
+
   &.video-badge {
     background: #000000; // 黑底
   }
-  
+
   &.unknown-badge {
     background: rgba(144, 147, 153, 0.9);
   }
@@ -396,13 +423,13 @@ onMounted(() => {
   background: #f5f7fa;
   opacity: 0;
   transition: opacity 0.3s ease;
-  
+
   .error-icon {
     font-size: 32px;
     color: #c0c4cc;
     margin-bottom: 8px;
   }
-  
+
   .error-text {
     font-size: 12px;
     color: #909399;
@@ -421,7 +448,7 @@ onMounted(() => {
   justify-content: center;
   opacity: 0;
   transition: opacity 0.3s ease;
-  
+
   .loading-icon {
     font-size: 24px;
     color: #409eff;
@@ -436,7 +463,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   background: #f5f7fa;
-  
+
   .unknown-icon {
     font-size: 48px;
     color: #c0c4cc;
@@ -444,8 +471,12 @@ onMounted(() => {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 // 尺寸变体
@@ -453,11 +484,11 @@ onMounted(() => {
   &.size-small {
     min-height: 120px;
   }
-  
+
   &.size-medium {
     min-height: 180px;
   }
-  
+
   &.size-large {
     min-height: 240px;
   }
@@ -470,18 +501,18 @@ onMounted(() => {
       transform: none;
     }
   }
-  
+
   .play-button {
     width: 40px;
     height: 40px;
     font-size: 16px;
   }
-  
+
   .duration-badge {
     font-size: 11px;
     padding: 1px 4px;
   }
-  
+
   .file-type-badge {
     width: 20px;
     height: 20px;
@@ -489,21 +520,3 @@ onMounted(() => {
   }
 }
 </style>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

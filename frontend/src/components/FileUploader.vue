@@ -14,10 +14,12 @@
         <el-icon class="upload-icon"><Upload /></el-icon>
         <h3 class="upload-title">拖拽文件到此处上传</h3>
         <p class="upload-subtitle">或点击选择文件</p>
-                <div class="upload-tips">
+        <div class="upload-tips">
           <span class="tip-item">支持图片、HEIC/HEIF 和 MP4/MOV 视频</span>
           <span class="tip-item">单个文件最大{{ maxFileSizeMB }}MB</span>
-          <span class="tip-item">同名"图片+短视频"将自动识别为实况图（长按预览）</span>
+          <span class="tip-item"
+            >同名"图片+短视频"将自动识别为实况图（长按预览）</span
+          >
           <!-- Android 设备提示 -->
           <span v-if="isDeviceAndroid" class="tip-item tip-android">
             <el-icon><Monitor /></el-icon>
@@ -38,7 +40,7 @@
           </span>
         </div>
       </div>
-      
+
       <div v-else class="uploading-content">
         <el-icon class="loading-icon"><Loading /></el-icon>
         <h3 class="uploading-title">正在上传文件...</h3>
@@ -52,7 +54,7 @@
         </div>
       </div>
     </div>
-    
+
     <!-- 文件选择输入 -->
     <input
       ref="fileInputRef"
@@ -81,14 +83,14 @@
       style="display: none"
       @change="handleAndroidFileSelect"
     />
-    
+
     <!-- 上传进度列表 -->
     <div v-if="uploadList.length > 0" class="upload-list">
       <div class="upload-list-header">
         <h4>上传队列</h4>
         <el-button type="text" @click="clearUploadList">清空</el-button>
       </div>
-      
+
       <div class="upload-items">
         <div
           v-for="item in uploadList"
@@ -99,29 +101,54 @@
           <div class="item-thumbnail">
             <!-- 图片/动图：显示预览缩略图 -->
             <img
-              v-if="item.fileCategory === 'image' || item.fileCategory === 'animated'"
+              v-if="
+                item.fileCategory === 'image' ||
+                item.fileCategory === 'animated'
+              "
               :src="item.preview"
               :alt="item.file.name"
               class="thumbnail-image"
             />
             <!-- 实况/视频：视频图标 + 动图角标 -->
-            <div v-else-if="item.fileCategory === 'live' || item.fileCategory === 'video'" class="file-icon" :class="item.fileCategory">
+            <div
+              v-else-if="
+                item.fileCategory === 'live' || item.fileCategory === 'video'
+              "
+              class="file-icon"
+              :class="item.fileCategory"
+            >
               <el-icon><VideoPlay /></el-icon>
-              <span v-if="item.fileCategory === 'live'" class="type-badge">LIVE</span>
+              <span v-if="item.fileCategory === 'live'" class="type-badge"
+                >LIVE</span
+              >
             </div>
             <!-- 未知类型 -->
             <div v-else class="file-icon">
               <el-icon><Document /></el-icon>
             </div>
           </div>
-          
+
           <div class="item-info">
             <div class="item-name">{{ item.file.name }}</div>
             <div class="item-meta">
-              <span class="item-size">{{ formatFileSize(item.file.size) }}</span>
-              <span v-if="item.fileCategory === 'animated'" class="item-tag tag-animated">动图</span>
-              <span v-else-if="item.fileCategory === 'live'" class="item-tag tag-live">实况</span>
-              <span v-else-if="item.fileCategory === 'video'" class="item-tag tag-video">视频</span>
+              <span class="item-size">{{
+                formatFileSize(item.file.size)
+              }}</span>
+              <span
+                v-if="item.fileCategory === 'animated'"
+                class="item-tag tag-animated"
+                >动图</span
+              >
+              <span
+                v-else-if="item.fileCategory === 'live'"
+                class="item-tag tag-live"
+                >实况</span
+              >
+              <span
+                v-else-if="item.fileCategory === 'video'"
+                class="item-tag tag-video"
+                >视频</span
+              >
             </div>
             <div class="item-progress">
               <el-progress
@@ -132,15 +159,33 @@
               />
             </div>
           </div>
-          
+
           <div class="item-status">
-            <el-icon v-if="item.status === 'pending'" class="status-icon"><Clock /></el-icon>
-            <el-icon v-else-if="item.status === 'uploading'" class="status-icon uploading"><Loading /></el-icon>
-            <el-icon v-else-if="item.status === 'success'" class="status-icon success"><Check /></el-icon>
-            <el-icon v-else-if="item.status === 'error'" class="status-icon error"><Close /></el-icon>
-            <el-icon v-else-if="item.status === 'canceled'" class="status-icon canceled"><Close /></el-icon>
+            <el-icon v-if="item.status === 'pending'" class="status-icon"
+              ><Clock
+            /></el-icon>
+            <el-icon
+              v-else-if="item.status === 'uploading'"
+              class="status-icon uploading"
+              ><Loading
+            /></el-icon>
+            <el-icon
+              v-else-if="item.status === 'success'"
+              class="status-icon success"
+              ><Check
+            /></el-icon>
+            <el-icon
+              v-else-if="item.status === 'error'"
+              class="status-icon error"
+              ><Close
+            /></el-icon>
+            <el-icon
+              v-else-if="item.status === 'canceled'"
+              class="status-icon canceled"
+              ><Close
+            /></el-icon>
           </div>
-          
+
           <div class="item-actions">
             <el-button
               v-if="item.status === 'error'"
@@ -162,7 +207,7 @@
         </div>
       </div>
     </div>
-    
+
     <!-- 上传统计 -->
     <div v-if="uploadStats.total > 0" class="upload-stats">
       <div class="stats-item">
@@ -185,30 +230,29 @@
         <h4>实况处理队列</h4>
       </div>
       <div class="live-jobs-items">
-        <div
-          v-for="job in liveJobs"
-          :key="job.id"
-          class="live-job-item"
-        >
+        <div v-for="job in liveJobs" :key="job.id" class="live-job-item">
           <div class="job-info">
             <div class="job-id">任务 {{ job.id }}</div>
             <div class="job-status">{{ statusText(job.status) }}</div>
           </div>
-          <el-progress :percentage="Math.max(0, Math.min(100, job.progress || 0))" :stroke-width="6" />
+          <el-progress
+            :percentage="Math.max(0, Math.min(100, job.progress || 0))"
+            :stroke-width="6"
+          />
           <div class="job-actions">
-            <el-button size="small" type="danger" @click="cancelLiveJob(job.id)">取消</el-button>
+            <el-button size="small" type="danger" @click="cancelLiveJob(job.id)"
+              >取消</el-button
+            >
           </div>
         </div>
       </div>
     </div>
-
-    
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, reactive, computed, onMounted } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
 import {
   Upload,
   Loading,
@@ -217,133 +261,165 @@ import {
   Check,
   Close,
   Monitor,
-  Document
-} from '@element-plus/icons-vue'
-import { useFilesStore } from '@/stores/files'
-import { formatFileSize } from '@/utils/helpers'
-import api from '@/utils/api'
-import { useLivePhotoPicker } from '@/composables/useLivePhotoPicker'
-import { useDeviceInfo } from '@/composables/useDeviceInfo'
+  Document,
+} from "@element-plus/icons-vue";
+import { useFilesStore } from "@/stores/files";
+import { formatFileSize } from "@/utils/helpers";
+import api from "@/utils/api";
+import { useLivePhotoPicker } from "@/composables/useLivePhotoPicker";
+import { useDeviceInfo } from "@/composables/useDeviceInfo";
 
 interface UploadItem {
-  id: string
-  file: File
-  preview: string
-  progress: number
-  status: 'pending' | 'uploading' | 'success' | 'error' | 'canceled'
-  error?: string
+  id: string;
+  file: File;
+  preview: string;
+  progress: number;
+  status: "pending" | "uploading" | "success" | "error" | "canceled";
+  error?: string;
   // 识别出的文件子类型
-  fileCategory: 'image' | 'video' | 'animated' | 'live' | 'unknown'
+  fileCategory: "image" | "video" | "animated" | "live" | "unknown";
 }
 
 const emit = defineEmits<{
-  'upload-success': []
-}>()
+  "upload-success": [];
+}>();
 
-const filesStore = useFilesStore()
+const filesStore = useFilesStore();
 
-const dropZoneRef = ref<HTMLElement>()
-const fileInputRef = ref<HTMLInputElement>()
-const liveFileInputRef = ref<HTMLInputElement>()
-const androidFileInputRef = ref<HTMLInputElement>()
-const isDragOver = ref(false)
-const isUploading = ref(false)
-const uploadProgress = ref(0)
-const uploadList = ref<UploadItem[]>([])
-const liveJobs = ref<Array<{ id: string, status: string, progress: number, assetId?: number }>>([])
-const liveControllers: Record<string, AbortController> = {}
-// 用于 processFiles 中记录已配对的 MOV，避免重复使用
-const usedMovsInProcess = new Set<string>()
-const jobTimers: Record<string, number> = {}
+const dropZoneRef = ref<HTMLElement>();
+const fileInputRef = ref<HTMLInputElement>();
+const liveFileInputRef = ref<HTMLInputElement>();
+const androidFileInputRef = ref<HTMLInputElement>();
+const isDragOver = ref(false);
+const isUploading = ref(false);
+const uploadProgress = ref(0);
+const uploadList = ref<UploadItem[]>([]);
+const liveJobs = ref<
+  Array<{ id: string; status: string; progress: number; assetId?: number }>
+>([]);
+const liveControllers: Record<string, AbortController> = {};
+// 用于 enqueueFile 中记录已配对的 MOV，避免重复入视频队列
+const usedMovsInProcess = new Set<string>();
+// processFiles 构建，供 enqueueFile 中 HEIC 配对查询
+const movPairMap = new Map<string, File>();
+// 文件名转不带扩展名的 base 名
+const toBase = (n: string) => n.replace(/\.[^.]+$/, "").toLowerCase();
+const jobTimers: Record<string, number> = {};
 // 每个上传项对应的 AbortController，用于取消请求
-const uploadControllers: Record<string, AbortController> = {}
+const uploadControllers: Record<string, AbortController> = {};
 
 /**
  * iOS 16.4+ PhotosPicker API 专用实况图采集
  * 核心修复：iOS Safari 标准 file input 只返回 HEIC 图片，不返回关联 MOV；
  * PhotosPicker 的 showLivePhotos 选项可以同时获取 Live Photo 的 image + video。
  */
-const photosPickerRef = ref<HTMLInputElement>()
-const { isSupported: photosPickerSupported, isLoading: photosPickerLoading, openPhotosPicker } = useLivePhotoPicker({
+const photosPickerRef = ref<HTMLInputElement>();
+const {
+  isSupported: photosPickerSupported,
+  isLoading: photosPickerLoading,
+  openPhotosPicker,
+} = useLivePhotoPicker({
   onPicked: async (results) => {
     for (const result of results) {
-      const fd = new FormData()
-      fd.append('files', result.imageFile, result.filename)
+      const fd = new FormData();
+      fd.append("files", result.imageFile, result.filename);
       if (result.videoBlob) {
         // video Blob 扩展名从 image 名称推断（Live Photo 的 video 通常是 MOV）
-        const videoExt = result.filename.replace(/\.[^.]+$/, '.mov')
-        fd.append('files', result.videoBlob, videoExt)
+        const videoExt = result.filename.replace(/\.[^.]+$/, ".mov");
+        fd.append("files", result.videoBlob, videoExt);
       }
-      fd.append('pairing_id', result.pairingId)
-      if (filesStore.currentFolder) fd.append('folder_id', String(filesStore.currentFolder))
+      fd.append("pairing_id", result.pairingId);
+      if (filesStore.currentFolder)
+        fd.append("folder_id", String(filesStore.currentFolder));
       try {
-        const resp = await api.post('/live-media/upload', fd, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        })
-        const jobId = normalizeJobId(resp.data?.jobId)
-        if (jobId) startJobPolling(jobId)
-        else ElMessage.warning('后端未返回 jobId，已受理但无法跟踪进度')
+        const resp = await api.post("/live-media/upload", fd, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        const jobId = normalizeJobId(resp.data?.jobId);
+        if (jobId) startJobPolling(jobId);
+        else ElMessage.warning("后端未返回 jobId，已受理但无法跟踪进度");
       } catch (err: any) {
-        ElMessage.error(err.response?.data?.message || '实况图上传失败')
+        ElMessage.error(err.response?.data?.message || "实况图上传失败");
       }
     }
   },
   onError: (msg) => {
-    ElMessage.error(msg)
+    ElMessage.error(msg);
     // PhotosPicker 失败时，回退到标准文件输入
-    triggerLiveInput()
-  }
-})
+    triggerLiveInput();
+  },
+});
 
 // 规范化后端返回的 jobId，兼容字符串/数字/对象形态
 const normalizeJobId = (raw: any): string | null => {
-  if (raw == null) return null
-  const t = typeof raw
-  if (t === 'string' || t === 'number') return String(raw)
-  if (t === 'object') {
-    if (raw.id != null) return String(raw.id)
-    if (raw.jobId != null) return String(raw.jobId)
-    if (raw.value != null) return String(raw.value)
-    if (raw.data != null) return normalizeJobId(raw.data)
+  if (raw == null) return null;
+  const t = typeof raw;
+  if (t === "string" || t === "number") return String(raw);
+  if (t === "object") {
+    if (raw.id != null) return String(raw.id);
+    if (raw.jobId != null) return String(raw.jobId);
+    if (raw.value != null) return String(raw.value);
+    if (raw.data != null) return normalizeJobId(raw.data);
   }
-  return null
-}
+  return null;
+};
 
 // 系统设置
 const systemSettings = ref({
   maxFileSize: 100, // 默认100MB
   maxUploadFiles: 10, // 默认10个文件
-  allowedVideoTypes: ['mp4','webm','mov'] as string[]
-})
+  allowedVideoTypes: ["mp4", "webm", "mov"] as string[],
+});
 
 // 计算属性
-const maxFileSizeMB = computed(() => systemSettings.value.maxFileSize)
-const maxFileSizeBytes = computed(() => systemSettings.value.maxFileSize * 1024 * 1024)
+const maxFileSizeMB = computed(() => systemSettings.value.maxFileSize);
+const maxFileSizeBytes = computed(
+  () => systemSettings.value.maxFileSize * 1024 * 1024,
+);
 
 // 生成 accept 列表
 const computedAccept = computed(() => {
-  const videoExts = (systemSettings.value.allowedVideoTypes || []).map(v => `.${v}`)
-  const parts = ['image/*', 'video/*', ...videoExts, '.heic', '.heif']
-  return parts.join(',')
-})
+  const videoExts = (systemSettings.value.allowedVideoTypes || []).map(
+    (v) => `.${v}`,
+  );
+  const parts = ["image/*", "video/*", ...videoExts, ".heic", ".heif"];
+  return parts.join(",");
+});
 
 const computedVideoAccept = computed(() => {
-  const videoExts = (systemSettings.value.allowedVideoTypes || []).map(v => `.${v}`)
-  const videoMimes = ['video/*','video/mp4','video/quicktime','video/webm','video/x-matroska','video/x-msvideo']
-  return [...videoMimes, ...videoExts]
-})
+  const videoExts = (systemSettings.value.allowedVideoTypes || []).map(
+    (v) => `.${v}`,
+  );
+  const videoMimes = [
+    "video/*",
+    "video/mp4",
+    "video/quicktime",
+    "video/webm",
+    "video/x-matroska",
+    "video/x-msvideo",
+  ];
+  return [...videoMimes, ...videoExts];
+});
 
 const computedUnifiedAccept = computed(() => {
   // iOS 简化 accept，避免系统相册过滤异常
   if (isDeviceIOS.value) {
-    return ['image/*','image/heic','image/heif','video/*','video/quicktime'].join(',')
+    return [
+      "image/*",
+      "image/heic",
+      "image/heif",
+      "video/*",
+      "video/quicktime",
+    ].join(",");
   }
   // Android：使用 composable 提供的最优 accept，显式包含 image/gif 避免被系统相册过滤
-  return getDeviceOptimalAccept()
-})
+  return getDeviceOptimalAccept();
+});
 
-const isMobile = computed(() => /Android|webOS|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent))
-const isIOS = computed(() => /iPhone|iPad|iPod/i.test(navigator.userAgent))
+const isMobile = computed(() =>
+  /Android|webOS|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent),
+);
+const isIOS = computed(() => /iPhone|iPad|iPod/i.test(navigator.userAgent));
 
 // 设备信息（立即获取，无需等待 onMounted）
 const {
@@ -356,160 +432,226 @@ const {
   deviceLabel,
   getOptimalAccept: getDeviceOptimalAccept,
   supportsFileSystemAccess,
-} = useDeviceInfo()
+} = useDeviceInfo();
 
 // 上传统计
 const uploadStats = computed(() => {
-  const total = uploadList.value.filter(item => item.status !== 'canceled').length
-  const success = uploadList.value.filter(item => item.status === 'success').length
-  const error = uploadList.value.filter(item => item.status === 'error').length
+  const total = uploadList.value.filter(
+    (item) => item.status !== "canceled",
+  ).length;
+  const success = uploadList.value.filter(
+    (item) => item.status === "success",
+  ).length;
+  const error = uploadList.value.filter(
+    (item) => item.status === "error",
+  ).length;
 
-  return { total, success, error }
-})
+  return { total, success, error };
+});
 
 // 获取系统设置
 const fetchSystemSettings = async () => {
   try {
-    const response = await api.get('/system/info')
-    const systemInfo = response.data
-    
+    const response = await api.get("/system/info");
+    const systemInfo = response.data;
+
     systemSettings.value = {
       maxFileSize: systemInfo.max_file_size || 100,
       maxUploadFiles: systemInfo.max_upload_files || 10,
-      allowedVideoTypes: Array.isArray(systemInfo.allowed_video_types) && systemInfo.allowed_video_types.length
-        ? systemInfo.allowed_video_types
-        : ['mp4','webm','mov','mkv','m4v','flv','wmv','mpeg','mpg','3gp','ts','m2ts','ogv']
-    }
+      allowedVideoTypes:
+        Array.isArray(systemInfo.allowed_video_types) &&
+        systemInfo.allowed_video_types.length
+          ? systemInfo.allowed_video_types
+          : [
+              "mp4",
+              "webm",
+              "mov",
+              "mkv",
+              "m4v",
+              "flv",
+              "wmv",
+              "mpeg",
+              "mpg",
+              "3gp",
+              "ts",
+              "m2ts",
+              "ogv",
+            ],
+    };
   } catch (error) {
     // 使用默认值
     systemSettings.value = {
       maxFileSize: 100,
-      maxUploadFiles: 10
-    }
+      maxUploadFiles: 10,
+    };
   }
-}
+};
 
 // 生成唯一ID
 const generateId = () => {
-  return Math.random().toString(36).substr(2, 9)
-}
+  return Math.random().toString(36).substr(2, 9);
+};
 
 // 创建文件预览（使用 URL.createObjectURL 替代 FileReader，避免阻塞主线程）
 const createFilePreview = (file: File): string => {
-  if (file.type.startsWith('image/')) {
-    return URL.createObjectURL(file)
+  if (file.type.startsWith("image/")) {
+    return URL.createObjectURL(file);
   }
-  return ''
-}
+  return "";
+};
 
 // 验证文件
 const validateFile = (file: File): boolean => {
-  const maxSize = maxFileSizeBytes.value
+  const maxSize = maxFileSizeBytes.value;
   // 基础图片类型 + HEIC/HEIF
   const imageTypes = [
-    'image/jpeg','image/png','image/gif','image/webp','image/svg+xml','image/heic','image/heif'
-  ]
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/svg+xml",
+    "image/heic",
+    "image/heif",
+  ];
   // 将允许的视频扩展映射为常见MIME
-  const extToMime: Record<string,string[]> = {
-    mp4: ['video/mp4','video/x-m4v'],
-    m4v: ['video/x-m4v','video/mp4'],
-    webm: ['video/webm'],
-    mov: ['video/quicktime'],
-    avi: ['video/x-msvideo'],
-    mkv: ['video/x-matroska','video/webm'],
-    flv: ['video/x-flv'],
-    wmv: ['video/x-ms-wmv'],
-    mpeg: ['video/mpeg'],
-    mpg: ['video/mpeg'],
-    '3gp': ['video/3gpp'],
-    ts: ['video/mp2t'],
-    m2ts: ['video/mp2t'],
-    ogv: ['video/ogg']
-  }
-  const videoMimes = new Set<string>()
+  const extToMime: Record<string, string[]> = {
+    mp4: ["video/mp4", "video/x-m4v"],
+    m4v: ["video/x-m4v", "video/mp4"],
+    webm: ["video/webm"],
+    mov: ["video/quicktime"],
+    avi: ["video/x-msvideo"],
+    mkv: ["video/x-matroska", "video/webm"],
+    flv: ["video/x-flv"],
+    wmv: ["video/x-ms-wmv"],
+    mpeg: ["video/mpeg"],
+    mpg: ["video/mpeg"],
+    "3gp": ["video/3gpp"],
+    ts: ["video/mp2t"],
+    m2ts: ["video/mp2t"],
+    ogv: ["video/ogg"],
+  };
+  const videoMimes = new Set<string>();
   for (const ext of systemSettings.value.allowedVideoTypes || []) {
-    const list = extToMime[ext.toLowerCase()] || []
-    for (const m of list) videoMimes.add(m)
+    const list = extToMime[ext.toLowerCase()] || [];
+    for (const m of list) videoMimes.add(m);
   }
   // 兜底允许常见三种
-  ;['video/mp4','video/webm','video/quicktime'].forEach(m => videoMimes.add(m))
-  const allowedTypes = new Set<string>([...imageTypes, ...Array.from(videoMimes)])
-  
+  ["video/mp4", "video/webm", "video/quicktime"].forEach((m) =>
+    videoMimes.add(m),
+  );
+  const allowedTypes = new Set<string>([
+    ...imageTypes,
+    ...Array.from(videoMimes),
+  ]);
+
   if (file.size > maxSize) {
-    ElMessage.error(`文件 ${file.name} 超过${maxFileSizeMB.value}MB限制`)
-    return false
+    ElMessage.error(`文件 ${file.name} 超过${maxFileSizeMB.value}MB限制`);
+    return false;
   }
-  
+
   if (!allowedTypes.has(file.type)) {
     // iOS/Safari 有时返回空 MIME；安卓相册常把 GIF 等报成 application/octet-stream
-    let inferred = file.type
-    if (!inferred || inferred === '' || inferred === 'application/octet-stream') {
-      const n = (file.name || '').toLowerCase()
+    let inferred = file.type;
+    if (
+      !inferred ||
+      inferred === "" ||
+      inferred === "application/octet-stream"
+    ) {
+      const n = (file.name || "").toLowerCase();
       // GIF/WebP 优先识别，确保进入图片通道（而非被误判为不支持）
-      if (/\.gif$/i.test(n)) inferred = 'image/gif'
-      else if (/\.webp$/i.test(n)) inferred = 'image/webp'
-      else if (/\.heic$/i.test(n)) inferred = 'image/heic'
-      else if (/\.heif$/i.test(n)) inferred = 'image/heif'
-      else if (n.endsWith('.jpg') || n.endsWith('.jpeg')) inferred = 'image/jpeg'
-      else if (n.endsWith('.png')) inferred = 'image/png'
-      else if (n.endsWith('.mov')) inferred = 'video/quicktime'
-      else if (n.endsWith('.mp4') || n.endsWith('.m4v')) inferred = 'video/mp4'
-      else if (n.endsWith('.webm')) inferred = 'video/webm'
+      if (/\.gif$/i.test(n)) inferred = "image/gif";
+      else if (/\.webp$/i.test(n)) inferred = "image/webp";
+      else if (/\.heic$/i.test(n)) inferred = "image/heic";
+      else if (/\.heif$/i.test(n)) inferred = "image/heif";
+      else if (n.endsWith(".jpg") || n.endsWith(".jpeg"))
+        inferred = "image/jpeg";
+      else if (n.endsWith(".png")) inferred = "image/png";
+      else if (n.endsWith(".mov")) inferred = "video/quicktime";
+      else if (n.endsWith(".mp4") || n.endsWith(".m4v")) inferred = "video/mp4";
+      else if (n.endsWith(".webm")) inferred = "video/webm";
     }
     if (!inferred || !allowedTypes.has(inferred)) {
-      ElMessage.error(`不支持的文件类型: ${inferred || file.type}`)
-      return false
+      ElMessage.error(`不支持的文件类型: ${inferred || file.type}`);
+      return false;
     }
   }
-  
-  return true
-}
+
+  return true;
+};
 
 // 处理拖拽事件
 const handleDragOver = (e: DragEvent) => {
-  e.preventDefault()
-  isDragOver.value = true
-}
+  e.preventDefault();
+  isDragOver.value = true;
+};
 
 const handleDragLeave = (e: DragEvent) => {
-  e.preventDefault()
-  isDragOver.value = false
-}
+  e.preventDefault();
+  isDragOver.value = false;
+};
 
 const handleDrop = async (e: DragEvent) => {
-  e.preventDefault()
-  isDragOver.value = false
-  
-  const files = Array.from(e.dataTransfer?.files || [])
-  await processFiles(files)
-}
+  e.preventDefault();
+  isDragOver.value = false;
 
-  // 触发文件选择
+  const files = Array.from(e.dataTransfer?.files || []);
+  await processFiles(files);
+};
+
+// 触发文件选择
 const triggerFileInput = () => {
   // Android：专用 input，避免系统相册过滤 GIF/MOV/WebM 等
   if (isDeviceAndroid.value && androidFileInputRef.value) {
     androidFileInputRef.value.accept = [
-      'image/*',           // 覆盖所有标准图片（JPEG/PNG 等）
-      'image/gif',         // GIF MIME（某些 Android Chrome 版本需要显式声明）
-      'video/*',           // 所有视频
-      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif',   // 图片扩展
-      '.mp4', '.mov', '.webm', '.mkv', '.avi', '.3gp', '.m4v',       // 视频扩展
-      '.JPG', '.JPEG', '.PNG', '.GIF', '.WEBP', '.HEIC', '.HEIF',   // 大写扩展（Android 部分机型的 file.name）
-      '.MP4', '.MOV', '.WEBM', '.MKV', '.AVI', '.3GP', '.M4V',      // 大写视频扩展
-    ].join(',')
-    androidFileInputRef.value.click()
-    return
+      "image/*", // 覆盖所有标准图片（JPEG/PNG 等）
+      "image/gif", // GIF MIME（某些 Android Chrome 版本需要显式声明）
+      "video/*", // 所有视频
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".gif",
+      ".webp",
+      ".heic",
+      ".heif", // 图片扩展
+      ".mp4",
+      ".mov",
+      ".webm",
+      ".mkv",
+      ".avi",
+      ".3gp",
+      ".m4v", // 视频扩展
+      ".JPG",
+      ".JPEG",
+      ".PNG",
+      ".GIF",
+      ".WEBP",
+      ".HEIC",
+      ".HEIF", // 大写扩展（Android 部分机型的 file.name）
+      ".MP4",
+      ".MOV",
+      ".WEBM",
+      ".MKV",
+      ".AVI",
+      ".3GP",
+      ".M4V", // 大写视频扩展
+    ].join(",");
+    androidFileInputRef.value.click();
+    return;
   }
   // iOS/其他：使用统一 accept
   if (fileInputRef.value) {
-    fileInputRef.value.accept = computedUnifiedAccept.value
+    fileInputRef.value.accept = computedUnifiedAccept.value;
   }
-  fileInputRef.value?.click()
-}
+  fileInputRef.value?.click();
+};
 
 // 移动端统一入口：直接使用统一 accept 调起一次选择
-const triggerImageInput = () => { fileInputRef.value?.click() }
-const triggerVideoInput = () => { fileInputRef.value?.click() }
+const triggerImageInput = () => {
+  fileInputRef.value?.click();
+};
+const triggerVideoInput = () => {
+  fileInputRef.value?.click();
+};
 
 /**
  * Android 专用文件选择处理
@@ -517,505 +659,570 @@ const triggerVideoInput = () => { fileInputRef.value?.click() }
  * 通过专用的 accept 字符串（显式包含 image/gif）确保 GIF 可选
  */
 const handleAndroidFileSelect = async (e: Event) => {
-  const target = e.target as HTMLInputElement
-  const files = Array.from(target.files || [])
+  const target = e.target as HTMLInputElement;
+  const files = Array.from(target.files || []);
   if (files.length > 0) {
     // 检测是否选中了 GIF
-    const hasGif = files.some(f => /\.(gif)$/i.test(f.name))
+    const hasGif = files.some((f) => /\.(gif)$/i.test(f.name));
     if (hasGif) {
       // Android GIF：静默走普通上传通道，不触发实况逻辑
-      await processFiles(files)
+      await processFiles(files);
     } else {
-      await processFiles(files)
+      await processFiles(files);
     }
   }
-  target.value = ''
-}
+  target.value = "";
+};
 
 // 触发实况选择
 const triggerLiveInput = () => {
-  liveFileInputRef.value?.click()
-}
+  liveFileInputRef.value?.click();
+};
 
 // 取消长按入口，统一点击打开文件选择
 
 // 处理文件选择
 const handleFileSelect = async (e: Event) => {
-  const target = e.target as HTMLInputElement
-  const files = Array.from(target.files || [])
+  const target = e.target as HTMLInputElement;
+  const files = Array.from(target.files || []);
   // iOS 引导：若仅选到 静态图(HEIC/JPEG) 而无 MOV，提示用户补选 MOV（可触发实况输入）
   if (isDeviceIOS.value && files.length > 0) {
-    const names = files.map(f => (f.name || '').toLowerCase())
-    const hasHeicOrJpeg = names.some(n => n.endsWith('.heic') || n.endsWith('.heif') || n.endsWith('.jpg') || n.endsWith('.jpeg'))
-    const hasMov = names.some(n => n.endsWith('.mov'))
+    const names = files.map((f) => (f.name || "").toLowerCase());
+    const hasHeicOrJpeg = names.some(
+      (n) =>
+        n.endsWith(".heic") ||
+        n.endsWith(".heif") ||
+        n.endsWith(".jpg") ||
+        n.endsWith(".jpeg"),
+    );
+    const hasMov = names.some((n) => n.endsWith(".mov"));
     if (hasHeicOrJpeg && !hasMov) {
       try {
-        await ElMessageBox.confirm('检测到选择了 HEIC 图片，是否继续选择对应的实况视频（MOV）以形成实况？', '提示', { type: 'info', confirmButtonText: '去选择', cancelButtonText: '先上传图片' })
-        triggerLiveInput()
+        await ElMessageBox.confirm(
+          "检测到选择了 HEIC 图片，是否继续选择对应的实况视频（MOV）以形成实况？",
+          "提示",
+          {
+            type: "info",
+            confirmButtonText: "去选择",
+            cancelButtonText: "先上传图片",
+          },
+        );
+        triggerLiveInput();
       } catch {}
     }
   }
-  await processFiles(files)
-  
+  await processFiles(files);
+
   // 清空input值，允许重复选择相同文件
-  target.value = ''
-}
+  target.value = "";
+};
 
 // 处理实况选择（整批发送到 /live-media/upload）
 const handleLiveSelect = async (e: Event) => {
-  const target = e.target as HTMLInputElement
-  const files = Array.from(target.files || [])
-  if (!files.length) return
+  const target = e.target as HTMLInputElement;
+  const files = Array.from(target.files || []);
+  if (!files.length) return;
   try {
-    isUploading.value = true
-    uploadProgress.value = 0
-    const formData = new FormData()
-    for (const f of files) formData.append('files', f)
+    isUploading.value = true;
+    uploadProgress.value = 0;
+    const formData = new FormData();
+    for (const f of files) formData.append("files", f);
     // 传递当前文件夹ID到后端用于实况归属
-    if (filesStore.currentFolder) formData.append('folder_id', String(filesStore.currentFolder))
-    const resp = await api.post('/live-media/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress: (pe) => { if (pe.total) uploadProgress.value = Math.round((pe.loaded * 100) / pe.total) }
-    })
-    const jobId = normalizeJobId(resp.data?.jobId)
+    if (filesStore.currentFolder)
+      formData.append("folder_id", String(filesStore.currentFolder));
+    const resp = await api.post("/live-media/upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+      onUploadProgress: (pe) => {
+        if (pe.total)
+          uploadProgress.value = Math.round((pe.loaded * 100) / pe.total);
+      },
+    });
+    const jobId = normalizeJobId(resp.data?.jobId);
     if (jobId) {
-      ElMessage.success('实况上传已受理，开始处理...')
-      startJobPolling(jobId)
+      ElMessage.success("实况上传已受理，开始处理...");
+      startJobPolling(jobId);
     } else {
-      ElMessage.warning('后端未返回 jobId，已受理但无法跟踪进度')
-      emit('upload-success')
+      ElMessage.warning("后端未返回 jobId，已受理但无法跟踪进度");
+      emit("upload-success");
     }
   } catch (err: any) {
-    ElMessage.error(err.response?.data?.message || '实况上传失败')
+    ElMessage.error(err.response?.data?.message || "实况上传失败");
   } finally {
-    isUploading.value = false
-    uploadProgress.value = 0
-    target.value = ''
+    isUploading.value = false;
+    uploadProgress.value = 0;
+    target.value = "";
   }
-}
+};
 
 // 批量创建 live 任务（支持显式 pairingId）
 const createLiveJob = async (batch: File[], pairingId?: string) => {
   try {
-    const fd = new FormData()
-    for (const f of batch) fd.append('files', f)
-    if (filesStore.currentFolder) fd.append('folder_id', String(filesStore.currentFolder))
+    const fd = new FormData();
+    for (const f of batch) fd.append("files", f);
+    if (filesStore.currentFolder)
+      fd.append("folder_id", String(filesStore.currentFolder));
     // 显式配对 ID（PhotosPicker 专用，优先于文件名匹配）
-    if (pairingId) fd.append('pairing_id', pairingId)
-    const controller = new AbortController()
-    const resp = await api.post('/live-media/upload', fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      signal: controller.signal
-    })
-    const jobId = normalizeJobId(resp.data?.jobId)
-    if (jobId) { liveControllers[jobId] = controller; startJobPolling(jobId) }
-    else ElMessage.warning('后端未返回 jobId，已受理但无法跟踪进度')
+    if (pairingId) fd.append("pairing_id", pairingId);
+    const controller = new AbortController();
+    const resp = await api.post("/live-media/upload", fd, {
+      headers: { "Content-Type": "multipart/form-data" },
+      signal: controller.signal,
+    });
+    const jobId = normalizeJobId(resp.data?.jobId);
+    if (jobId) {
+      liveControllers[jobId] = controller;
+      startJobPolling(jobId);
+    } else ElMessage.warning("后端未返回 jobId，已受理但无法跟踪进度");
   } catch (e: any) {
-    ElMessage.error(e.response?.data?.message || '实况任务创建失败')
+    ElMessage.error(e.response?.data?.message || "实况任务创建失败");
+    throw e;
   }
-}
+};
 
 const startJobPolling = (jobId: string) => {
-  liveJobs.value.push({ id: jobId, status: 'queued', progress: 0 })
+  liveJobs.value.push({ id: jobId, status: "queued", progress: 0 });
   if (jobTimers[jobId]) {
-    window.clearInterval(jobTimers[jobId])
-    delete jobTimers[jobId]
+    window.clearInterval(jobTimers[jobId]);
+    delete jobTimers[jobId];
   }
-  const jobIdEncoded = encodeURIComponent(String(jobId))
+  const jobIdEncoded = encodeURIComponent(String(jobId));
   jobTimers[jobId] = window.setInterval(async () => {
     try {
-      const { data } = await api.get(`/live-media/jobs/${jobIdEncoded}`)
-      const idx = liveJobs.value.findIndex(j => j.id === jobId)
-      if (idx !== -1) liveJobs.value[idx] = { id: data.id, status: data.status, progress: data.progress || 0, assetId: data.assetId }
-      if (data.status === 'completed') {
-        window.clearInterval(jobTimers[jobId])
-        delete jobTimers[jobId]
-        ElMessage.success('实况处理完成')
-        emit('upload-success')
-      } else if (data.status === 'failed') {
-        window.clearInterval(jobTimers[jobId])
-        delete jobTimers[jobId]
-        ElMessage.error('实况处理失败')
+      const { data } = await api.get(`/live-media/jobs/${jobIdEncoded}`);
+      const idx = liveJobs.value.findIndex((j) => j.id === jobId);
+      if (idx !== -1)
+        liveJobs.value[idx] = {
+          id: data.id,
+          status: data.status,
+          progress: data.progress || 0,
+          assetId: data.assetId,
+        };
+      if (data.status === "completed") {
+        window.clearInterval(jobTimers[jobId]);
+        delete jobTimers[jobId];
+        ElMessage.success("实况处理完成");
+        emit("upload-success");
+      } else if (data.status === "failed") {
+        window.clearInterval(jobTimers[jobId]);
+        delete jobTimers[jobId];
+        ElMessage.error("实况处理失败");
       }
     } catch {}
-  }, 1200)
-}
+  }, 1200);
+};
 
 const cancelLiveJob = async (jobId: string) => {
   try {
-    const c = liveControllers[jobId]
-    if (c) { try { c.abort() } catch {} delete liveControllers[jobId] }
-    await api.delete(`/live-media/jobs/${encodeURIComponent(jobId)}`)
-    const idx = liveJobs.value.findIndex(j => j.id === jobId)
-    if (idx !== -1) liveJobs.value.splice(idx, 1)
-    ElMessage.success('已取消')
-    emit('upload-success')
-  } catch (e:any) {
-    ElMessage.error(e.response?.data?.message || '取消失败')
+    const c = liveControllers[jobId];
+    if (c) {
+      try {
+        c.abort();
+      } catch {}
+      delete liveControllers[jobId];
+    }
+    await api.delete(`/live-media/jobs/${encodeURIComponent(jobId)}`);
+    const idx = liveJobs.value.findIndex((j) => j.id === jobId);
+    if (idx !== -1) liveJobs.value.splice(idx, 1);
+    ElMessage.success("已取消");
+    emit("upload-success");
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.message || "取消失败");
   }
-}
+};
 
-// 处理文件（混合多选：普通与实况并行）
-const processFiles = async (files: File[]) => {
-  if (files.length === 0) return
+/**
+ * 单文件分类并入队
+ * - 每个文件独立判断格式，走对应上传路径
+ * - HEIC 优先配对 MOV；JPG 先检测 Motion Photo
+ * - 配对成功的 MOV 不再单独入视频队列
+ */
+const enqueueFile = (file: File): void => {
+  const name = file.name.toLowerCase();
 
-  // 验证文件（同步，不阻塞）
-  const validFiles = files.filter(validateFile)
-  if (validFiles.length === 0) return
-
-  // 立即构建上传队列（使用 URL.createObjectURL，无阻塞）
-  const heics: File[] = []
-  const movs: File[] = []
-  const anims: File[] = []
-  const mayJpgs: File[] = []
-  const others: File[] = []
-  for (const f of validFiles) {
-    const name = f.name.toLowerCase()
-    if (name.endsWith('.heic')) heics.push(f)
-    else if (name.endsWith('.mov')) movs.push(f)
-    else if (name.endsWith('.gif') || name.endsWith('.webp')) anims.push(f)
-    else if (name.endsWith('.jpg') || name.endsWith('.jpeg')) mayJpgs.push(f)
-    else others.push(f)
-  }
-
-  const toBase = (n: string) => n.replace(/\.[^.]+$/, '').toLowerCase()
-  const movMap = new Map<string, File>()
-  movs.forEach(m => movMap.set(toBase(m.name), m))
-
-  // HEIC + MOV 配对发起 live 任务（异步，不阻塞 UI）
-  for (const h of heics) {
-    const base = toBase(h.name)
-    const m = movMap.get(base)
-    if (m) {
-      createLiveJob([h, m])
-      usedMovsInProcess.add(m.name)
-    } else {
-      others.push(h)
+  // HEIC：尝试与同名 MOV 配对走实况
+  if (name.endsWith(".heic")) {
+    const base = toBase(name);
+    const pairedMov = movPairMap.get(base);
+    if (pairedMov) {
+      usedMovsInProcess.add(pairedMov.name);
+      void createLiveJob([file, pairedMov]).catch(() => {});
+      return;
     }
   }
-  movs.forEach(m => { if (!usedMovsInProcess.has(m.name)) others.push(m) })
 
-  // 动图单文件走普通上传通道（同步构建队列，不阻塞）
-  for (const a of anims) {
-    const uploadItem: UploadItem = {
-      id: generateId(),
-      file: a,
-      preview: createFilePreview(a),
-      progress: 0,
-      status: 'pending',
-      fileCategory: /\.gif$/i.test(a.name) ? 'animated' : 'animated'
-    }
-    ;(uploadItem as any).liveBasename = a.name.replace(/\.[^.]+$/, '')
-    uploadList.value.push(uploadItem)
+  // MOV（未配对）：入视频队列
+  if (name.endsWith(".mov")) {
+    if (usedMovsInProcess.has(file.name)) return;
   }
 
-  // 普通文件加入队列（同步构建队列，不阻塞）
-  for (const file of others) {
-    const uploadItem: UploadItem = {
+  // GIF / WebP：动图
+  if (/\.(gif|webp)$/i.test(name)) {
+    uploadList.value.push({
       id: generateId(),
       file,
       preview: createFilePreview(file),
       progress: 0,
-      status: 'pending',
-      fileCategory: file.type.startsWith('image/') ? 'image' :
-                    file.type.startsWith('video/') ? 'video' : 'unknown'
-    }
-    ;(uploadItem as any).liveBasename = file.name.replace(/\.[^.]+$/, '')
-    uploadList.value.push(uploadItem)
+      status: "pending",
+      fileCategory: "animated",
+    });
+    return;
   }
 
-  // 后台检测 JPG Motion Photo（不阻塞 UI，完成后替换队列项类型）
-  for (const jpg of mayJpgs) {
-    const uploadItem: UploadItem = {
+  // JPG / JPEG：先检测 Motion Photo，再决定走实况还是普通图片
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) {
+    const item: UploadItem = {
       id: generateId(),
-      file: jpg,
-      preview: createFilePreview(jpg),
+      file,
+      preview: createFilePreview(file),
       progress: 0,
-      status: 'pending',
-      fileCategory: 'image'
-    }
-    ;(uploadItem as any).liveBasename = jpg.name.replace(/\.[^.]+$/, '')
-    uploadList.value.push(uploadItem)
-    detectMotionPhotoAsync(jpg, uploadItem)
+      status: "pending",
+      fileCategory: "image",
+    };
+    uploadList.value.push(item);
+
+    detectMotionPhoto(file)
+      .then((isMotion) => {
+        if (!isMotion) return;
+        item._skipUpload = true;
+        item.status = "uploading";
+        item.fileCategory = "live";
+        isUploading.value = true;
+        void createLiveJob([file])
+          .then(() => {
+            item.status = "success";
+            item.progress = 100;
+          })
+          .catch((err: any) => {
+            if (
+              err?.message?.includes("canceled") ||
+              err?.code === "ERR_CANCELED"
+            ) {
+              item.status = "canceled";
+            } else {
+              item.status = "error";
+              item.error =
+                err?.response?.data?.message || err?.message || "实况处理失败";
+            }
+          })
+          .finally(() => {
+            isUploading.value = false;
+            checkAllCompleted();
+          });
+      })
+      .catch(() => {});
+    return;
   }
 
-  // 立即开始上传（不等待后台检测）
-  startUpload()
-}
+  // 普通图片（如 PNG、HEIF）或视频或其他
+  uploadList.value.push({
+    id: generateId(),
+    file,
+    preview: createFilePreview(file),
+    progress: 0,
+    status: "pending",
+    fileCategory: file.type.startsWith("video/")
+      ? "video"
+      : file.type.startsWith("image/")
+        ? "image"
+        : "unknown",
+  });
+};
 
-// 检测 Motion Photo 并在检测完成后转为实况上传（后台执行，不阻塞 UI）
-const detectMotionPhotoAsync = (file: File, item: UploadItem) => {
-  detectMotionPhoto(file).then((isMotion) => {
-    if (isMotion && item.status === 'pending') {
-      // 标记跳过普通上传通道
-      ;(item as any)._skipUpload = true
-      item.fileCategory = 'live'
-      item.status = 'uploading'
-      isUploading.value = true
-      createLiveJob([file])
-        .then(() => {
-          item.status = 'success'
-          item.progress = 100
-        })
-        .catch((err: any) => {
-          if (err?.message?.includes('canceled') || err?.code === 'ERR_CANCELED') {
-            item.status = 'canceled'
-          } else {
-            item.status = 'error'
-            item.error = err?.response?.data?.message || err?.message || '实况处理失败'
-          }
-        })
-        .finally(() => {
-          isUploading.value = false
-          checkAllCompleted()
-        })
+// 处理文件（每个文件单独检测格式、单独入队）
+const processFiles = async (files: File[]) => {
+  if (files.length === 0) return;
+
+  // 前置验证（过滤掉不合法的大文件和类型）
+  const validFiles = files.filter(validateFile);
+  if (validFiles.length === 0) return;
+
+  // 构建 MOV 配对表（供 HEIC 配对用）
+  movPairMap.clear();
+  for (const f of validFiles) {
+    if (f.name.toLowerCase().endsWith(".mov")) {
+      movPairMap.set(toBase(f.name.toLowerCase()), f);
     }
-  }).catch(() => {/* 检测失败，保持普通上传 */})
-}
+  }
+
+  // 逐文件入队
+  for (const file of validFiles) {
+    enqueueFile(file);
+  }
+
+  startUpload();
+};
 
 // 检查是否所有文件都上传完成
 const checkAllCompleted = () => {
-  const allCompleted = uploadList.value.every(item =>
-    item.status === 'success' || item.status === 'error' || item.status === 'canceled'
-  )
+  const allCompleted = uploadList.value.every(
+    (item) =>
+      item.status === "success" ||
+      item.status === "error" ||
+      item.status === "canceled",
+  );
   if (allCompleted) {
-    const successCount = uploadStats.value.success
+    const successCount = uploadStats.value.success;
     if (successCount > 0) {
-      ElMessage.success(`成功上传 ${successCount} 个文件`)
-      emit('upload-success')
+      ElMessage.success(`成功上传 ${successCount} 个文件`);
+      emit("upload-success");
     }
   }
-}
+};
 
 async function detectMotionPhoto(file: File): Promise<boolean> {
   // 与后端一致：支持 JPEG 在前、ftyp 在中部（前 10MB）+ 标准尾部结构
   const readChunk = (start: number, length: number): Promise<ArrayBuffer> =>
     new Promise((resolve, reject) => {
-      const blob = file.slice(start, Math.min(file.size, start + length))
-      const fr = new FileReader()
-      fr.onload = () => resolve(fr.result as ArrayBuffer)
-      fr.onerror = reject
-      fr.readAsArrayBuffer(blob)
-    })
+      const blob = file.slice(start, Math.min(file.size, start + length));
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result as ArrayBuffer);
+      fr.onerror = reject;
+      fr.readAsArrayBuffer(blob);
+    });
 
   const validateFtyp = (bytes: Uint8Array, idx: number) => {
-    if (idx < 4) return false
-    const boxLen = (bytes[idx - 4]! << 24) | (bytes[idx - 3]! << 16) | (bytes[idx - 2]! << 8) | bytes[idx - 1]!
-    const remaining = bytes.length - (idx - 4)
-    return boxLen >= 8 && boxLen <= 1024 * 1024 && boxLen <= remaining
-  }
+    if (idx < 4) return false;
+    const boxLen =
+      (bytes[idx - 4]! << 24) |
+      (bytes[idx - 3]! << 16) |
+      (bytes[idx - 2]! << 8) |
+      bytes[idx - 1]!;
+    const remaining = bytes.length - (idx - 4);
+    return boxLen >= 8 && boxLen <= 1024 * 1024 && boxLen <= remaining;
+  };
 
   try {
-    if (file.size < 16) return false
+    if (file.size < 16) return false;
 
-    const MAX_HEAD = 10 * 1024 * 1024
-    const MAX_TAIL = 2 * 1024 * 1024
+    const MAX_HEAD = 10 * 1024 * 1024;
+    const MAX_TAIL = 2 * 1024 * 1024;
 
     // 1) 前部：ftyp 在中部，JPEG 在前
-    const headSize = Math.min(MAX_HEAD, file.size)
-    const headBuf = await readChunk(0, headSize)
-    const headBytes = new Uint8Array(headBuf)
-    let pos = 0
+    const headSize = Math.min(MAX_HEAD, file.size);
+    const headBuf = await readChunk(0, headSize);
+    const headBytes = new Uint8Array(headBuf);
+    let pos = 0;
     for (;;) {
-      let idx = -1
+      let idx = -1;
       for (let j = pos; j <= headBytes.length - 4; j++) {
-        if (headBytes[j] === 0x66 && headBytes[j + 1] === 0x74 && headBytes[j + 2] === 0x79 && headBytes[j + 3] === 0x70) {
-          idx = j
-          break
+        if (
+          headBytes[j] === 0x66 &&
+          headBytes[j + 1] === 0x74 &&
+          headBytes[j + 2] === 0x79 &&
+          headBytes[j + 3] === 0x70
+        ) {
+          idx = j;
+          break;
         }
       }
-      if (idx === -1) break
+      if (idx === -1) break;
       if (validateFtyp(headBytes, idx)) {
-        let eoiBefore = -1
+        let eoiBefore = -1;
         for (let i = idx - 1; i >= 1; i--) {
-          if (headBytes[i - 1] === 0xFF && headBytes[i] === 0xD9) {
-            eoiBefore = i + 1
-            break
+          if (headBytes[i - 1] === 0xff && headBytes[i] === 0xd9) {
+            eoiBefore = i + 1;
+            break;
           }
         }
-        if (eoiBefore > 0 && eoiBefore < idx) return true
+        if (eoiBefore > 0 && eoiBefore < idx) return true;
       }
-      pos = idx + 4
+      pos = idx + 4;
     }
 
     // 2) 尾部：标准 [JPEG 结尾][MP4]
-    const tailSize = Math.min(MAX_TAIL, file.size)
-    const tailBuf = await readChunk(file.size - tailSize, tailSize)
-    const tailBytes = new Uint8Array(tailBuf)
-    let eoiAfter = -1
+    const tailSize = Math.min(MAX_TAIL, file.size);
+    const tailBuf = await readChunk(file.size - tailSize, tailSize);
+    const tailBytes = new Uint8Array(tailBuf);
+    let eoiAfter = -1;
     for (let i = tailBytes.length - 2; i >= 0; i--) {
-      if (tailBytes[i] === 0xFF && tailBytes[i + 1] === 0xD9) {
-        eoiAfter = i + 2
-        break
+      if (tailBytes[i] === 0xff && tailBytes[i + 1] === 0xd9) {
+        eoiAfter = i + 2;
+        break;
       }
     }
     if (eoiAfter >= 0 && eoiAfter < tailBytes.length - 8) {
-      const after = tailBytes.subarray(eoiAfter)
-      pos = 0
+      const after = tailBytes.subarray(eoiAfter);
+      pos = 0;
       for (;;) {
-        let idx = -1
+        let idx = -1;
         for (let j = pos; j <= after.length - 4; j++) {
-          if (after[j] === 0x66 && after[j + 1] === 0x74 && after[j + 2] === 0x79 && after[j + 3] === 0x70) {
-            idx = j
-            break
+          if (
+            after[j] === 0x66 &&
+            after[j + 1] === 0x74 &&
+            after[j + 2] === 0x79 &&
+            after[j + 3] === 0x70
+          ) {
+            idx = j;
+            break;
           }
         }
-        if (idx === -1) break
-        if (idx >= 4 && validateFtyp(after, idx)) return true
-        pos = idx + 4
+        if (idx === -1) break;
+        if (idx >= 4 && validateFtyp(after, idx)) return true;
+        pos = idx + 4;
       }
     }
   } catch (_) {
     // 检测失败，按非 Motion Photo 处理
   }
-  return false
+  return false;
 }
 
 // 开始上传（最多 3 个文件同时上传，避免阻塞服务器）
 const startUpload = async () => {
-  const pendingItems = uploadList.value.filter(item => item.status === 'pending')
-  const CONCURRENCY = 3
+  const pendingItems = uploadList.value.filter(
+    (item) => item.status === "pending",
+  );
+  const CONCURRENCY = 3;
 
   const drain = async () => {
     // 每次取最多 CONCURRENCY 个 pending 项并发上传（跳过已移除的）
     const batch = uploadList.value
-      .filter(item => item.status === 'pending')
-      .slice(0, CONCURRENCY)
+      .filter((item) => item.status === "pending")
+      .slice(0, CONCURRENCY);
 
-    if (batch.length === 0) return
+    if (batch.length === 0) return;
 
-    await Promise.all(batch.map(item => uploadSingleFile(item)))
-    await drain()
-  }
+    await Promise.all(batch.map((item) => uploadSingleFile(item)));
+    await drain();
+  };
 
-  await drain()
+  await drain();
 
   // 检查是否所有文件都上传完成
-  const allCompleted = uploadList.value.every(item =>
-    item.status === 'success' || item.status === 'error' || item.status === 'canceled'
-  )
+  const allCompleted = uploadList.value.every(
+    (item) =>
+      item.status === "success" ||
+      item.status === "error" ||
+      item.status === "canceled",
+  );
 
   if (allCompleted) {
-    const successCount = uploadStats.value.success
+    const successCount = uploadStats.value.success;
     if (successCount > 0) {
-      ElMessage.success(`成功上传 ${successCount} 个文件`)
-      emit('upload-success')
+      ElMessage.success(`成功上传 ${successCount} 个文件`);
+      emit("upload-success");
     }
   }
-}
+};
 
 // 上传单个文件
 const uploadSingleFile = async (item: UploadItem) => {
   // 如果已被 Motion Photo 检测拦截，跳过此通道
-  if ((item as any)._skipUpload) return
+  if ((item as any)._skipUpload) return;
 
-  const controller = new AbortController()
-  uploadControllers[item.id] = controller
+  const controller = new AbortController();
+  uploadControllers[item.id] = controller;
 
   try {
-    item.status = 'uploading'
-    isUploading.value = true
+    item.status = "uploading";
+    isUploading.value = true;
 
-    const formData = new FormData()
-    formData.append('file', item.file)
+    const formData = new FormData();
+    formData.append("file", item.file);
     // 传递实况图配对信息（普通通道保留兼容）
-    const isImage = item.file.type.startsWith('image/')
-    const isVideo = item.file.type.startsWith('video/')
+    const isImage = item.file.type.startsWith("image/");
+    const isVideo = item.file.type.startsWith("video/");
     if ((item as any).liveBasename && (isImage || isVideo)) {
-      formData.append('live_basename', (item as any).liveBasename)
-      formData.append('live_role', isImage ? 'image' : (isVideo ? 'video' : ''))
+      formData.append("live_basename", (item as any).liveBasename);
+      formData.append("live_role", isImage ? "image" : isVideo ? "video" : "");
     }
 
     // 如果有当前文件夹，添加到表单数据
     if (filesStore.currentFolder) {
-      formData.append('folder_id', filesStore.currentFolder.toString())
+      formData.append("folder_id", filesStore.currentFolder.toString());
     }
 
     // 直接调用API上传（携带中止信号）
-    const response = await api.post('/files/upload', formData, {
+    const response = await api.post("/files/upload", formData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
+        "Content-Type": "multipart/form-data",
       },
       signal: controller.signal,
       onUploadProgress: (progressEvent) => {
         if (progressEvent.total) {
-          item.progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          item.progress = Math.round(
+            (progressEvent.loaded * 100) / progressEvent.total,
+          );
         }
-      }
-    })
+      },
+    });
 
     // 后端检测为 Motion Photo，转交实况通道（返回 202），不在常规文件列表中入库
     if (response.status === 202) {
-      item.status = 'success'
-      item.progress = 100
+      item.status = "success";
+      item.progress = 100;
       // 实况任务已在后台通过 job polling 跟踪，无需额外处理
-      return
+      return;
     }
 
-    item.status = 'success'
-    item.progress = 100
+    item.status = "success";
+    item.progress = 100;
   } catch (error: any) {
     // 用户主动取消（点击移除按钮）
-    if (error?.response?.status === 0 || error?.message?.includes('canceled') || error?.code === 'ERR_CANCELED') {
-      item.status = 'canceled'
-      item.error = '已取消'
-      return
+    if (
+      error?.response?.status === 0 ||
+      error?.message?.includes("canceled") ||
+      error?.code === "ERR_CANCELED"
+    ) {
+      item.status = "canceled";
+      item.error = "已取消";
+      return;
     }
-    item.status = 'error'
-    item.error = error.response?.data?.message || error.message || '上传失败'
+    item.status = "error";
+    item.error = error.response?.data?.message || error.message || "上传失败";
   } finally {
-    delete uploadControllers[item.id]
-    isUploading.value = false
+    delete uploadControllers[item.id];
+    isUploading.value = false;
   }
-}
+};
 
 // 重试上传
 const retryUpload = async (item: UploadItem) => {
-  item.status = 'pending'
-  item.progress = 0
-  item.error = undefined
-  await uploadSingleFile(item)
-}
+  item.status = "pending";
+  item.progress = 0;
+  item.error = undefined;
+  await uploadSingleFile(item);
+};
 
 // 从列表中移除（同时中止上传请求）
 const removeFromList = (id: string) => {
   // 若正在上传，先中止请求
-  const ctrl = uploadControllers[id]
+  const ctrl = uploadControllers[id];
   if (ctrl) {
-    ctrl.abort()
-    delete uploadControllers[id]
+    ctrl.abort();
+    delete uploadControllers[id];
   }
-  const index = uploadList.value.findIndex(item => item.id === id)
+  const index = uploadList.value.findIndex((item) => item.id === id);
   if (index > -1) {
-    uploadList.value.splice(index, 1)
+    uploadList.value.splice(index, 1);
   }
-}
+};
 
 // 根据文件类型返回进度条颜色
 const getProgressColor = (item: UploadItem): string => {
-  if (item.fileCategory === 'animated') return '#f59e0b'
-  if (item.fileCategory === 'live') return '#ec4899'
-  if (item.fileCategory === 'video') return '#0ea5e9'
-  return '#667eea'
-}
+  if (item.fileCategory === "animated") return "#f59e0b";
+  if (item.fileCategory === "live") return "#ec4899";
+  if (item.fileCategory === "video") return "#0ea5e9";
+  return "#667eea";
+};
 
 const statusText = (s: string) => {
-  if (s === 'queued') return '排队中'
-  if (s === 'processing') return '处理中'
-  if (s === 'completed') return '已完成'
-  if (s === 'failed') return '失败'
-  return s
-}
+  if (s === "queued") return "排队中";
+  if (s === "processing") return "处理中";
+  if (s === "completed") return "已完成";
+  if (s === "failed") return "失败";
+  return s;
+};
 
 // 清空上传列表
 const clearUploadList = () => {
-  uploadList.value = []
-}
+  uploadList.value = [];
+};
 
 // 生命周期
 onMounted(() => {
-  fetchSystemSettings()
-})
+  fetchSystemSettings();
+});
 </script>
 
 <style lang="scss" scoped>
@@ -1030,9 +1237,9 @@ onMounted(() => {
     background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
     position: relative;
     overflow: hidden;
-    
+
     &::before {
-      content: '';
+      content: "";
       position: absolute;
       top: 0;
       left: 0;
@@ -1041,42 +1248,42 @@ onMounted(() => {
       background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="10" cy="10" r="1" fill="rgba(55,65,81,0.1)"/></pattern></defs><rect width="100" height="100" fill="url(%23dots)"/></svg>');
       opacity: 0.3;
     }
-    
+
     &:hover {
       border-color: #374151;
       background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
       transform: translateY(-2px);
       box-shadow: 0 8px 25px rgba(55, 65, 81, 0.15);
     }
-    
+
     &.is-dragover {
       border-color: #111827;
       background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
       transform: scale(1.02);
       box-shadow: 0 12px 30px rgba(55, 65, 81, 0.2);
-      
+
       &::before {
         opacity: 0.5;
       }
     }
-    
+
     &.is-uploading {
       border-color: #6b7280;
       background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
     }
   }
-  
+
   .drop-content {
     position: relative;
     z-index: 1;
-    
+
     .upload-icon {
       font-size: 64px;
       color: #374151;
       margin-bottom: 20px;
       animation: float 3s ease-in-out infinite;
     }
-    
+
     .upload-title {
       font-size: 24px;
       font-weight: 700;
@@ -1084,20 +1291,20 @@ onMounted(() => {
       margin-bottom: 12px;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     }
-    
+
     .upload-subtitle {
       font-size: 16px;
       color: #6b7280;
       margin-bottom: 24px;
       font-weight: 500;
     }
-    
+
     .upload-tips {
       display: flex;
       gap: 16px;
       justify-content: center;
       flex-wrap: wrap;
-      
+
       .tip-item {
         font-size: 13px;
         color: #374151;
@@ -1115,18 +1322,18 @@ onMounted(() => {
       }
     }
   }
-  
+
   .uploading-content {
     position: relative;
     z-index: 1;
-    
+
     .loading-icon {
       font-size: 64px;
       color: #374151;
       margin-bottom: 20px;
       animation: spin 1s linear infinite;
     }
-    
+
     .uploading-title {
       font-size: 24px;
       font-weight: 700;
@@ -1134,28 +1341,28 @@ onMounted(() => {
       margin-bottom: 20px;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     }
-    
+
     .upload-progress {
       display: flex;
       align-items: center;
       gap: 16px;
       max-width: 400px;
       margin: 0 auto;
-      
+
       :deep(.el-progress) {
         flex: 1;
-        
+
         .el-progress-bar__outer {
           border-radius: 10px;
           background: rgba(55, 65, 81, 0.1);
         }
-        
+
         .el-progress-bar__inner {
           border-radius: 10px;
           background: linear-gradient(135deg, #374151, #111827);
         }
       }
-      
+
       .progress-text {
         font-size: 16px;
         font-weight: 700;
@@ -1169,7 +1376,7 @@ onMounted(() => {
 
 .upload-list {
   margin-top: 32px;
-  
+
   .upload-list-header {
     display: flex;
     align-items: center;
@@ -1179,7 +1386,7 @@ onMounted(() => {
     background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
     border-radius: 12px;
     border: 1px solid #e9ecef;
-    
+
     h4 {
       margin: 0;
       font-size: 18px;
@@ -1187,41 +1394,41 @@ onMounted(() => {
       color: #2c3e50;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     }
-    
+
     :deep(.el-button) {
       color: #667eea;
       font-weight: 600;
-      
+
       &:hover {
         color: #764ba2;
       }
     }
   }
-  
+
   .upload-items {
     max-height: 400px;
     overflow-y: auto;
     padding: 8px;
-    
+
     &::-webkit-scrollbar {
       width: 6px;
     }
-    
+
     &::-webkit-scrollbar-track {
       background: #f1f1f1;
       border-radius: 3px;
     }
-    
+
     &::-webkit-scrollbar-thumb {
       background: #c1c1c1;
       border-radius: 3px;
-      
+
       &:hover {
         background: #a8a8a8;
       }
     }
   }
-  
+
   .upload-item {
     display: flex;
     align-items: center;
@@ -1239,27 +1446,37 @@ onMounted(() => {
     // 文件类型 — 左边框 + 图标底色区分
     &.type-image {
       border-left-color: #667eea;
-      &::before { background: linear-gradient(180deg, #667eea, #764ba2); }
+      &::before {
+        background: linear-gradient(180deg, #667eea, #764ba2);
+      }
     }
     &.type-video {
       border-left-color: #0ea5e9;
-      &::before { background: linear-gradient(180deg, #0ea5e9, #06b6d4); }
+      &::before {
+        background: linear-gradient(180deg, #0ea5e9, #06b6d4);
+      }
     }
     &.type-animated {
       border-left-color: #f59e0b;
-      &::before { background: linear-gradient(180deg, #f59e0b, #f97316); }
+      &::before {
+        background: linear-gradient(180deg, #f59e0b, #f97316);
+      }
     }
     &.type-live {
       border-left-color: #ec4899;
-      &::before { background: linear-gradient(180deg, #ec4899, #a855f7); }
+      &::before {
+        background: linear-gradient(180deg, #ec4899, #a855f7);
+      }
     }
     &.type-unknown {
       border-left-color: #9ca3af;
-      &::before { background: linear-gradient(180deg, #9ca3af, #6b7280); }
+      &::before {
+        background: linear-gradient(180deg, #9ca3af, #6b7280);
+      }
     }
 
     &::before {
-      content: '';
+      content: "";
       position: absolute;
       top: 0;
       left: 0;
@@ -1278,19 +1495,25 @@ onMounted(() => {
     &.success {
       background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
       border-color: #bbf7d0;
-      &::before { background: linear-gradient(180deg, #16a34a, #22c55e) !important; }
+      &::before {
+        background: linear-gradient(180deg, #16a34a, #22c55e) !important;
+      }
     }
 
     &.error {
       background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
       border-color: #fecaca;
-      &::before { background: linear-gradient(180deg, #dc2626, #ef4444) !important; }
+      &::before {
+        background: linear-gradient(180deg, #dc2626, #ef4444) !important;
+      }
     }
 
     &.uploading {
       background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
       border-color: #bfdbfe;
-      &::before { background: linear-gradient(180deg, #2563eb, #3b82f6) !important; }
+      &::before {
+        background: linear-gradient(180deg, #2563eb, #3b82f6) !important;
+      }
     }
 
     &.canceled {
@@ -1486,7 +1709,7 @@ onMounted(() => {
   border-radius: 16px;
   border: 1px solid #e9ecef;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  
+
   .stats-item {
     display: flex;
     align-items: center;
@@ -1496,12 +1719,12 @@ onMounted(() => {
     border-radius: 12px;
     border: 1px solid #e9ecef;
     transition: all 0.3s ease;
-    
+
     &:hover {
       transform: translateY(-2px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     }
-    
+
     .stats-icon {
       font-size: 20px;
       width: 40px;
@@ -1510,48 +1733,48 @@ onMounted(() => {
       display: flex;
       align-items: center;
       justify-content: center;
-      
+
       &.success {
         background: linear-gradient(135deg, #27ae60, #2ecc71);
         color: #ffffff;
       }
-      
+
       &.error {
         background: linear-gradient(135deg, #e74c3c, #ff6b6b);
         color: #ffffff;
       }
-      
+
       &.pending {
         background: linear-gradient(135deg, #667eea, #764ba2);
         color: #ffffff;
       }
     }
-    
+
     .stats-content {
       display: flex;
       flex-direction: column;
       gap: 4px;
-      
+
       .stats-label {
         font-size: 13px;
         color: #7f8c8d;
         font-weight: 500;
       }
-      
+
       .stats-value {
         font-size: 18px;
         font-weight: 700;
         color: #2c3e50;
         text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-        
+
         &.success {
           color: #27ae60;
         }
-        
+
         &.error {
           color: #e74c3c;
         }
-        
+
         &.pending {
           color: #667eea;
         }
@@ -1566,7 +1789,7 @@ onMounted(() => {
   background: #ffffff;
   border: 1px solid #e9ecef;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 
   .live-jobs-header {
     display: flex;
@@ -1601,8 +1824,14 @@ onMounted(() => {
         align-items: center;
         justify-content: space-between;
 
-        .job-id { font-weight: 600; color: #374151; }
-        .job-status { font-size: 12px; color: #6b7280; }
+        .job-id {
+          font-weight: 600;
+          color: #374151;
+        }
+        .job-status {
+          font-size: 12px;
+          color: #6b7280;
+        }
       }
     }
   }
@@ -1613,12 +1842,17 @@ onMounted(() => {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes float {
-  0%, 100% {
+  0%,
+  100% {
     transform: translateY(0px);
   }
   50% {
@@ -1627,7 +1861,8 @@ onMounted(() => {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     opacity: 1;
   }
@@ -1643,26 +1878,26 @@ onMounted(() => {
     .drop-zone {
       padding: 40px 20px;
       border-radius: 12px;
-      
+
       .drop-content {
         .upload-icon {
           font-size: 48px;
         }
-        
+
         .upload-title {
           font-size: 18px;
           margin-bottom: 8px;
         }
-        
+
         .upload-subtitle {
           font-size: 14px;
           margin-bottom: 16px;
         }
-        
+
         .upload-tips {
           flex-direction: column;
           gap: 8px;
-          
+
           .tip-item {
             font-size: 12px;
             padding: 6px 12px;
@@ -1670,20 +1905,20 @@ onMounted(() => {
           }
         }
       }
-      
+
       .uploading-content {
         .loading-icon {
           font-size: 40px;
         }
-        
+
         .uploading-title {
           font-size: 16px;
         }
-        
+
         .upload-progress {
           max-width: 300px;
           margin-top: 16px;
-          
+
           .progress-text {
             font-size: 14px;
           }
@@ -1691,38 +1926,38 @@ onMounted(() => {
       }
     }
   }
-  
+
   .upload-list {
     .upload-list-header {
       flex-direction: column;
       gap: 12px;
       text-align: center;
     }
-    
+
     .upload-item {
       flex-direction: column;
       gap: 12px;
       text-align: center;
-      
+
       .item-thumbnail {
         width: 60px;
         height: 60px;
       }
-      
+
       .item-info {
         width: 100%;
       }
-      
+
       .item-status {
         order: -1;
       }
     }
   }
-  
+
   .upload-stats {
     flex-direction: column;
     gap: 16px;
-    
+
     .stats-item {
       justify-content: center;
     }
@@ -1733,56 +1968,56 @@ onMounted(() => {
   .file-uploader {
     .drop-zone {
       padding: 30px 16px;
-      
+
       .drop-content {
         .upload-icon {
           font-size: 40px;
         }
-        
+
         .upload-title {
           font-size: 18px;
         }
-        
+
         .upload-subtitle {
           font-size: 13px;
         }
       }
-      
+
       .uploading-content {
         .loading-icon {
           font-size: 40px;
         }
-        
+
         .uploading-title {
           font-size: 18px;
         }
       }
     }
   }
-  
+
   .upload-list {
     .upload-item {
       padding: 12px;
-      
+
       .item-thumbnail {
         width: 50px;
         height: 50px;
       }
     }
   }
-  
+
   .upload-stats {
     padding: 16px;
-    
+
     .stats-item {
       padding: 10px 12px;
-      
+
       .stats-icon {
         width: 35px;
         height: 35px;
         font-size: 18px;
       }
-      
+
       .stats-content {
         .stats-value {
           font-size: 16px;
@@ -1797,25 +2032,25 @@ onMounted(() => {
     .drop-zone {
       padding: 20px 12px;
       border-radius: 8px;
-      
+
       .drop-content {
         .upload-icon {
           font-size: 32px;
         }
-        
+
         .upload-title {
           font-size: 14px;
           margin-bottom: 4px;
         }
-        
+
         .upload-subtitle {
           font-size: 12px;
           margin-bottom: 8px;
         }
-        
+
         .upload-tips {
           gap: 4px;
-          
+
           .tip-item {
             font-size: 10px;
             padding: 3px 6px;
@@ -1823,20 +2058,20 @@ onMounted(() => {
           }
         }
       }
-      
+
       .uploading-content {
         .loading-icon {
           font-size: 28px;
         }
-        
+
         .uploading-title {
           font-size: 13px;
         }
-        
+
         .upload-progress {
           max-width: 200px;
           margin-top: 8px;
-          
+
           .progress-text {
             font-size: 12px;
           }
