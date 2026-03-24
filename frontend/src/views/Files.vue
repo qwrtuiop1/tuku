@@ -1815,12 +1815,12 @@ const batchDelete = async () => {
       }))
     ] as any[]
 
-    // 分类选中的项目
+    // 分类选中的项目：同时包含普通文件、文件夹和实况资产（ID 均为数字）
     for (const itemId of selectedFiles.value) {
-      // 识别实况ID
-      if (typeof itemId === 'string' && itemId.startsWith('live_')) {
-        const numId = parseInt(itemId.replace('live_', ''))
-        if (!Number.isNaN(numId)) liveToDelete.push(numId)
+      // 先检查是否是 live 资产（数字 ID，在 liveAssets 中查找）
+      const isLiveAsset = liveAssets.value.some(a => a.id === itemId)
+      if (isLiveAsset) {
+        liveToDelete.push(Number(itemId))
         continue
       }
       const item = allItems.find(item => item.id === itemId)
