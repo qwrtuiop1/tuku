@@ -834,6 +834,27 @@ const filteredLiveAssets = computed(() => {
   })
 })
 
+// 文件夹过滤与排序（必须在 allItems 之前声明，避免 TDZ）
+const filteredFolders = computed(() => {
+  let folders = filesStore.folders
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    folders = folders.filter(folder => (folder.folder_name || '').toLowerCase().includes(q))
+  }
+  return folders.sort((a, b) => {
+    if (sortBy.value === 'name') {
+      return sortOrder.value === 'asc'
+        ? a.folder_name.localeCompare(b.folder_name)
+        : b.folder_name.localeCompare(a.folder_name)
+    } else if (sortBy.value === 'date') {
+      return sortOrder.value === 'asc'
+        ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    }
+    return 0
+  })
+})
+
 // 合并文件夹和文件
 const allItems = computed(() => {
   const items = []
@@ -2077,26 +2098,6 @@ const shareOptions = reactive({
   ttlPreset: '24h' as '1h' | '24h' | '7d' | 'custom' | 'never',
   ttlHours: 24 as number
 })
-const filteredFolders = computed(() => {
-  let folders = filesStore.folders
-  const q = searchQuery.value.trim().toLowerCase()
-  if (q) {
-    folders = folders.filter(folder => (folder.folder_name || '').toLowerCase().includes(q))
-  }
-  return folders.sort((a, b) => {
-    if (sortBy.value === 'name') {
-      return sortOrder.value === 'asc'
-        ? a.folder_name.localeCompare(b.folder_name)
-        : b.folder_name.localeCompare(a.folder_name)
-    } else if (sortBy.value === 'date') {
-      return sortOrder.value === 'asc'
-        ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    }
-    return 0
-  })
-})
-
 // 新建/重命名文件夹表单
 const folderForm = reactive({ name: '' })
 const folderRules = {
