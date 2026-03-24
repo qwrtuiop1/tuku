@@ -1,0 +1,90 @@
+
+/***** 统一入场动效（QQCallback） *****/
+.qq-callback-container[data-v-bbf21fb3] { will-change: opacity, transform; animation: blockFadeUp-bbf21fb3 var(--anim-duration-base) var(--anim-ease-decelerate) both;
+}
+.callback-content[data-v-bbf21fb3] { will-change: opacity, transform; animation: cardRise-bbf21fb3 var(--anim-duration-base) var(--anim-ease-decelerate) both; animation-delay: 60ms;
+}
+.loading-spinner[data-v-bbf21fb3], .error-message[data-v-bbf21fb3], .success-message[data-v-bbf21fb3] { will-change: opacity, transform; animation: rowFadeIn-bbf21fb3 var(--anim-duration-fast) var(--anim-ease-decelerate) both;
+}
+@keyframes blockFadeUp-bbf21fb3 {
+from { opacity: 0; transform: translateY(8px);
+}
+to { opacity: 1; transform: translateY(0);
+}
+}
+@keyframes cardRise-bbf21fb3 {
+from { opacity: 0; transform: translateY(10px) scale(0.98);
+}
+to { opacity: 1; transform: translateY(0) scale(1);
+}
+}
+@keyframes rowFadeIn-bbf21fb3 {
+from { opacity: 0; transform: translateY(6px);
+}
+to { opacity: 1; transform: translateY(0);
+}
+}
+@media (prefers-reduced-motion: reduce) {
+.qq-callback-container[data-v-bbf21fb3] *, .qq-callback-container[data-v-bbf21fb3] * { animation: none !important; transition: none !important;
+}
+}
+
+/* 原样式 */
+.qq-callback-container[data-v-bbf21fb3] {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+.callback-content[data-v-bbf21fb3] {
+  background: white;
+  padding: 40px;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  max-width: 400px;
+  width: 90%;
+}
+.loading-spinner {
+.el-icon[data-v-bbf21fb3] {
+    font-size: 48px;
+    color: #667eea;
+    margin-bottom: 16px;
+}
+p[data-v-bbf21fb3] {
+    color: #666;
+    font-size: 16px;
+    margin: 0;
+}
+}
+.error-message {
+.error-icon[data-v-bbf21fb3] {
+    font-size: 48px;
+    color: #f56c6c;
+    margin-bottom: 16px;
+}
+p[data-v-bbf21fb3] {
+    color: #666;
+    font-size: 16px;
+    margin: 0 0 16px 0;
+}
+}
+.success-message {
+.success-icon[data-v-bbf21fb3] {
+    font-size: 48px;
+    color: #67c23a;
+    margin-bottom: 16px;
+}
+p {
+&[data-v-bbf21fb3] {
+    color: #666;
+    font-size: 16px;
+    margin: 0 0 8px 0;
+  }
+&[data-v-bbf21fb3]:last-child {
+      font-size: 14px;
+      color: #999;
+}
+}
+}

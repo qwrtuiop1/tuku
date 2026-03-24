@@ -21,87 +21,11 @@ function isAnimatedWebp(metadata) {
   return Boolean(metadata.pages && metadata.pages > 1);
 }
 
-/**
- * Android Motion Photo：JPEG 与 MP4 拼接点可在文件中部。
- * 与 files.js 一致：先在前 10MB 搜索 ftyp，再在尾部 2MB 搜索。
- * @returns {Promise<number>} 嵌入 MP4 的起始字节偏移（绝对），未找到返回 -1
- */
-async function findMotionPhotoMp4ByteOffset(filePath) {
+async function detectMotionPhoto(buffer) {
+  // 粗略检测：查找 JPEG 末尾后的 'ftyp' MP4 box
   const ftyp = Buffer.from('ftyp');
-  const MAX_HEAD = 10 * 1024 * 1024;
-  const MAX_TAIL = 2 * 1024 * 1024;
-
-  function validateFtypBox(buf, idx, bufStartInFile) {
-    if (idx < 4) return null;
-    const boxLen = buf.readUInt32BE(idx - 4);
-    const remaining = buf.length - (idx - 4);
-    if (boxLen < 8 || boxLen > 1024 * 1024 || boxLen > remaining) return null;
-    return bufStartInFile + (idx - 4);
-  }
-
-  try {
-    const stat = await fs.stat(filePath);
-    if (stat.size < 16) return -1;
-
-    const fd = await fs.open(filePath, 'r');
-
-    // 1) 前部：ftyp 在中部，JPEG 在前
-    const headSize = Math.min(MAX_HEAD, stat.size);
-    const headBuf = Buffer.alloc(headSize);
-    await fd.read(headBuf, 0, headSize, 0);
-
-    let pos = 0;
-    while (true) {
-      const idx = headBuf.indexOf(ftyp, pos);
-      if (idx === -1) break;
-      const mp4Start = validateFtypBox(headBuf, idx, 0);
-      if (mp4Start !== null) {
-        let eoiBefore = -1;
-        for (let i = idx - 1; i >= 1; i--) {
-          if (headBuf[i - 1] === 0xFF && headBuf[i] === 0xD9) {
-            eoiBefore = i + 1;
-            break;
-          }
-        }
-        if (eoiBefore > 0 && eoiBefore < idx) {
-          await fd.close();
-          return mp4Start;
-        }
-      }
-      pos = idx + 4;
-    }
-
-    // 2) 尾部：标准 [JPEG 结尾][MP4 在最后]
-    const tailSize = Math.min(MAX_TAIL, stat.size);
-    const tailBuf = Buffer.alloc(tailSize);
-    await fd.read(tailBuf, 0, tailSize, stat.size - tailSize);
-    await fd.close();
-
-    let eoiAfter = -1;
-    for (let i = tailBuf.length - 2; i >= 0; i--) {
-      if (tailBuf[i] === 0xFF && tailBuf[i + 1] === 0xD9) {
-        eoiAfter = i + 2;
-        break;
-      }
-    }
-    if (eoiAfter >= 0 && eoiAfter < tailBuf.length - 8) {
-      const afterJpeg = tailBuf.subarray(eoiAfter);
-      pos = 0;
-      while (true) {
-        const idx = afterJpeg.indexOf(ftyp, pos);
-        if (idx === -1) break;
-        const relBoxStart = idx - 4;
-        const mp4Start = validateFtypBox(afterJpeg, idx, 0);
-        if (mp4Start !== null) {
-          return stat.size - tailSize + eoiAfter + relBoxStart;
-        }
-        pos = idx + 4;
-      }
-    }
-    return -1;
-  } catch {
-    return -1;
-  }
+  const idx = buffer.indexOf(ftyp, 0, 'utf8');
+  return idx > 0 ? idx - 4 : -1; // 前4字节为 box size
 }
 
 // ── Magic Bytes 内容检测 ──────────────────────────────────────────────────────
@@ -152,20 +76,34 @@ async function detectFileContentType(file) {
   }
 }
 
-async function extractMotionPhotoMp4(jpegPath, outMp4Path) {
-  const offset = await findMotionPhotoMp4ByteOffset(jpegPath);
-  if (offset < 0) return false;
+// 异步读取 JPEG 末尾区域检测 Motion Photo
+async function detectMotionPhotoFromFile(jpegPath) {
   try {
-    const stats = await fs.stat(jpegPath);
-    if (offset >= stats.size) return false;
-    const fd = await fs.open(jpegPath, 'r');
-    const buf = Buffer.alloc(stats.size - offset);
-    await fd.read(buf, 0, buf.length, offset);
-    await fd.close();
-    await fs.writeFile(outMp4Path, buf);
-    return true;
+    const stats = await fs.stat(jpegPath)
+    const readSize = Math.min(512 * 1024, stats.size)
+    const buf = Buffer.alloc(readSize)
+    const fd = await fs.open(jpegPath, 'r')
+    await fd.read(buf, 0, readSize, Math.max(0, stats.size - readSize))
+    await fd.close()
+    return detectMotionPhoto(buf)
   } catch {
-    return false;
+    return -1
+  }
+}
+
+async function extractMotionPhotoMp4(jpegPath, outMp4Path) {
+  const offset = await detectMotionPhotoFromFile(jpegPath)
+  if (offset <= 0) return false
+  try {
+    const stats = await fs.stat(jpegPath)
+    const fd = await fs.open(jpegPath, 'r')
+    const buf = Buffer.alloc(stats.size - offset)
+    await fd.read(buf, 0, buf.length, offset)
+    await fd.close()
+    await fs.writeFile(outMp4Path, buf)
+    return true
+  } catch {
+    return false
   }
 }
 

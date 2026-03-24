@@ -23,7 +23,7 @@ function inferFileCategory(file) {
   if (imageExts.has(ext)) return 'image';
   const videoExts = new Set(['.mp4', '.webm', '.mov', '.m4v', '.avi', '.mkv', '.flv', '.wmv', '.mpeg', '.mpg', '.3gp', '.ts', '.m2ts', '.ogv']);
   if (videoExts.has(ext)) return 'video';
-  return 'video';
+  return null;
 }
 
 // 确保上传目录存在
@@ -56,7 +56,7 @@ const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
     const folderId = req.body.folder_id || null;
     const { imagesDir, videosDir } = await ensureUploadDir(req.user.id, folderId);
-    const isImage = inferFileCategory(file) === 'image';
+    const isImage = inferFileCategory(file) !== 'video';
     cb(null, isImage ? imagesDir : videosDir);
   },
   filename: (req, file, cb) => {
@@ -440,33 +440,45 @@ router.post('/upload', authenticateToken, asyncHandler(async (req, res) => {
 
 // 处理文件上传的核心逻辑
 async function isMotionPhotoJpeg(filePath) {
-  // 多点采样 + 关键字/MP4 box 检测，兼容微信/三星/小米等 Motion Photo 实现
-  const ftyp = Buffer.from('ftyp');
-  const decoder = new TextDecoder();
+  // Android Motion Photo: JPEG ends with FF D9 then optional MP4 (ftyp).
+  // Plain JPEG ends at FF D9; composite file ends with MP4 bytes.
   try {
     const stat = await fs.stat(filePath);
-    const sampleSize = Math.min(512 * 1024, stat.size); // 每段最多 512KB
-    const positions = [
-      0,
-      Math.max(0, Math.floor(stat.size * 0.25) - sampleSize / 2),
-      Math.max(0, Math.floor(stat.size * 0.5) - sampleSize / 2),
-      Math.max(0, Math.floor(stat.size * 0.75) - sampleSize / 2),
-      Math.max(0, stat.size - sampleSize)
-    ];
-    for (const pos of positions) {
-      const fd = await fs.open(filePath, 'r');
-      const buf = Buffer.alloc(sampleSize);
-      await fd.read(buf, 0, sampleSize, pos);
-      await fd.close();
-      // MP4 box 标记
-      if (buf.indexOf(ftyp) !== -1) return true;
-      const text = decoder.decode(buf);
-      if (/G(Camera|Image)|MicroVideo|MotionPhoto|XMP|MotionPhotoPresentationTimestamp|MicroVideoOffset/i.test(text)) return true;
+    if (stat.size < 16) return false;
+
+    const windowSize = Math.min(2 * 1024 * 1024, stat.size);
+    const buf = Buffer.alloc(windowSize);
+    const fd = await fs.open(filePath, 'r');
+    await fd.read(buf, 0, windowSize, stat.size - windowSize);
+    await fd.close();
+
+    let eoiAfter = -1;
+    for (let i = buf.length - 2; i >= 0; i--) {
+      if (buf[i] === 0xFF && buf[i + 1] === 0xD9) {
+        eoiAfter = i + 2;
+        break;
+      }
     }
+    if (eoiAfter < 0 || eoiAfter >= buf.length - 8) return false;
+
+    const afterJpeg = buf.subarray(eoiAfter);
+    let pos = 0;
+    while (true) {
+      const idx = afterJpeg.indexOf(Buffer.from('ftyp'), pos);
+      if (idx === -1) break;
+      if (idx >= 4) {
+        const boxLen = afterJpeg.readUInt32BE(idx - 4);
+        const remaining = afterJpeg.length - (idx - 4);
+        if (boxLen >= 8 && boxLen <= remaining && boxLen <= 1024 * 1024) {
+          return true;
+        }
+      }
+      pos = idx + 4;
+    }
+    return false;
   } catch (_) {
     return false;
   }
-  return false;
 }
 
 // 提取视频元数据（需要系统已安装 ffprobe）
@@ -506,6 +518,33 @@ async function generateVideoThumbnail(fullPath, userId, folderId) {
   })
 }
 
+// 通过文件头魔数判断类型（用于无法通过 MIME/扩展名确定类型的边界情况）
+async function detectFileTypeByMagic(filePath) {
+  try {
+    const header = Buffer.alloc(12);
+    const fd = await fs.open(filePath, 'r');
+    await fd.read(header, 0, 12, 0);
+    await fd.close();
+
+    // JPEG: FF D8 FF
+    if (header[0] === 0xFF && header[1] === 0xD8 && header[2] === 0xFF) return 'image';
+    // PNG: 89 50 4E 47
+    if (header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4E && header[3] === 0x47) return 'image';
+    // GIF: 47 49 46 38 (GIF8)
+    if (header[0] === 0x47 && header[1] === 0x49 && header[2] === 0x46 && header[3] === 0x38) return 'image';
+    // WebP: 52 49 46 46 ... 57 45 42 50 (RIFF....WEBP)
+    if (header[0] === 0x52 && header[1] === 0x49 && header[2] === 0x46 && header[3] === 0x46 &&
+        header[8] === 0x57 && header[9] === 0x45 && header[10] === 0x42 && header[11] === 0x50) return 'image';
+    // MP4/MOV: 00 00 00 ?? 66 74 79 70 (length + ftyp) 或 00 00 00 ?? 6D 6F 6F 76 (length + moov)
+    if (header[4] === 0x66 && header[5] === 0x74 && header[6] === 0x79 && header[7] === 0x70) return 'video';
+    if (header[4] === 0x6D && header[5] === 0x6F && header[6] === 0x6F && header[7] === 0x76) return 'video';
+    // 未知，默认图片（保守策略：避免误归为视频导致文件丢失）
+    return 'image';
+  } catch (_) {
+    return 'image';
+  }
+}
+
 const handleFileUpload = asyncHandler(async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: '没有上传文件' });
@@ -531,7 +570,11 @@ const handleFileUpload = asyncHandler(async (req, res) => {
   }
 
   // 获取文件信息（必须与 multer destination 的分类一致）
-  const fileType = inferFileCategory(file) === 'image' ? 'image' : 'video';
+  const inferred = inferFileCategory(file);
+  // inferFileCategory 无法识别时（如无扩展名且 MIME 异常），降级读取文件头魔数
+  const fileType = inferred === 'image' ? 'image'
+    : inferred === 'video' ? 'video'
+    : await detectFileTypeByMagic(file.path);
   let width = null, height = null, duration = null;
   let thumbnailPath = null;
   // 为审核提供的额外文本（如OCR、ASR、文件特征）
@@ -722,6 +765,80 @@ const handleFileUpload = asyncHandler(async (req, res) => {
     // 关联失败不影响主流程
   }
 });
+
+// 批量删除文件（必须在 DELETE /:id 之前注册，否则 "batch" 会被当成 id）
+router.delete('/batch', authenticateToken, asyncHandler(async (req, res) => {
+  const { file_ids } = req.body;
+  const userId = req.user.id;
+
+  if (!Array.isArray(file_ids) || file_ids.length === 0) {
+    return res.status(400).json({ message: '请选择要删除的文件' });
+  }
+
+  const placeholders = file_ids.map(() => '?').join(',');
+  const [files] = await pool.execute(
+    `SELECT * FROM files WHERE id IN (${placeholders}) AND user_id = ?`,
+    [...file_ids, userId]
+  );
+
+  if (files.length === 0) {
+    return res.status(404).json({ message: '没有找到要删除的文件' });
+  }
+
+  const totalSize = files.reduce((sum, f) => sum + (Number(f.file_size) || 0), 0);
+  const deletePromises = files.map(async (file) => {
+    try {
+      const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
+      let filePath;
+
+      if (path.isAbsolute(file.file_path)) {
+        filePath = file.file_path;
+      } else {
+        let normalizedPath = file.file_path.replace(/\\/g, '/');
+        if (normalizedPath.startsWith('storage/')) {
+          normalizedPath = normalizedPath.substring(8);
+        }
+        filePath = path.resolve(baseUploadPath, normalizedPath);
+      }
+
+      if (await fs.pathExists(filePath)) {
+        await fs.remove(filePath);
+      }
+
+      if (file.thumbnail_path) {
+        let thumbnailPath;
+        if (path.isAbsolute(file.thumbnail_path)) {
+          thumbnailPath = file.thumbnail_path;
+        } else {
+          let normalizedThumbnailPath = file.thumbnail_path.replace(/\\/g, '/');
+          if (normalizedThumbnailPath.startsWith('storage/')) {
+            normalizedThumbnailPath = normalizedThumbnailPath.substring(8);
+          }
+          thumbnailPath = path.resolve(baseUploadPath, normalizedThumbnailPath);
+        }
+        if (await fs.pathExists(thumbnailPath)) {
+          await fs.remove(thumbnailPath);
+        }
+      }
+    } catch (error) {
+      // 批量删除物理文件失败，继续处理
+    }
+  });
+
+  await Promise.all(deletePromises);
+
+  await pool.execute(
+    `DELETE FROM files WHERE id IN (${placeholders}) AND user_id = ?`,
+    [...file_ids, userId]
+  );
+
+  await pool.execute(
+    'UPDATE users SET used_storage = used_storage - ? WHERE id = ?',
+    [totalSize, userId]
+  );
+
+  res.json({ message: `成功删除 ${files.length} 个文件` });
+}));
 
 // 重命名文件
 router.put('/:id', authenticateToken, asyncHandler(async (req, res) => {
@@ -952,97 +1069,6 @@ router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
   );
 
   res.json({ message: '文件删除成功' });
-}));
-
-// 批量删除文件
-router.delete('/batch', authenticateToken, asyncHandler(async (req, res) => {
-  const { file_ids } = req.body;
-  const userId = req.user.id;
-
-  if (!Array.isArray(file_ids) || file_ids.length === 0) {
-    return res.status(400).json({ message: '请选择要删除的文件' });
-  }
-
-  // 获取文件信息
-  const placeholders = file_ids.map(() => '?').join(',');
-  const [files] = await pool.execute(
-    `SELECT * FROM files WHERE id IN (${placeholders}) AND user_id = ?`,
-    [...file_ids, userId]
-  );
-
-  if (files.length === 0) {
-    return res.status(404).json({ message: '没有找到要删除的文件' });
-  }
-
-  let totalSize = 0;
-  const deletePromises = files.map(async (file) => {
-    totalSize += file.file_size;
-    
-    // 删除物理文件
-    try {
-      // 解析文件路径
-      const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
-      let filePath;
-      
-      if (path.isAbsolute(file.file_path)) {
-        filePath = file.file_path;
-      } else {
-        // 如果是相对路径，基于存储根目录解析
-        let normalizedPath = file.file_path.replace(/\\/g, '/');
-        
-        // 如果路径以 storage/ 开头，去掉这个前缀
-        if (normalizedPath.startsWith('storage/')) {
-          normalizedPath = normalizedPath.substring(8);
-        }
-        
-        filePath = path.resolve(baseUploadPath, normalizedPath);
-        }
-        
-        // 删除主文件
-        if (await fs.pathExists(filePath)) {
-          await fs.remove(filePath);
-        }
-      
-      // 删除缩略图
-      if (file.thumbnail_path) {
-        let thumbnailPath;
-        
-        if (path.isAbsolute(file.thumbnail_path)) {
-          thumbnailPath = file.thumbnail_path;
-        } else {
-          let normalizedThumbnailPath = file.thumbnail_path.replace(/\\/g, '/');
-          
-          if (normalizedThumbnailPath.startsWith('storage/')) {
-            normalizedThumbnailPath = normalizedThumbnailPath.substring(8);
-          }
-          
-          thumbnailPath = path.resolve(baseUploadPath, normalizedThumbnailPath);
-          }
-          
-          if (await fs.pathExists(thumbnailPath)) {
-            await fs.remove(thumbnailPath);
-          }
-      }
-    } catch (error) {
-      // 批量删除物理文件失败，继续处理
-    }
-  });
-
-  await Promise.all(deletePromises);
-
-  // 从数据库删除记录
-  await pool.execute(
-    `DELETE FROM files WHERE id IN (${placeholders}) AND user_id = ?`,
-    [...file_ids, userId]
-  );
-
-  // 更新用户存储使用量
-  await pool.execute(
-    'UPDATE users SET used_storage = used_storage - ? WHERE id = ?',
-    [totalSize, userId]
-  );
-
-  res.json({ message: `成功删除 ${files.length} 个文件` });
 }));
 
 // 批量移动文件

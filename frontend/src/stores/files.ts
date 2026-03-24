@@ -330,6 +330,7 @@ export const useFilesStore = defineStore('files', () => {
     fetchFolderPath,
     uploadFiles,
     deleteFile,
+    deleteFiles,
     deleteSelectedFiles,
     createFolder,
     deleteFolder,

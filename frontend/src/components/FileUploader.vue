@@ -788,8 +788,7 @@ const checkAllCompleted = () => {
 }
 
 async function detectMotionPhoto(file: File): Promise<boolean> {
-  // 字节级扫描：在 JPEG 二进制中查找 Motion Photo / MicroVideo / ftyp 标记
-  // 不依赖 TextDecoder（避免二进制数据被 UTF-8 解码损坏）
+  // 与后端一致：支持 JPEG 在前、ftyp 在中部（前 10MB）+ 标准尾部结构
   const readChunk = (start: number, length: number): Promise<ArrayBuffer> =>
     new Promise((resolve, reject) => {
       const blob = file.slice(start, Math.min(file.size, start + length))
@@ -799,44 +798,75 @@ async function detectMotionPhoto(file: File): Promise<boolean> {
       fr.readAsArrayBuffer(blob)
     })
 
-  // 将 ArrayBuffer 转为 Uint8Array，在其上做字节级搜索
-  const findBytes = (buf: ArrayBuffer, pattern: number[]): boolean => {
-    const bytes = new Uint8Array(buf)
-    outer: for (let i = 0; i <= bytes.length - pattern.length; i++) {
-      for (let j = 0; j < pattern.length; j++) {
-        if (bytes[i + j] !== pattern[j]) continue outer
-      }
-      return true
-    }
-    return false
+  const validateFtyp = (bytes: Uint8Array, idx: number) => {
+    if (idx < 4) return false
+    const boxLen = (bytes[idx - 4]! << 24) | (bytes[idx - 3]! << 16) | (bytes[idx - 2]! << 8) | bytes[idx - 1]!
+    const remaining = bytes.length - (idx - 4)
+    return boxLen >= 8 && boxLen <= 1024 * 1024 && boxLen <= remaining
   }
 
-  // 待搜索的字节序列（UTF-16BE 编码的关键词）
-  const patterns = [
-    [0x00, 0x47, 0x43, 0x61, 0x6d, 0x65, 0x72, 0x61],          // GCamera / GCImage (UTF-16BE)
-    [0x00, 0x4d, 0x69, 0x63, 0x72, 0x6f, 0x56, 0x69, 0x64, 0x65, 0x6f], // MicroVideo (UTF-16BE)
-    [0x00, 0x4d, 0x6f, 0x74, 0x69, 0x6f, 0x6e, 0x50, 0x68, 0x6f, 0x74, 0x6f], // MotionPhoto (UTF-16BE)
-    [0x00, 0x66, 0x74, 0x79, 0x70],                               // \0ftyp (MP4 box)
-  ]
-
-  const sampleSize = 512 * 1024
-  const positions = [
-    0,
-    Math.max(0, Math.floor(file.size * 0.25) - sampleSize / 2),
-    Math.max(0, Math.floor(file.size * 0.5) - sampleSize / 2),
-    Math.max(0, Math.floor(file.size * 0.75) - sampleSize / 2),
-    Math.max(0, file.size - sampleSize)
-  ]
-
   try {
-    for (const pos of positions) {
-      const buf = await readChunk(pos, sampleSize)
-      for (const pattern of patterns) {
-        if (findBytes(buf, pattern)) return true
+    if (file.size < 16) return false
+
+    const MAX_HEAD = 10 * 1024 * 1024
+    const MAX_TAIL = 2 * 1024 * 1024
+
+    // 1) 前部：ftyp 在中部，JPEG 在前
+    const headSize = Math.min(MAX_HEAD, file.size)
+    const headBuf = await readChunk(0, headSize)
+    const headBytes = new Uint8Array(headBuf)
+    let pos = 0
+    for (;;) {
+      let idx = -1
+      for (let j = pos; j <= headBytes.length - 4; j++) {
+        if (headBytes[j] === 0x66 && headBytes[j + 1] === 0x74 && headBytes[j + 2] === 0x79 && headBytes[j + 3] === 0x70) {
+          idx = j
+          break
+        }
+      }
+      if (idx === -1) break
+      if (validateFtyp(headBytes, idx)) {
+        let eoiBefore = -1
+        for (let i = idx - 1; i >= 1; i--) {
+          if (headBytes[i - 1] === 0xFF && headBytes[i] === 0xD9) {
+            eoiBefore = i + 1
+            break
+          }
+        }
+        if (eoiBefore > 0 && eoiBefore < idx) return true
+      }
+      pos = idx + 4
+    }
+
+    // 2) 尾部：标准 [JPEG 结尾][MP4]
+    const tailSize = Math.min(MAX_TAIL, file.size)
+    const tailBuf = await readChunk(file.size - tailSize, tailSize)
+    const tailBytes = new Uint8Array(tailBuf)
+    let eoiAfter = -1
+    for (let i = tailBytes.length - 2; i >= 0; i--) {
+      if (tailBytes[i] === 0xFF && tailBytes[i + 1] === 0xD9) {
+        eoiAfter = i + 2
+        break
+      }
+    }
+    if (eoiAfter >= 0 && eoiAfter < tailBytes.length - 8) {
+      const after = tailBytes.subarray(eoiAfter)
+      pos = 0
+      for (;;) {
+        let idx = -1
+        for (let j = pos; j <= after.length - 4; j++) {
+          if (after[j] === 0x66 && after[j + 1] === 0x74 && after[j + 2] === 0x79 && after[j + 3] === 0x70) {
+            idx = j
+            break
+          }
+        }
+        if (idx === -1) break
+        if (idx >= 4 && validateFtyp(after, idx)) return true
+        pos = idx + 4
       }
     }
   } catch (_) {
-    // 忽略读取失败，按未检测到处理
+    // 检测失败，按非 Motion Photo 处理
   }
   return false
 }
@@ -913,6 +943,14 @@ const uploadSingleFile = async (item: UploadItem) => {
         }
       }
     })
+
+    // 后端检测为 Motion Photo，转交实况通道（返回 202），不在常规文件列表中入库
+    if (response.status === 202) {
+      item.status = 'success'
+      item.progress = 100
+      // 实况任务已在后台通过 job polling 跟踪，无需额外处理
+      return
+    }
 
     item.status = 'success'
     item.progress = 100
