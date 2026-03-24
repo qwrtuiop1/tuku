@@ -582,10 +582,16 @@ const createLiveJob = async (batch: File[], pairingId?: string) => {
     // 显式配对 ID（PhotosPicker 专用，优先于文件名匹配）
     if (pairingId) fd.append('pairing_id', pairingId)
     const controller = new AbortController()
+    const resp = await api.post('/live-media/upload', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      signal: controller.signal
+    })
     const jobId = normalizeJobId(resp.data?.jobId)
     if (jobId) { liveControllers[jobId] = controller; startJobPolling(jobId) }
     else ElMessage.warning('后端未返回 jobId，已受理但无法跟踪进度')
-  } catch {}
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.message || '实况任务创建失败')
+  }
 }
 
 const startJobPolling = (jobId: string) => {
