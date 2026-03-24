@@ -39,7 +39,7 @@ services:
       - tuku-network
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`tukufrontend.vtart.cn`)"
+      - "traefik.http.routers.frontend.rule=Host(`img.vtart.cn`)"
       - "traefik.http.routers.frontend.tls=true"
       - "traefik.http.routers.frontend.tls.certresolver=letsencrypt"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"

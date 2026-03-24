@@ -35,27 +35,77 @@ router.get('/', asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { parent_id } = req.query;
 
-  let query = 'SELECT * FROM folders WHERE user_id = ?';
+  let query = 'SELECT f.* FROM folders f WHERE f.user_id = ?';
   const params = [userId];
 
   if (parent_id) {
-    query += ' AND parent_folder_id = ?';
+    query += ' AND f.parent_folder_id = ?';
     params.push(parent_id);
   } else {
-    query += ' AND parent_folder_id IS NULL';
+    query += ' AND f.parent_folder_id IS NULL';
   }
 
-  query += ' ORDER BY folder_name';
+  query += ' ORDER BY f.folder_name';
 
   const [folders] = await pool.execute(query, params);
+
+  // 查询封面：每个文件夹内最新的一张图片
+  if (folders.length > 0) {
+    const fids = folders.map(f => f.id)
+    const ph = fids.map(() => '?').join(',')
+    const [coverRows] = await pool.execute(
+      `SELECT folder_id, id AS cover_file_id FROM files
+       WHERE folder_id IN (${ph}) AND user_id = ? AND file_type = 'image'
+       ORDER BY folder_id, created_at DESC, id DESC`,
+      [...fids, userId]
+    )
+    // 每个 folder 只取第一条（最新）
+    const seen = new Set()
+    for (const row of coverRows) {
+      if (!seen.has(row.folder_id)) {
+        seen.add(row.folder_id)
+        // 找到对应的 folder 并写入封面
+        for (const fd of folders) {
+          if (fd.id === row.folder_id) {
+            fd.cover_file_id = row.cover_file_id
+            break
+          }
+        }
+      }
+    }
+  }
 
   // 如果请求的是根文件夹，构建完整的文件夹树
   if (!parent_id) {
     // 获取所有文件夹来构建树形结构
     const [allFolders] = await pool.execute(
-      'SELECT * FROM folders WHERE user_id = ? ORDER BY folder_name',
+      'SELECT f.* FROM folders f WHERE f.user_id = ? ORDER BY f.folder_name',
       [userId]
-    );
+    )
+
+    // 同样查询所有文件夹的封面
+    if (allFolders.length > 0) {
+      const fids = allFolders.map(f => f.id)
+      const ph = fids.map(() => '?').join(',')
+      const [coverRows] = await pool.execute(
+        `SELECT folder_id, id AS cover_file_id FROM files
+         WHERE folder_id IN (${ph}) AND user_id = ? AND file_type = 'image'
+         ORDER BY folder_id, created_at DESC, id DESC`,
+        [...fids, userId]
+      )
+      const seen = new Set()
+      for (const row of coverRows) {
+        if (!seen.has(row.folder_id)) {
+          seen.add(row.folder_id)
+          for (const fd of allFolders) {
+            if (fd.id === row.folder_id) {
+              fd.cover_file_id = row.cover_file_id
+              break
+            }
+          }
+        }
+      }
+    }
 
     // 构建文件夹树
     const folderMap = new Map();

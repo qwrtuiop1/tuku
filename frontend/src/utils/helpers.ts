@@ -176,7 +176,6 @@ export const getCachedImageUrl = async (fileId: number): Promise<string> => {
   // 异步缓存图片（不阻塞返回）
   imageCache.cacheImage(fileId, token, originalUrl).catch((error) => {
     // 缓存失败不影响正常显示，但记录错误
-    console.warn(`图片缓存失败 (${fileId}):`, error)
   })
 
   return originalUrl
@@ -184,11 +183,12 @@ export const getCachedImageUrl = async (fileId: number): Promise<string> => {
 
 // 下载文件
 export const downloadFile = (fileId: number, filename: string) => {
-  const url = getFilePreviewUrl(fileId)
+  const previewUrl = getFilePreviewUrl(fileId)
+  const url = previewUrl + (previewUrl.includes('?') ? '&' : '?') + 'download=true'
   const link = document.createElement('a')
   link.href = url
   link.download = filename
-  link.target = '_blank'
+  link.target = '_self'
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)

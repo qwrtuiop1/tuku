@@ -192,14 +192,10 @@ const verifyHuman = async (): Promise<boolean> => {
         const validate = geetestHandler.getValidate ? geetestHandler.getValidate() : null
         if (!validate) { ElMessage.error('请完成人机验证'); return resolve(false) }
         
-        // 添加调试信息
-        console.log('GeeTest验证参数:', validate)
-        
         const { lot_number, captcha_output, pass_token, gen_time } = validate
         
         // 检查必要参数是否存在
         if (!lot_number || !captcha_output || !pass_token || !gen_time) {
-          console.error('验证码参数缺失:', { lot_number, captcha_output, pass_token, gen_time })
           ElMessage.error('验证码参数不完整，请重新验证')
           return resolve(false)
         }
@@ -207,8 +203,6 @@ const verifyHuman = async (): Promise<boolean> => {
         const resp = await api.post('/auth/captcha/validate', {
           lot_number, captcha_output, pass_token, gen_time, captcha_id: geetestCaptchaId
         })
-        
-        console.log('验证码验证响应:', resp.data)
         
         if (resp?.data?.success || resp?.data?.result === 'success') return resolve(true)
         ElMessage.error(resp?.data?.message || resp?.data?.reason || '人机验证失败')

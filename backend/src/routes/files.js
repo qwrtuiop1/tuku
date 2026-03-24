@@ -635,14 +635,24 @@ const handleFileUpload = asyncHandler(async (req, res) => {
 
   // 生成相对路径用于存储 - 相对于存储根目录
   const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
-  const relativePath = path.relative(baseUploadPath, file.path);
-  
-  // 确保路径格式正确
-  const normalizedRelativePath = relativePath.replace(/\\/g, '/');
-  const normalizedThumbnailRelative = thumbnailPath
-    ? path.relative(baseUploadPath, thumbnailPath).replace(/\\/g, '/')
-    : null;
-  
+  const baseNormalized = baseUploadPath.replace(/\\/g, '/');
+
+  // 将 file.path 统一转换为正斜杠后再计算相对路径（处理 Windows 路径被 path.relative 产出反斜杠的情况）
+  const normalizedFilePath = file.path.replace(/\\/g, '/');
+  const relativePath = path.relative(baseNormalized, normalizedFilePath);
+
+  // 确保路径格式正确：只保留正斜杠，且不带前导斜杠
+  const normalizedRelativePath = relativePath.replace(/\\/g, '/').replace(/^\/+/, '');
+
+  // 缩略图路径规范化：去掉 baseUploadPath 前缀，保留 users/user_1/... 格式
+  let normalizedThumbnailRelative = null;
+  if (thumbnailPath) {
+    const normalizedThumb = thumbnailPath.replace(/\\/g, '/');
+    normalizedThumbnailRelative = normalizedThumb.startsWith(baseNormalized)
+      ? normalizedThumb.substring(baseNormalized.length).replace(/^\/+/, '')
+      : normalizedThumb.replace(/^\/+/, '');
+  }
+
   // 保存文件信息到数据库（路径统一为相对 POSIX 路径，避免 Windows 反斜杠写入 DB 导致 Linux 上预览失败）
   
   const [result] = await pool.execute(
@@ -1084,52 +1094,58 @@ router.get('/preview/:id', authenticateToken, asyncHandler(async (req, res) => {
 
   // 处理文件路径 - 基于存储根目录解析
   const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
+  const baseNormalized = baseUploadPath.replace(/\\/g, '/');
   let filePath;
-  
-  if (path.isAbsolute(file.file_path)) {
-    filePath = file.file_path;
+
+  // 统一 DB 中路径的正斜杠（防御：旧数据可能有反斜杠）
+  const dbPath = (file.file_path || '').replace(/\\/g, '/');
+
+  if (path.isAbsolute(dbPath)) {
+    filePath = dbPath;
   } else {
     // 如果是相对路径，基于存储根目录解析
-    // 处理可能的路径格式问题
-    let normalizedPath = file.file_path.replace(/\\/g, '/');
-    
+    let normalizedPath = dbPath;
+
     // 如果路径以 storage/ 开头，去掉这个前缀
     if (normalizedPath.startsWith('storage/')) {
-      normalizedPath = normalizedPath.substring(8); // 去掉 'storage/' 前缀
+      normalizedPath = normalizedPath.substring(8);
     }
-    
+
     // 使用绝对路径解析，确保路径正确
-    filePath = path.resolve(baseUploadPath, normalizedPath);
-    }
-    
-    if (!await fs.pathExists(filePath)) {
-    
-    // 尝试其他可能的路径
+    filePath = path.resolve(baseNormalized, normalizedPath);
+  }
+
+  if (!await fs.pathExists(filePath)) {
+
+    // 尝试其他可能的路径（均用正斜杠规范化）
+    const dbPathSafe = dbPath.replace(/\\/g, '/');
     const alternativePaths = [
-      path.join('/www/wwwroot/tuku/backend', file.file_path),
-      path.join('/www/wwwroot/tuku/backend/dist', file.file_path),
-      path.join(baseUploadPath, file.file_path),
-      path.resolve(file.file_path),
-      file.file_path // 直接使用原始路径
-    ];
-    
-      for (const altPath of alternativePaths) {
-        if (await fs.pathExists(altPath)) {
-          filePath = altPath;
-          break;
-        }
-      }
-      
-      if (!await fs.pathExists(filePath)) {
-        return res.status(404).json({ message: '文件不存在' });
+      path.join('/www/wwwroot/tuku/backend', dbPathSafe),
+      path.join('/www/wwwroot/tuku/backend/dist', dbPathSafe),
+      path.join(baseNormalized, dbPathSafe),
+      path.resolve(dbPathSafe),
+      dbPathSafe // 直接使用规范化后的原始路径
+    ].filter((p, i, arr) => arr.indexOf(p) === i); // 去重
+
+    for (const altPath of alternativePaths) {
+      if (await fs.pathExists(altPath)) {
+        filePath = altPath;
+        break;
       }
     }
+
+    if (!await fs.pathExists(filePath)) {
+      return res.status(404).json({ message: '文件不存在' });
+    }
+  }
 
   // 设置正确的Content-Type
   const mimeType = mime.lookup(filePath) || 'application/octet-stream';
 
   // 使用流式输出，显式设置 Content-Length，避免部分反代/HTTP2 下的协议问题
   const stat = await fs.stat(filePath);
+  const isDownload = req.query.download === 'true';
+
   res.writeHead(200, {
     'Content-Type': mimeType,
     'Content-Length': stat.size,
@@ -1142,8 +1158,10 @@ router.get('/preview/:id', authenticateToken, asyncHandler(async (req, res) => {
     'Cross-Origin-Resource-Policy': 'cross-origin',
     'Cross-Origin-Embedder-Policy': 'unsafe-none',
     'Cross-Origin-Opener-Policy': 'unsafe-none',
-    // 建议以内联方式展示
-    'Content-Disposition': `inline; filename="${path.basename(filePath)}"`,
+    // download=true 时为附件下载（触发浏览器下载对话框），否则为内联预览
+    'Content-Disposition': isDownload
+      ? `attachment; filename="${encodeURIComponent(path.basename(filePath))}"; filename*=UTF-8''${encodeURIComponent(path.basename(filePath))}`
+      : `inline; filename="${path.basename(filePath)}"`,
     // 禁止中间层对二进制进行转换/注入
     'Cache-Control': 'public, max-age=31536000, immutable, no-transform'
   });

@@ -126,7 +126,6 @@ const initializePreviewUrl = async () => {
       hasError.value = true
     }
   } catch (error) {
-    console.warn('获取预览图片URL失败:', error)
     loading.value = false
     hasError.value = true
   }
@@ -203,8 +202,6 @@ const handleImageError = (event: Event) => {
   
   if (retryCount.value <= maxRetries) {
     // 重试加载
-    console.warn(`图片加载失败，正在重试 (${retryCount.value}/${maxRetries}):`, props.file.original_name)
-    
     setTimeout(() => {
       const img = event.target as HTMLImageElement
       if (img) {

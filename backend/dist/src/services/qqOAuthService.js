@@ -4,7 +4,7 @@ class QQOAuthService {
   constructor() {
     this.clientId = process.env.QQ_APP_ID || '102816534';
     this.clientSecret = process.env.QQ_APP_KEY || 'lMkuzpUu75oLelgb';
-    this.redirectUri = process.env.QQ_REDIRECT_URI || 'https://tukufrontend.vtart.cn/auth/qq/callback';
+    this.redirectUri = process.env.QQ_REDIRECT_URI || 'https://img.vtart.cn/auth/qq/callback';
     this.baseUrl = 'https://graph.qq.com';
   }
 

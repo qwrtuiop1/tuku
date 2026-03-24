@@ -290,6 +290,7 @@
           :class="{ 
             'selected': selectedFiles.includes(item.id),
             'folder-card': item.isFolder,
+            'file-body-card': !item.isFolder && !item.isLive,
             'long-pressed': longPressedCards.has(item.id),
             'is-live': item.isLive
           }"
@@ -335,27 +336,30 @@
             </div>
           </div>
 
-          <!-- 文件 / 实况：各自独立的缩略图和信息 -->
+          <!-- 普通图片/视频：与文件夹统一的结构（file-body） -->
+          <div v-else-if="!item.isLive" class="file-body">
+            <div class="file-thumbnail photos-folder-tile">
+              <FileThumbnail :file="item" size="medium" />
+            </div>
+            <div class="file-footer">
+              <div class="file-name" :title="item.original_name">{{ item.original_name }}</div>
+              <div class="file-meta">
+                <span>{{ formatFileSize(item.file_size) }} • {{ formatTime(item.created_at) }}</span>
+              </div>
+            </div>
+          </div>
+          <!-- 实况：保留原结构（需要主题适配） -->
           <template v-else>
             <div class="card-thumbnail">
-              <LiveMediaCard v-if="item.isLive" :asset="item.liveAsset" :autoplay="true" @bg-theme="(t)=>setLiveTheme(item.liveAsset.id, t)" />
-              <FileThumbnail
-                v-else
-                :file="item"
-                size="medium"
-                @click="(file) => handleFileClick(file)"
-              />
+              <LiveMediaCard :asset="item.liveAsset" :autoplay="true" @bg-theme="(t)=>setLiveTheme(item.liveAsset.id, t)" />
             </div>
-            <div class="card-info" :class="item.isLive ? (liveTheme[item.liveAsset.id] === 'light' ? 'theme-light' : 'theme-dark') : ''">
-              <div class="file-name" :title="item.original_name">
-                {{ item.isLive ? (item.liveAsset?.kind || '实况') : item.original_name }}
-              </div>
+            <div class="card-info" :class="liveTheme[item.liveAsset.id] === 'light' ? 'theme-light' : 'theme-dark'">
+              <div class="file-name" :title="item.original_name">{{ item.liveAsset?.kind || '实况' }}</div>
               <div class="file-meta">
-                <span v-if="item.isLive">
+                <span>
                   {{ item.liveAsset?.duration_ms ? Math.round(item.liveAsset.duration_ms/1000) + 's' : '实况' }}
                   <template v-if="item.liveAsset?.created_at"> • {{ formatTime(item.liveAsset.created_at) }}</template>
                 </span>
-                <span v-else>{{ formatFileSize(item.file_size) }} • {{ formatTime(item.created_at) }}</span>
               </div>
             </div>
           </template>
@@ -2882,7 +2886,8 @@ const shareStatusText = computed(() => {
       transform: translateY(-2px);
     }
     
-    &.folder-card {
+    &.folder-card,
+    &.file-body-card {
       border: none;
       background: transparent;
       box-shadow: none;
@@ -2899,7 +2904,6 @@ const shareStatusText = computed(() => {
     display: flex;
     flex-direction: column;
     border-radius: 12px;
-    overflow: hidden;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
     transition: box-shadow 0.25s ease, transform 0.25s ease;
     cursor: pointer;
@@ -2926,6 +2930,7 @@ const shareStatusText = computed(() => {
       position: relative;
       overflow: hidden;
       background: linear-gradient(145deg, #e8eaed 0%, #d1d5db 100%);
+      border-radius: 12px 12px 0 0;
 
       .folder-cover-image {
         position: absolute;
@@ -2971,6 +2976,7 @@ const shareStatusText = computed(() => {
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border-top: 1px solid rgba(0, 0, 0, 0.05);
+      border-radius: 0 0 12px 12px;
 
       .file-name {
         color: #111827;
@@ -3002,6 +3008,104 @@ const shareStatusText = computed(() => {
       visibility: visible;
       pointer-events: auto;
     }
+  }
+
+  // 普通图片/视频：与文件夹统一的卡片体
+  .file-body {
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.04);
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
+    cursor: pointer;
+
+    &:hover {
+      box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.10),
+        0 8px 24px rgba(0, 0, 0, 0.10),
+        0 16px 40px rgba(0, 0, 0, 0.08);
+      transform: translateY(-2px);
+    }
+
+    &:active {
+      transform: scale(0.98);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    .file-thumbnail {
+      width: 100%;
+      aspect-ratio: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(145deg, #e8eaed 0%, #d1d5db 100%);
+      border-radius: 12px 12px 0 0;
+
+      :deep(.file-thumbnail) {
+        width: 100%;
+        height: 100%;
+      }
+      :deep(.thumbnail-image) {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      :deep(.file-type-badge) {
+        display: none;
+      }
+      :deep(.image-thumbnail),
+      :deep(.video-thumbnail) {
+        width: 100%;
+        height: 100%;
+      }
+      :deep(.video-poster) {
+        width: 100%;
+        height: 100%;
+      }
+      :deep(.play-button),
+      :deep(.duration-badge) {
+        z-index: 2;
+      }
+    }
+
+    .file-footer {
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-top: 1px solid rgba(0, 0, 0, 0.05);
+      border-radius: 0 0 12px 12px;
+
+      .file-name {
+        color: #111827;
+        text-shadow: none;
+        font-weight: 600;
+        font-size: 13px;
+        letter-spacing: -0.01em;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .file-meta {
+        color: #6b7280;
+        text-shadow: none;
+        font-size: 11px;
+        margin-top: 2px;
+      }
+    }
+
+  }
+  .file-card.file-body-card .card-actions {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .file-card.file-body-card.long-pressed .card-actions {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
   }
 
   .card-thumbnail {

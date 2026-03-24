@@ -1,0 +1,25 @@
+
+.share-view[data-v-2daacfdc] { padding: 24px; display: flex; justify-content: center;
+}
+.card[data-v-2daacfdc] { width: 100%; max-width: 720px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px;
+}
+.title[data-v-2daacfdc] { margin: 0 0 8px; font-size: 18px;
+}
+.meta[data-v-2daacfdc] { color: #6b7280; font-size: 13px; margin-bottom: 12px;
+}
+.preview[data-v-2daacfdc] { display: flex; justify-content: center; align-items: center; margin-bottom: 12px;
+}
+.preview img[data-v-2daacfdc] { max-width: 100%; height: auto; max-height: 80vh; object-fit: contain; border-radius: 8px; border: 1px solid #eee;
+}
+.preview video[data-v-2daacfdc] { max-width: 100%; width: 100%; height: auto; max-height: 80vh; object-fit: contain; border-radius: 8px; background: #000;
+}
+.actions[data-v-2daacfdc] { display: flex; justify-content: center;
+}
+[data-v-2daacfdc] .actions .el-button--primary { background-color: #1f1f1f; border-color: #1f1f1f; color: #ffffff;
+}
+[data-v-2daacfdc] .actions .el-button--primary:hover,[data-v-2daacfdc] .actions .el-button--primary:focus { background-color: #000000; border-color: #000000; color: #ffffff;
+}
+[data-v-2daacfdc] .actions .el-button--primary.is-disabled,[data-v-2daacfdc] .actions .el-button--primary[disabled] { background-color: #eaeaea; border-color: #eaeaea; color: #9e9e9e;
+}
+.hint[data-v-2daacfdc] { margin-top: 8px; color: #6b7280; font-size: 12px; text-align: center;
+}

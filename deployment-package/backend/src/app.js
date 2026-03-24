@@ -35,7 +35,7 @@ const corsOptions = {
   origin: function (origin, callback) {
     // 生产环境允许的域名
     const allowedOrigins = [
-      'https://tukufrontend.vtart.cn',
+      'https://img.vtart.cn',
       'https://tukubackend.vtart.cn',
       'http://localhost:5173',
       'http://localhost:5174',
@@ -90,7 +90,7 @@ app.use(cors(corsOptions));
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   const allowedOrigins = [
-    'https://tukufrontend.vtart.cn',
+    'https://img.vtart.cn',
     'https://tukubackend.vtart.cn',
     'http://localhost:5173',
     'http://localhost:3000',
@@ -99,7 +99,7 @@ app.use((req, res, next) => {
     'http://localhost:3010'
   ];
   if (!origin || allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin || 'https://tukufrontend.vtart.cn');
+    res.header('Access-Control-Allow-Origin', origin || 'https://img.vtart.cn');
     res.header('Vary', 'Origin');
     res.header('Access-Control-Allow-Credentials', 'true');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');

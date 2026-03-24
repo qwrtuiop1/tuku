@@ -2111,7 +2111,7 @@ router.post('/qq/complete-signup', [
 router.get('/qq/callback', asyncHandler(async (req, res) => {
   try {
     const { code = '', state = '' } = req.query || {}
-    const frontendRedirect = new URL(process.env.QQ_REDIRECT_URI || 'https://tukufrontend.vtart.cn/api/auth/qq/callback')
+    const frontendRedirect = new URL(process.env.QQ_REDIRECT_URI || 'https://img.vtart.cn/api/auth/qq/callback')
     // 将 code/state 透传给前端路由
     if (code) frontendRedirect.searchParams.set('code', code)
     if (state) frontendRedirect.searchParams.set('state', state)

@@ -331,7 +331,6 @@ const fetchSystemSettings = async () => {
         : ['mp4','webm','mov','mkv','m4v','flv','wmv','mpeg','mpg','3gp','ts','m2ts','ogv']
     }
   } catch (error) {
-    console.warn('获取系统设置失败，使用默认值:', error)
     // 使用默认值
     systemSettings.value = {
       maxFileSize: 100,
@@ -497,14 +496,12 @@ const handleLiveSelect = async (e: Event) => {
       headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress: (pe) => { if (pe.total) uploadProgress.value = Math.round((pe.loaded * 100) / pe.total) }
     })
-    console.log('Live upload response:', resp.data)
     const jobId = normalizeJobId(resp.data?.jobId)
     if (jobId) {
       ElMessage.success('实况上传已受理，开始处理...')
       startJobPolling(jobId)
     } else {
       ElMessage.warning('后端未返回 jobId，已受理但无法跟踪进度')
-      try { console.warn('live-media/upload no jobId payload:', resp.data) } catch {}
       emit('upload-success')
     }
   } catch (err: any) {
@@ -525,8 +522,6 @@ const createLiveJob = async (batch: File[], pairingId?: string) => {
     // 显式配对 ID（PhotosPicker 专用，优先于文件名匹配）
     if (pairingId) fd.append('pairing_id', pairingId)
     const controller = new AbortController()
-    const resp = await api.post('/live-media/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' }, signal: controller.signal as any })
-    console.log('Live upload response (batch):', resp.data)
     const jobId = normalizeJobId(resp.data?.jobId)
     if (jobId) { liveControllers[jobId] = controller; startJobPolling(jobId) }
     else ElMessage.warning('后端未返回 jobId，已受理但无法跟踪进度')

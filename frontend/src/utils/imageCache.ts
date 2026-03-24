@@ -86,7 +86,6 @@ class ImageCacheService {
           }
         } catch (error) {
           lastError = error as Error
-          console.warn(`图片缓存尝试 ${attempt}/3 失败:`, error)
           
           if (attempt < 3) {
             // 等待后重试
@@ -116,9 +115,7 @@ class ImageCacheService {
         fileId
       })
 
-      console.log(`图片已缓存: ${fileId}`)
     } catch (error) {
-      console.warn('图片缓存失败:', error)
       // 不抛出错误，避免影响正常显示
     }
   }

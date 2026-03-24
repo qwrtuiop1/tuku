@@ -112,7 +112,6 @@ export function useLivePhotoPicker(options: UseLivePhotoPickerOptions) {
               pairingId,
             })
           } catch (e) {
-            console.warn('[LivePhotoPicker] 无法读取 image handle:', name, e)
           }
         } else if (kind === 'video') {
           // 视频暂时放入队列，后面与 image 配对
@@ -124,7 +123,6 @@ export function useLivePhotoPicker(options: UseLivePhotoPickerOptions) {
               imageFilename: name.replace(/\.[^.]+$/, '').toLowerCase(),
             })
           } catch (e) {
-            console.warn('[LivePhotoPicker] 无法读取 video handle:', name, e)
           }
         }
       }

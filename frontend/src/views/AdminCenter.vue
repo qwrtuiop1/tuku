@@ -2339,7 +2339,6 @@ const showCaptcha = async (): Promise<boolean> => {
         if (geetestHandler?.close) geetestHandler.close()
         if (geetestHandler?.hide) geetestHandler.hide()
       } catch (e) {
-        console.warn('关闭GeeTest验证框时出错:', e)
       }
     }
     

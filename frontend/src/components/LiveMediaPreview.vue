@@ -114,18 +114,12 @@ const shareAnimated = async () => {
     reviewCreating.value = true
     reviewStatus.value = null
     publicShareUrl.value = ''
-    console.log('[share-debug] submit live review', {
-      asset_id: props.asset.id,
-      allowPreview: true,
-      allowDownload: true
-    })
     const { data } = await api.post('/share/review-live', {
       asset_id: props.asset.id,
       allowPreview: true,
       allowDownload: true,
       expireInHours: null
     })
-    console.log('[share-debug] live review created', data)
     if (data && data.success && data.review_id) {
       reviewId.value = data.review_id
       startReviewPolling()
@@ -153,10 +147,6 @@ function startReviewPolling() {
   reviewPoller = setInterval(async () => {
     try {
       const { data } = await api.get(`/share/review-live/${reviewId.value}/status`)
-      console.log('[share-debug] live review status', data)
-      if (Array.isArray(data.debug) && data.debug.length) {
-        data.debug.forEach((e:any) => console.log('[share-debug] live step', e))
-      }
       reviewStatus.value = { status: data.status, review_progress: data.review_progress || 0, review_reason: data.review_reason }
       if (data.status === 'approved' && data.share_token) {
         publicShareUrl.value = `${window.location.origin}/share/live/${data.share_token}`

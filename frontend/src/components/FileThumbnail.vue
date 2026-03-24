@@ -147,7 +147,6 @@ const initializeThumbnailUrl = async () => {
       hasError.value = true
     }
   } catch (error) {
-    console.warn('获取缩略图URL失败:', error)
     loading.value = false
     hasError.value = true
   }
@@ -184,7 +183,6 @@ const onImageError = (event: Event) => {
   
   if (retryCount.value <= maxRetries) {
     // 重试加载
-    console.warn(`缩略图加载失败，正在重试 (${retryCount.value}/${maxRetries}):`, props.file.original_name)
     
     setTimeout(() => {
       const img = event.target as HTMLImageElement
@@ -202,13 +200,6 @@ const onImageError = (event: Event) => {
     loading.value = false
     hasError.value = true
     
-    // 检查是否是认证问题
-    const img = event.target as HTMLImageElement
-    if (img && img.src.includes('token=null')) {
-      console.error('缩略图加载失败：认证token无效', props.file.original_name)
-    } else {
-      console.error('缩略图加载失败，重试次数已用完:', props.file.original_name)
-    }
   }
 }
 
