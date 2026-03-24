@@ -125,6 +125,7 @@
             <el-icon v-else-if="item.status === 'uploading'" class="status-icon uploading"><Loading /></el-icon>
             <el-icon v-else-if="item.status === 'success'" class="status-icon success"><Check /></el-icon>
             <el-icon v-else-if="item.status === 'error'" class="status-icon error"><Close /></el-icon>
+            <el-icon v-else-if="item.status === 'canceled'" class="status-icon canceled"><Close /></el-icon>
           </div>
           
           <div class="item-actions">
@@ -214,7 +215,7 @@ interface UploadItem {
   file: File
   preview: string
   progress: number
-  status: 'pending' | 'uploading' | 'success' | 'error'
+  status: 'pending' | 'uploading' | 'success' | 'error' | 'canceled'
   error?: string
 }
 
@@ -237,6 +238,8 @@ const liveControllers: Record<string, AbortController> = {}
 // 用于 processFiles 中记录已配对的 MOV，避免重复使用
 const usedMovsInProcess = new Set<string>()
 const jobTimers: Record<string, number> = {}
+// 每个上传项对应的 AbortController，用于取消请求
+const uploadControllers: Record<string, AbortController> = {}
 
 /**
  * iOS 16.4+ PhotosPicker API 专用实况图采集
@@ -340,10 +343,10 @@ const {
 
 // 上传统计
 const uploadStats = computed(() => {
-  const total = uploadList.value.length
+  const total = uploadList.value.filter(item => item.status !== 'canceled').length
   const success = uploadList.value.filter(item => item.status === 'success').length
   const error = uploadList.value.filter(item => item.status === 'error').length
-  
+
   return { total, success, error }
 })
 
@@ -771,7 +774,7 @@ const startUpload = async () => {
   const CONCURRENCY = 3
 
   const drain = async () => {
-    // 每次取最多 CONCURRENCY 个 pending 项并发上传
+    // 每次取最多 CONCURRENCY 个 pending 项并发上传（跳过已移除的）
     const batch = uploadList.value
       .filter(item => item.status === 'pending')
       .slice(0, CONCURRENCY)
@@ -786,7 +789,7 @@ const startUpload = async () => {
 
   // 检查是否所有文件都上传完成
   const allCompleted = uploadList.value.every(item =>
-    item.status === 'success' || item.status === 'error'
+    item.status === 'success' || item.status === 'error' || item.status === 'canceled'
   )
 
   if (allCompleted) {
@@ -800,10 +803,13 @@ const startUpload = async () => {
 
 // 上传单个文件
 const uploadSingleFile = async (item: UploadItem) => {
+  const controller = new AbortController()
+  uploadControllers[item.id] = controller
+
   try {
     item.status = 'uploading'
     isUploading.value = true
-    
+
     const formData = new FormData()
     formData.append('file', item.file)
     // 传递实况图配对信息（普通通道保留兼容）
@@ -813,31 +819,38 @@ const uploadSingleFile = async (item: UploadItem) => {
       formData.append('live_basename', (item as any).liveBasename)
       formData.append('live_role', isImage ? 'image' : (isVideo ? 'video' : ''))
     }
-    
+
     // 如果有当前文件夹，添加到表单数据
     if (filesStore.currentFolder) {
       formData.append('folder_id', filesStore.currentFolder.toString())
     }
-    
-    // 直接调用API上传
+
+    // 直接调用API上传（携带中止信号）
     const response = await api.post('/files/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       },
+      signal: controller.signal,
       onUploadProgress: (progressEvent) => {
         if (progressEvent.total) {
           item.progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
         }
       }
     })
-    
+
     item.status = 'success'
     item.progress = 100
-    // 上传成功后不再每次调用 fetchFiles，改为在全部完成后统一刷新
   } catch (error: any) {
+    // 用户主动取消（点击移除按钮）
+    if (error?.response?.status === 0 || error?.message?.includes('canceled') || error?.code === 'ERR_CANCELED') {
+      item.status = 'canceled'
+      item.error = '已取消'
+      return
+    }
     item.status = 'error'
     item.error = error.response?.data?.message || error.message || '上传失败'
   } finally {
+    delete uploadControllers[item.id]
     isUploading.value = false
   }
 }
@@ -850,8 +863,14 @@ const retryUpload = async (item: UploadItem) => {
   await uploadSingleFile(item)
 }
 
-// 从列表中移除
+// 从列表中移除（同时中止上传请求）
 const removeFromList = (id: string) => {
+  // 若正在上传，先中止请求
+  const ctrl = uploadControllers[id]
+  if (ctrl) {
+    ctrl.abort()
+    delete uploadControllers[id]
+  }
   const index = uploadList.value.findIndex(item => item.id === id)
   if (index > -1) {
     uploadList.value.splice(index, 1)

@@ -189,25 +189,35 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  // 删除文件（本地状态更新，不触发全量刷新，由调用方统一刷新）
+  // 删除文件（乐观更新：先立即从本地移除，后端静默执行，失败时恢复）
   const deleteFile = async (fileId: number) => {
+    // 乐观移除：立即从本地列表删除，UI 无感知
+    const snapshot = files.value.filter(f => f.id === fileId)
+    files.value = files.value.filter(f => f.id !== fileId)
+    selectedFiles.value = selectedFiles.value.filter(id => id !== fileId)
+
     try {
       await api.delete(`/files/${fileId}`)
-      files.value = files.value.filter(file => file.id !== fileId)
-      selectedFiles.value = selectedFiles.value.filter(id => id !== fileId)
-    } catch (error: any) {
-      throw error
+    } catch {
+      // 后端删除失败，恢复本地记录
+      files.value = [...snapshot, ...files.value]
+      throw new Error('删除失败')
     }
   }
 
-  // 批量删除文件（调用后端 batch API，单次请求完成所有文件删除）
+  // 批量删除文件（乐观更新：先立即从本地移除，后端静默执行）
   const deleteFiles = async (fileIds: number[]) => {
+    // 乐观移除：立即从本地列表删除，UI 无感知
+    const snapshot = files.value.filter(f => fileIds.includes(f.id))
+    files.value = files.value.filter(f => !fileIds.includes(f.id))
+    selectedFiles.value = selectedFiles.value.filter(id => !fileIds.includes(id))
+
     try {
       await api.delete('/files/batch', { data: { file_ids: fileIds } })
-      files.value = files.value.filter(file => !fileIds.includes(file.id))
-      selectedFiles.value = selectedFiles.value.filter(id => !fileIds.includes(id))
-    } catch (error: any) {
-      throw error
+    } catch {
+      // 后端删除失败，恢复本地记录
+      files.value = [...snapshot, ...files.value]
+      throw new Error('批量删除失败')
     }
   }
 

@@ -2054,27 +2054,26 @@ const toggleOnlyLive = () => {
     if (!isMobile.value) handleItemClick(item, event as any)
   }
 
-// 删除单个实况
+// 删除单个实况（乐观更新：先立即移除，后端静默执行）
 const deleteLiveAsset = async (assetId: number) => {
   try {
     await ElMessageBox.confirm('确定要删除该实况吗？', '删除确认', { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' })
-    await api.delete(`/live-media/${assetId}`)
-    // 立即从本地数组中移除，实现即时更新
+    // 立即从本地移除，UI 无感知
     const index = liveAssets.value.findIndex(a => a.id === assetId)
-    if (index !== -1) {
-      liveAssets.value.splice(index, 1)
-    }
-    // 清理选中状态（合并视图下实况项的 id 形如 `live_12`）
+    const snapshot = index !== -1 ? liveAssets.value[index] : null
+    if (index !== -1) liveAssets.value.splice(index, 1)
+    // 清理选中状态
     const selectedKey = `live_${assetId}`
     const selIndex = selectedFiles.value.indexOf(selectedKey as any)
-    if (selIndex !== -1) {
-      selectedFiles.value.splice(selIndex, 1)
-    }
-    // 保险刷新一次实况数据，确保与后端完全同步并触发所有依赖计算
-    await fetchLiveAssets()
+    if (selIndex !== -1) selectedFiles.value.splice(selIndex, 1)
+
+    await api.delete(`/live-media/${assetId}`)
     ElMessage.success('实况已删除')
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error('删除失败')
+    if (e !== 'cancel') {
+      if (snapshot) liveAssets.value.splice(index, 0, snapshot)
+      ElMessage.error('删除失败')
+    }
   }
 }
 
