@@ -168,7 +168,6 @@ export function useLivePhotoPicker(options: UseLivePhotoPickerOptions) {
         isLoading.value = false
         return
       }
-      console.error('[LivePhotoPicker] 错误:', e)
       options.onError?.(e?.message || '实况图选择失败，请重试')
     } finally {
       isLoading.value = false

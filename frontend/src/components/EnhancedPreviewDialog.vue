@@ -195,6 +195,14 @@ onMounted(() => { if (!systemStore.loaded) systemStore.loadShareStatus() })
 // 文件状态管理
 const filesStore = useFilesStore()
 
+// 本地文件列表（必须在 watch 前声明，供 immediate watcher 使用）
+const localFiles = ref<FileItem[]>([])
+
+// 当 computed files 更新时同步本地列表
+watch(files, (newFiles) => {
+  localFiles.value = [...newFiles]
+}, { immediate: true })
+
 // 方法
 const previewContainer = ref<HTMLElement | null>(null)
 
@@ -343,14 +351,6 @@ const handleFileDeleted = async (fileId: number) => {
     }
   }
 }
-
-// 维护本地可变的文件列表，支持无刷新删除
-const localFiles = ref<FileItem[]>([])
-
-// 当 computed files 更新时同步本地列表
-watch(files, (newFiles) => {
-  localFiles.value = [...newFiles]
-}, { immediate: true })
 
 // 监听初始索引变化
 watch(() => props.initialIndex, (newIndex) => {

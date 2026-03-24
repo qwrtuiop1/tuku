@@ -1849,7 +1849,6 @@ const saveStorageSettings = async () => {
     // 保存成功后重新获取设置以确保数据同步
     await fetchSettings()
   } catch (error) {
-    console.error('保存存储设置失败:', error)
     ElMessage.error('保存存储设置失败')
   } finally {
     saving.value = false

@@ -221,10 +221,8 @@ const handleImageError = (event: Event) => {
     // 检查是否是认证问题
     const img = event.target as HTMLImageElement
     if (img && img.src.includes('token=null')) {
-      console.error('图片加载失败：认证token无效', props.file.original_name)
       ElMessage.error('认证已过期，请重新登录')
     } else {
-      console.error('图片加载失败，重试次数已用完:', props.file.original_name, event)
       ElMessage.error(`图片 "${props.file.original_name}" 加载失败，请检查文件是否损坏或网络连接`)
     }
   }

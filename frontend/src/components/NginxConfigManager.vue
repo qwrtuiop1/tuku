@@ -127,7 +127,6 @@ const refreshStatus = async () => {
     const suggestResponse = await api.get('/nginx-config/suggest')
     suggestConfig.value = suggestResponse.data.data
   } catch (error) {
-    console.error('获取配置状态失败:', error)
     ElMessage.error('获取配置状态失败')
   } finally {
     loading.value = false
@@ -142,7 +141,6 @@ const updateConfig = async () => {
     ElMessage.success(response.data.message)
     await refreshStatus()
   } catch (error) {
-    console.error('更新配置失败:', error)
     ElMessage.error('更新配置失败')
   } finally {
     updating.value = false
@@ -168,7 +166,6 @@ const forceUpdateConfig = async () => {
     await refreshStatus()
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('强制更新配置失败:', error)
       ElMessage.error('强制更新配置失败')
     }
   } finally {
@@ -183,7 +180,6 @@ const testConfig = async () => {
     const response = await api.post('/nginx-config/test')
     ElMessage.success(response.data.message)
   } catch (error) {
-    console.error('测试配置失败:', error)
     ElMessage.error('测试配置失败')
   } finally {
     testing.value = false
@@ -196,7 +192,6 @@ const toggleAutoUpdate = async () => {
     // 这里可以添加API调用来控制自动更新
     ElMessage.success(`自动更新已${autoUpdateEnabled.value ? '启用' : '禁用'}`)
   } catch (error) {
-    console.error('切换自动更新失败:', error)
     ElMessage.error('切换自动更新失败')
   }
 }

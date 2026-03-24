@@ -2373,7 +2373,6 @@ const showCaptcha = async (): Promise<boolean> => {
         cleanup()
         resolve(false)
       } catch (e: any) {
-        console.error('验证码验证异常:', e)
         ElMessage.error('人机验证服务异常，请稍后重试')
         cleanup()
         resolve(false)
@@ -3292,7 +3291,6 @@ const handleUserCardClick = async (user: User, evt?: MouseEvent) => {
     // 直接显示对话框（保留查看统计）
     await showUserStats(user)
   } catch (error: any) {
-    console.error('用户卡片点击处理失败:', error)
     ElMessage.error('操作失败，请重试')
   }
 }
@@ -3476,7 +3474,6 @@ const sendPasswordVerificationCode = async () => {
       ElMessage.error(response.data.message || '发送验证码失败')
     }
   } catch (error: any) {
-    console.error('发送密码验证码失败:', error)
     ElMessage.error('发送验证码失败，请重试')
   } finally {
     sendingVerificationCode.value = false
@@ -3506,7 +3503,6 @@ const verifyPasswordCode = async () => {
       ElMessage.error(response.data.message || '验证码错误或已过期')
     }
   } catch (error: any) {
-    console.error('验证密码验证码失败:', error)
     ElMessage.error('验证失败，请重试')
   }
 }
@@ -3638,20 +3634,10 @@ const showUserStats = async (user: User) => {
         }
       } catch {}
     } else {
-      console.error('API返回失败:', response.data)
       throw new Error(response.data.message || '获取用户统计失败')
     }
     
   } catch (error: any) {
-    console.error('获取用户统计失败 - 完整错误信息:', {
-      message: error.message,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      config: error.config,
-      stack: error.stack
-    })
-    
     // 检查是否是404错误（API不存在）
     if (error.response?.status === 404) {
       // 使用用户列表中的基本信息作为备用数据
@@ -3681,8 +3667,7 @@ const showUserStats = async (user: User) => {
     } else {
       // 显示更详细的错误信息
       const errorMsg = error.response?.data?.message || error.message || '获取用户统计失败'
-      console.error('具体错误信息:', errorMsg)
-      
+
       // 如果API调用失败，尝试使用用户基本信息作为备用
       userStats.value = {
         used_storage: user.used_storage || 0,

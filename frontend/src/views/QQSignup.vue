@@ -208,7 +208,6 @@ const verifyHuman = async (): Promise<boolean> => {
         ElMessage.error(resp?.data?.message || resp?.data?.reason || '人机验证失败')
         resolve(false)
       } catch (e: any) {
-        console.error('验证码验证异常:', e)
         ElMessage.error('人机验证服务异常，请稍后重试')
         resolve(false)
       }

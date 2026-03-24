@@ -234,6 +234,8 @@ const uploadProgress = ref(0)
 const uploadList = ref<UploadItem[]>([])
 const liveJobs = ref<Array<{ id: string, status: string, progress: number, assetId?: number }>>([])
 const liveControllers: Record<string, AbortController> = {}
+// 用于 processFiles 中记录已配对的 MOV，避免重复使用
+const usedMovsInProcess = new Set<string>()
 const jobTimers: Record<string, number> = {}
 
 /**
@@ -372,17 +374,12 @@ const generateId = () => {
   return Math.random().toString(36).substr(2, 9)
 }
 
-// 创建文件预览
-const createFilePreview = (file: File): Promise<string> => {
-  return new Promise((resolve) => {
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader()
-      reader.onload = (e) => resolve(e.target?.result as string)
-      reader.readAsDataURL(file)
-    } else {
-      resolve('')
-    }
-  })
+// 创建文件预览（使用 URL.createObjectURL 替代 FileReader，避免阻塞主线程）
+const createFilePreview = (file: File): string => {
+  if (file.type.startsWith('image/')) {
+    return URL.createObjectURL(file)
+  }
+  return ''
 }
 
 // 验证文件
@@ -641,15 +638,15 @@ const cancelLiveJob = async (jobId: string) => {
 // 处理文件（混合多选：普通与实况并行）
 const processFiles = async (files: File[]) => {
   if (files.length === 0) return
-  
-  // 验证文件
+
+  // 验证文件（同步，不阻塞）
   const validFiles = files.filter(validateFile)
   if (validFiles.length === 0) return
-  
-  // 分组
+
+  // 立即构建上传队列（使用 URL.createObjectURL，无阻塞）
   const heics: File[] = []
   const movs: File[] = []
-  const anims: File[] = [] // gif/webp
+  const anims: File[] = []
   const mayJpgs: File[] = []
   const others: File[] = []
   for (const f of validFiles) {
@@ -660,34 +657,30 @@ const processFiles = async (files: File[]) => {
     else if (name.endsWith('.jpg') || name.endsWith('.jpeg')) mayJpgs.push(f)
     else others.push(f)
   }
-  
+
   const toBase = (n: string) => n.replace(/\.[^.]+$/, '').toLowerCase()
   const movMap = new Map<string, File>()
   movs.forEach(m => movMap.set(toBase(m.name), m))
 
-  // heic+mov 配对并发起 live 任务
-  const usedMovs = new Set<string>()
+  // HEIC + MOV 配对发起 live 任务（异步，不阻塞 UI）
   for (const h of heics) {
     const base = toBase(h.name)
     const m = movMap.get(base)
     if (m) {
-      await createLiveJob([h, m])
-      usedMovs.add(m.name)
+      createLiveJob([h, m])
+      usedMovsInProcess.add(m.name)
     } else {
       others.push(h)
     }
   }
-  // 未配对 mov 走普通上传
-  movs.forEach(m => { if (!usedMovs.has(m.name)) others.push(m) })
+  movs.forEach(m => { if (!usedMovsInProcess.has(m.name)) others.push(m) })
 
-  // 动图单文件直接走普通上传通道，由后端根据 magic bytes 识别类型
-  // 注意：不要调用 createLiveJob，否则会触发不必要的转码
+  // 动图单文件走普通上传通道（同步构建队列，不阻塞）
   for (const a of anims) {
-    const preview = await createFilePreview(a)
     const uploadItem: UploadItem = {
       id: generateId(),
       file: a,
-      preview,
+      preview: createFilePreview(a),
       progress: 0,
       status: 'pending'
     }
@@ -695,30 +688,48 @@ const processFiles = async (files: File[]) => {
     uploadList.value.push(uploadItem)
   }
 
-  // JPG Motion Photo 轻量检测：读首尾各 256KB，命中关键字则走 live
-  for (const jpg of mayJpgs) {
-    const isMotion = await detectMotionPhoto(jpg)
-    if (isMotion) await createLiveJob([jpg])
-    else others.push(jpg)
-  }
-
-  // 普通文件加入队列
+  // 普通文件加入队列（同步构建队列，不阻塞）
   for (const file of others) {
-    const base = file.name.replace(/\.[^.]+$/, '')
-    const preview = await createFilePreview(file)
     const uploadItem: UploadItem = {
       id: generateId(),
       file,
-      preview,
+      preview: createFilePreview(file),
       progress: 0,
       status: 'pending'
     }
-    ;(uploadItem as any).liveBasename = base
+    ;(uploadItem as any).liveBasename = file.name.replace(/\.[^.]+$/, '')
     uploadList.value.push(uploadItem)
   }
-  
-  // 开始普通上传
-  await startUpload()
+
+  // 后台检测 JPG Motion Photo（不阻塞 UI，完成后替换队列项类型）
+  for (const jpg of mayJpgs) {
+    const uploadItem: UploadItem = {
+      id: generateId(),
+      file: jpg,
+      preview: createFilePreview(jpg),
+      progress: 0,
+      status: 'pending'
+    }
+    ;(uploadItem as any).liveBasename = jpg.name.replace(/\.[^.]+$/, '')
+    uploadList.value.push(uploadItem)
+    detectMotionPhotoAsync(jpg, uploadItem)
+  }
+
+  // 立即开始上传（不等待后台检测）
+  startUpload()
+}
+
+// 检测 Motion Photo 并在检测完成后转为实况上传（后台执行，不阻塞 UI）
+const detectMotionPhotoAsync = (file: File, item: UploadItem) => {
+  detectMotionPhoto(file).then((isMotion) => {
+    if (isMotion && item.status === 'pending') {
+      item.status = 'uploading'
+      isUploading.value = true
+      createLiveJob([file])
+        .catch(() => { item.status = 'error'; item.error = '实况任务创建失败' })
+        .finally(() => { isUploading.value = false })
+    }
+  }).catch(() => {/* 检测失败，保持普通上传 */})
 }
 
 async function detectMotionPhoto(file: File): Promise<boolean> {
@@ -754,19 +765,30 @@ async function detectMotionPhoto(file: File): Promise<boolean> {
   return false
 }
 
-// 开始上传
+// 开始上传（最多 3 个文件同时上传，避免阻塞服务器）
 const startUpload = async () => {
   const pendingItems = uploadList.value.filter(item => item.status === 'pending')
-  
-  for (const item of pendingItems) {
-    await uploadSingleFile(item)
+  const CONCURRENCY = 3
+
+  const drain = async () => {
+    // 每次取最多 CONCURRENCY 个 pending 项并发上传
+    const batch = uploadList.value
+      .filter(item => item.status === 'pending')
+      .slice(0, CONCURRENCY)
+
+    if (batch.length === 0) return
+
+    await Promise.all(batch.map(item => uploadSingleFile(item)))
+    await drain()
   }
-  
+
+  await drain()
+
   // 检查是否所有文件都上传完成
-  const allCompleted = uploadList.value.every(item => 
+  const allCompleted = uploadList.value.every(item =>
     item.status === 'success' || item.status === 'error'
   )
-  
+
   if (allCompleted) {
     const successCount = uploadStats.value.success
     if (successCount > 0) {
@@ -811,10 +833,7 @@ const uploadSingleFile = async (item: UploadItem) => {
     
     item.status = 'success'
     item.progress = 100
-    
-    // 上传成功后刷新文件列表
-    await filesStore.fetchFiles(1)
-    
+    // 上传成功后不再每次调用 fetchFiles，改为在全部完成后统一刷新
   } catch (error: any) {
     item.status = 'error'
     item.error = error.response?.data?.message || error.message || '上传失败'
