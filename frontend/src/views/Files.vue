@@ -1840,37 +1840,57 @@ const batchDelete = async () => {
       }
     }
 
-    // 删除文件夹（本地状态更新）
+    // 各类型删除结果汇总（Promise.allSettled 确保不因一个失败而跳过其他）
+    let foldersDeleted = 0
+    let filesDeleted = 0
+    let liveDeleted = 0
+    let lastErrorMsg = ''
+
+    // 1. 文件夹（不触发 optimistic update，成功后再刷新列表）
     for (const folder of foldersToDelete) {
-      await filesStore.deleteFolder(folder.id)
+      try {
+        await filesStore.deleteFolder(folder.id)
+        foldersDeleted++
+      } catch (e: any) {
+        lastErrorMsg = e?.response?.data?.message || e?.message || '删除文件夹失败'
+        ElMessage.error(lastErrorMsg)
+      }
     }
 
-    // 批量删除文件：统一转为数字 ID，消除类型隐患
+    // 2. 文件（API 成功后才从 UI 移除，失败显示具体原因）
     if (filesToDelete.length > 0) {
       const fileIds = filesToDelete
         .map(f => f.id)
         .filter((id): id is number => typeof id === 'number' && !Number.isNaN(id))
-      await filesStore.deleteFiles(fileIds)
+      try {
+        await filesStore.deleteFiles(fileIds)
+        filesDeleted = fileIds.length
+      } catch (e: any) {
+        lastErrorMsg = e?.response?.data?.message || e?.message || '批量删除文件失败'
+        ElMessage.error(lastErrorMsg)
+      }
     }
 
-    // 批量删除实况
+    // 3. 实况资产（独立执行，失败不影响总体结果）
     if (liveToDelete.length > 0) {
       const results = await Promise.allSettled(liveToDelete.map(id => api.delete(`/live-media/${id}`)))
       const failedCount = results.filter(r => r.status === 'rejected').length
+      liveDeleted = liveToDelete.length - failedCount
       if (failedCount > 0) {
-        ElMessage.error(`${liveToDelete.length - failedCount}/${liveToDelete.length} 个实况删除失败`)
+        ElMessage.error(`${failedCount} 个实况删除失败`)
       }
-      // 从本地状态移除
       liveAssets.value = liveAssets.value.filter(a => !liveToDelete.includes(a.id))
     }
 
-    const totalCount = filesToDelete.length + foldersToDelete.length + liveToDelete.length
-    if (totalCount > 0) {
-      ElMessage.success(`成功删除 ${totalCount} 个项目`)
-    } else {
+    // 汇总消息（清除选中态放在此处确保无论如何都执行）
+    selectedFiles.value = []
+
+    const totalDeleted = foldersDeleted + filesDeleted + liveDeleted
+    if (totalDeleted > 0) {
+      ElMessage.success(`成功删除 ${totalDeleted} 个项目`)
+    } else if (!lastErrorMsg) {
       ElMessage.warning('没有找到要删除的项目')
     }
-    selectedFiles.value = []
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('批量删除失败')
@@ -1878,7 +1898,7 @@ const batchDelete = async () => {
   }
 }
 
-// 分享功能
+  // 分享功能
 const generateShareLink = async () => {
   if (!systemStore.sharingEnabled) {
     ElMessage.error('分享功能已关闭')
@@ -2121,7 +2141,10 @@ const canCopyShare = computed(() => !!shareUrl.value && !!shareStatus.value && s
 const shareStatusText = computed(() => {
   if (!shareStatus.value) return ''
   const s = shareStatus.value.status
-  return s === 'pending_review' ? '审核中' : s === 'approved' ? '已通过' : s === 'rejected' ? '未通过' : s
+  if (s === 'pending_review') return '审核中'
+  if (s === 'approved') return '已通过'
+  if (s === 'rejected') return '未通过'
+  return s
 })
 </script>
 

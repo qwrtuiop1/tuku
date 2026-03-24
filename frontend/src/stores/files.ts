@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { ElMessage } from 'element-plus'
 import api from '@/utils/api'
 
 export interface FileItem {
@@ -189,35 +190,31 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  // 删除文件（乐观更新：先立即从本地移除，后端静默执行，失败时恢复）
+  // 删除文件（先调 API，API 成功后再从本地列表移除）
   const deleteFile = async (fileId: number) => {
-    // 乐观移除：立即从本地列表删除，UI 无感知
-    const snapshot = files.value.filter(f => f.id === fileId)
-    files.value = files.value.filter(f => f.id !== fileId)
-    selectedFiles.value = selectedFiles.value.filter(id => id !== fileId)
-
     try {
       await api.delete(`/files/${fileId}`)
-    } catch {
-      // 后端删除失败，恢复本地记录
-      files.value = [...snapshot, ...files.value]
-      throw new Error('删除失败')
+      // API 成功后再更新本地状态
+      files.value = files.value.filter(f => f.id !== fileId)
+      selectedFiles.value = selectedFiles.value.filter(id => id !== fileId)
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || '删除失败'
+      ElMessage.error(msg)
+      throw new Error(msg)
     }
   }
 
-  // 批量删除文件（乐观更新：先立即从本地移除，后端静默执行）
+  // 批量删除文件（先调 API，API 成功后再从本地列表移除）
   const deleteFiles = async (fileIds: number[]) => {
-    // 乐观移除：立即从本地列表删除，UI 无感知
-    const snapshot = files.value.filter(f => fileIds.includes(f.id))
-    files.value = files.value.filter(f => !fileIds.includes(f.id))
-    selectedFiles.value = selectedFiles.value.filter(id => !fileIds.includes(id))
-
     try {
       await api.delete('/files/batch', { data: { file_ids: fileIds } })
-    } catch {
-      // 后端删除失败，恢复本地记录
-      files.value = [...snapshot, ...files.value]
-      throw new Error('批量删除失败')
+      // API 成功后再更新本地状态
+      files.value = files.value.filter(f => !fileIds.includes(f.id))
+      selectedFiles.value = selectedFiles.value.filter(id => !fileIds.includes(id))
+    } catch (error: any) {
+      const msg = error?.response?.data?.message || '批量删除失败'
+      ElMessage.error(msg)
+      throw new Error(msg)
     }
   }
 

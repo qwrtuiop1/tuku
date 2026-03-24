@@ -440,33 +440,20 @@ router.post('/upload', authenticateToken, asyncHandler(async (req, res) => {
 
 // 处理文件上传的核心逻辑
 async function isMotionPhotoJpeg(filePath) {
-  // 多点采样 + 关键字/MP4 box 检测，兼容微信/三星/小米等 Motion Photo 实现
-  const ftyp = Buffer.from('ftyp');
-  const decoder = new TextDecoder();
+  // Android Motion Photo：JPEG 文件末尾追加了 MP4 数据（ftyp box 紧跟在 JPEG EOI 标记后）。
+  // 只检测文件尾区域即可，无需多点采样（ftyp 不会出现在正常 JPEG 数据中）。
   try {
     const stat = await fs.stat(filePath);
-    const sampleSize = Math.min(512 * 1024, stat.size); // 每段最多 512KB
-    const positions = [
-      0,
-      Math.max(0, Math.floor(stat.size * 0.25) - sampleSize / 2),
-      Math.max(0, Math.floor(stat.size * 0.5) - sampleSize / 2),
-      Math.max(0, Math.floor(stat.size * 0.75) - sampleSize / 2),
-      Math.max(0, stat.size - sampleSize)
-    ];
-    for (const pos of positions) {
-      const fd = await fs.open(filePath, 'r');
-      const buf = Buffer.alloc(sampleSize);
-      await fd.read(buf, 0, sampleSize, pos);
-      await fd.close();
-      // MP4 box 标记
-      if (buf.indexOf(ftyp) !== -1) return true;
-      const text = decoder.decode(buf);
-      if (/G(Camera|Image)|MicroVideo|MotionPhoto|XMP|MotionPhotoPresentationTimestamp|MicroVideoOffset/i.test(text)) return true;
-    }
+    const readSize = Math.min(512 * 1024, stat.size);
+    const buf = Buffer.alloc(readSize);
+    const fd = await fs.open(filePath, 'r');
+    await fd.read(buf, 0, readSize, Math.max(0, stat.size - readSize));
+    await fd.close();
+    // 'ftyp' 是 MP4/MOV 文件容器的 magic bytes，出现在 JPEG 尾部即表示 Motion Photo
+    return buf.indexOf(Buffer.from('ftyp')) !== -1;
   } catch (_) {
     return false;
   }
-  return false;
 }
 
 // 提取视频元数据（需要系统已安装 ffprobe）
