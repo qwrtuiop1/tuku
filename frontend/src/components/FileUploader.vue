@@ -747,42 +747,93 @@ const processFiles = async (files: File[]) => {
 const detectMotionPhotoAsync = (file: File, item: UploadItem) => {
   detectMotionPhoto(file).then((isMotion) => {
     if (isMotion && item.status === 'pending') {
+      // 标记跳过普通上传通道
+      ;(item as any)._skipUpload = true
       item.fileCategory = 'live'
       item.status = 'uploading'
       isUploading.value = true
       createLiveJob([file])
-        .catch(() => { item.status = 'error'; item.error = '实况任务创建失败' })
-        .finally(() => { isUploading.value = false })
+        .then(() => {
+          item.status = 'success'
+          item.progress = 100
+        })
+        .catch((err: any) => {
+          if (err?.message?.includes('canceled') || err?.code === 'ERR_CANCELED') {
+            item.status = 'canceled'
+          } else {
+            item.status = 'error'
+            item.error = err?.response?.data?.message || err?.message || '实况处理失败'
+          }
+        })
+        .finally(() => {
+          isUploading.value = false
+          checkAllCompleted()
+        })
     }
   }).catch(() => {/* 检测失败，保持普通上传 */})
 }
 
-async function detectMotionPhoto(file: File): Promise<boolean> {
-  // 更稳健的检测：在文件头、尾以及中部多点采样查找 'ftyp' 或常见标记
-  const decoder = new TextDecoder()
-  const readChunk = (start: number, length: number) => new Promise<ArrayBuffer>((resolve, reject) => {
-    const blob = file.slice(start, Math.min(file.size, start + length))
-    const fr = new FileReader()
-    fr.onload = () => resolve(fr.result as ArrayBuffer)
-    fr.onerror = reject
-    fr.readAsArrayBuffer(blob)
-  })
+// 检查是否所有文件都上传完成
+const checkAllCompleted = () => {
+  const allCompleted = uploadList.value.every(item =>
+    item.status === 'success' || item.status === 'error' || item.status === 'canceled'
+  )
+  if (allCompleted) {
+    const successCount = uploadStats.value.success
+    if (successCount > 0) {
+      ElMessage.success(`成功上传 ${successCount} 个文件`)
+      emit('upload-success')
+    }
+  }
+}
 
-  const sampleSize = 512 * 1024 // 512KB 采样块
-  const positions: number[] = [
-    0, // 文件头
+async function detectMotionPhoto(file: File): Promise<boolean> {
+  // 字节级扫描：在 JPEG 二进制中查找 Motion Photo / MicroVideo / ftyp 标记
+  // 不依赖 TextDecoder（避免二进制数据被 UTF-8 解码损坏）
+  const readChunk = (start: number, length: number): Promise<ArrayBuffer> =>
+    new Promise((resolve, reject) => {
+      const blob = file.slice(start, Math.min(file.size, start + length))
+      const fr = new FileReader()
+      fr.onload = () => resolve(fr.result as ArrayBuffer)
+      fr.onerror = reject
+      fr.readAsArrayBuffer(blob)
+    })
+
+  // 将 ArrayBuffer 转为 Uint8Array，在其上做字节级搜索
+  const findBytes = (buf: ArrayBuffer, pattern: number[]): boolean => {
+    const bytes = new Uint8Array(buf)
+    outer: for (let i = 0; i <= bytes.length - pattern.length; i++) {
+      for (let j = 0; j < pattern.length; j++) {
+        if (bytes[i + j] !== pattern[j]) continue outer
+      }
+      return true
+    }
+    return false
+  }
+
+  // 待搜索的字节序列（UTF-16BE 编码的关键词）
+  const patterns = [
+    [0x00, 0x47, 0x43, 0x61, 0x6d, 0x65, 0x72, 0x61],          // GCamera / GCImage (UTF-16BE)
+    [0x00, 0x4d, 0x69, 0x63, 0x72, 0x6f, 0x56, 0x69, 0x64, 0x65, 0x6f], // MicroVideo (UTF-16BE)
+    [0x00, 0x4d, 0x6f, 0x74, 0x69, 0x6f, 0x6e, 0x50, 0x68, 0x6f, 0x74, 0x6f], // MotionPhoto (UTF-16BE)
+    [0x00, 0x66, 0x74, 0x79, 0x70],                               // \0ftyp (MP4 box)
+  ]
+
+  const sampleSize = 512 * 1024
+  const positions = [
+    0,
     Math.max(0, Math.floor(file.size * 0.25) - sampleSize / 2),
     Math.max(0, Math.floor(file.size * 0.5) - sampleSize / 2),
     Math.max(0, Math.floor(file.size * 0.75) - sampleSize / 2),
-    Math.max(0, file.size - sampleSize) // 文件尾
+    Math.max(0, file.size - sampleSize)
   ]
 
   try {
     for (const pos of positions) {
       const buf = await readChunk(pos, sampleSize)
-      const text = decoder.decode(new Uint8Array(buf))
-      if (/G(Camera|Image)|MicroVideo|MotionPhoto/i.test(text)) return true
-      if (text.indexOf('ftyp') !== -1) return true // MP4 box 标记
+      for (const pattern of patterns) {
+        if (findBytes(buf, pattern)) return true
+      }
     }
   } catch (_) {
     // 忽略读取失败，按未检测到处理
@@ -825,6 +876,9 @@ const startUpload = async () => {
 
 // 上传单个文件
 const uploadSingleFile = async (item: UploadItem) => {
+  // 如果已被 Motion Photo 检测拦截，跳过此通道
+  if ((item as any)._skipUpload) return
+
   const controller = new AbortController()
   uploadControllers[item.id] = controller
 
