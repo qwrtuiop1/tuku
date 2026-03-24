@@ -10,6 +10,9 @@ export interface FileItem {
   file_size: number
   file_path: string
   thumbnail_path?: string
+  thumbnail_url?: string | null
+  preview_url?: string | null
+  file_url?: string | null
   folder_id?: number
   mime_type: string
   width?: number

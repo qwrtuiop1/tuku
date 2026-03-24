@@ -3,7 +3,7 @@
     <!-- 图片快速预览 -->
     <div v-if="file.file_type === 'image'" class="image-quick-preview">
       <img
-        :src="getFilePreviewUrl(file.id)"
+        :src="thumbOrPreview"
         :alt="file.original_name"
         class="quick-image"
         @load="onImageLoad"
@@ -22,8 +22,8 @@
     <div v-else-if="file.file_type === 'video'" class="video-quick-preview">
       <div class="video-poster">
         <img
-          v-if="file.thumbnail_path"
-          :src="getFilePreviewUrl(file.id)"
+          v-if="thumbOrPreview"
+          :src="thumbOrPreview"
           :alt="file.original_name"
           class="quick-image"
           @load="onImageLoad"
@@ -64,7 +64,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { Picture, VideoPlay, Document } from '@element-plus/icons-vue'
-import { getFilePreviewUrl, formatFileSize } from '@/utils/helpers'
+import { formatFileSize, getFilePreviewUrlSmart, getFileThumbnailUrl } from '@/utils/helpers'
 
 interface FileItem {
   id: number
@@ -74,6 +74,8 @@ interface FileItem {
   file_size: number
   file_path: string
   thumbnail_path?: string
+  thumbnail_url?: string | null
+  preview_url?: string | null
   mime_type: string
   width?: number
   height?: number
@@ -92,6 +94,7 @@ const hasError = ref(false)
 
 // 计算属性
 const isVisible = computed(() => props.visible || false)
+const thumbOrPreview = computed(() => getFileThumbnailUrl(props.file) || getFilePreviewUrlSmart(props.file))
 
 // 格式化时长
 const formatDuration = (seconds?: number): string => {

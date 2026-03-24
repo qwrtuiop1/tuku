@@ -81,7 +81,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { Picture, VideoPlay, Document, Loading } from '@element-plus/icons-vue'
-import { getCachedImageUrl } from '@/utils/helpers'
+import { getCachedImageUrl, getFileThumbnailUrl, getFilePreviewUrlSmart } from '@/utils/helpers'
 
 interface FileItem {
   id: number
@@ -91,6 +91,8 @@ interface FileItem {
   file_size: number
   file_path: string
   thumbnail_path?: string
+  thumbnail_url?: string | null
+  preview_url?: string | null
   folder_id?: number
   mime_type: string
   width?: number
@@ -134,8 +136,17 @@ const initializeThumbnailUrl = async () => {
     loading.value = true
     hasError.value = false
     retryCount.value = 0
-    
-    const url = await getCachedImageUrl(props.file.id)
+
+    // 列表缩略图：优先用后端下发的 thumbnail_url（或由 thumbnail_path 组装）
+    const thumb = getFileThumbnailUrl(props.file)
+    if (thumb) {
+      thumbnailUrl.value = thumb
+      return
+    }
+
+    // 无缩略图则退化到预览（可能为原图，尽量少发生）
+    // 这里仍保留旧的缓存逻辑，避免空白
+    const url = props.file.preview_url ? getFilePreviewUrlSmart(props.file) : await getCachedImageUrl(props.file.id)
     thumbnailUrl.value = url
     
     // 如果URL设置成功，等待图片加载

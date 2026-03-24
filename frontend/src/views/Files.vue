@@ -301,8 +301,6 @@
           @contextmenu.prevent="showCardActions(item)"
           @mousedown="(event) => handleMouseDown(event, item)"
           @mouseup="(event) => handleMouseUp(event, item)"
-          @mouseleave="(event) => { handleMouseLeave(event, item); hideQuickPreview() }"
-          @mouseenter="!item.isFolder && !item.isLive && showQuickPreview(item, $event)"
           :data-item-id="item.id"
         >
           <div class="card-checkbox" @click.stop @touchstart.stop @touchend.stop>
@@ -466,14 +464,7 @@
       </div>
     </div>
 
-    <!-- 快速预览 -->
-      <QuickPreview
-      v-if="quickPreviewFile"
-      :file="quickPreviewFile"
-      :visible="showQuickPreviewDialog"
-    />
-
-      <!-- Live 全屏 -->
+    <!-- Live 全屏 -->
       <LiveMediaFullscreen 
         v-if="showLiveFullscreen" 
         v-model:visible="showLiveFullscreen" 
@@ -645,13 +636,12 @@ import {
 import { useFilesStore } from '@/stores/files'
 import { useAuthStore } from '@/stores/auth'
 import { useSystemStore } from '@/stores/system'
-import { formatFileSize, formatTime, getFilePreviewUrl, downloadFile as downloadFileUtil, copyToClipboard } from '@/utils/helpers'
+import { formatFileSize, formatTime, getFilePreviewUrl, getFilePreviewUrlSmart, getFileThumbnailUrl, preloadImage, downloadFile as downloadFileUtil, copyToClipboard } from '@/utils/helpers'
 import FileUploader from '@/components/FileUploader.vue'
 import FilePreview from '@/components/FilePreview.vue'
 import FileThumbnail from '@/components/FileThumbnail.vue'
 import EnhancedPreviewDialog from '@/components/EnhancedPreviewDialog.vue'
 import FolderDetailsDialog from '@/components/FolderDetailsDialog.vue'
-import QuickPreview from '@/components/QuickPreview.vue'
 import LiveMediaCard from '@/components/LiveMediaCard.vue'
 import LiveMediaFullscreen from '@/components/LiveMediaFullscreen.vue'
 import LiveMediaPreview from '@/components/LiveMediaPreview.vue'
@@ -672,9 +662,6 @@ const showShareDialog = ref(false)
 const previewFile = ref<any | undefined>(undefined)
 const previewFileIndex = ref(0)
 const shareFile = ref<any | null>(null)
-const quickPreviewFile = ref(null)
-const showQuickPreviewDialog = ref(false)
-const quickPreviewTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const shareUrl = ref('')
 const contextFile = ref<any | null>(null)
 const showContextMenu = ref(false)
@@ -1488,27 +1475,33 @@ const handlePreviewFileChange = (file: any, index: number) => {
 }
 
 // 快速预览
-const showQuickPreview = (file: any, event: MouseEvent) => {
-  // 清除之前的定时器
-  if (quickPreviewTimer.value) {
-    clearTimeout(quickPreviewTimer.value)
-  }
-  
-  // 延迟显示快速预览
-  quickPreviewTimer.value = setTimeout(() => {
-    quickPreviewFile.value = file
-    showQuickPreviewDialog.value = true
-  }, 500)
+// 列表页预加载：
+// - 首屏优先预加载缩略图（快）
+// - 空闲时再静默预加载少量原图（点击预览更快）
+const idle = (cb: () => void) => {
+  const ric = (window as any).requestIdleCallback as undefined | ((fn: any, opts?: any) => any)
+  if (ric) return ric(() => cb(), { timeout: 1200 })
+  return window.setTimeout(cb, 200)
 }
 
-const hideQuickPreview = () => {
-  if (quickPreviewTimer.value) {
-    clearTimeout(quickPreviewTimer.value)
-    quickPreviewTimer.value = null
-  }
-  showQuickPreviewDialog.value = false
-  quickPreviewFile.value = null
-}
+watch(paginatedFiles, (list: any[]) => {
+  const files = (list || []).filter((x) => x && !x.isFolder && !x.isLive)
+  const thumbs = files
+    .map((f) => getFileThumbnailUrl(f))
+    .filter(Boolean)
+    .slice(0, 18) as string[]
+  // 先把缩略图塞进浏览器缓存
+  for (const u of thumbs) preloadImage(u)
+
+  // 再用空闲时间预加载少量原图（只预加载前几张，避免流量爆炸）
+  idle(() => {
+    const originals = files
+      .map((f) => getFilePreviewUrlSmart(f))
+      .filter(Boolean)
+      .slice(0, 6) as string[]
+    for (const u of originals) preloadImage(u)
+  })
+}, { immediate: true })
 
 const handleSearch = () => {
   currentPage.value = 1
@@ -1998,11 +1991,6 @@ onUnmounted(() => {
   
   // 移除用户设置变化监听器
   window.removeEventListener('preferencesUpdated', loadViewSettings)
-  
-  // 清理快速预览定时器
-  if (quickPreviewTimer.value) {
-    clearTimeout(quickPreviewTimer.value)
-  }
 })
 
 // 拉取实况资源

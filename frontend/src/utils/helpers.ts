@@ -70,6 +70,47 @@ function getApiOriginForStaticAssets(): string {
   return 'https://tukubackend.vtart.cn'
 }
 
+export interface HasThumbnail {
+  id: number
+  thumbnail_url?: string | null
+  thumbnail_path?: string | null
+}
+
+export interface HasPreview {
+  id: number
+  preview_url?: string | null
+}
+
+// 获取缩略图 URL（优先使用后端返回的 thumbnail_url；否则用 thumbnail_path 拼 uploads 路径）
+export const getFileThumbnailUrl = (file: HasThumbnail): string | null => {
+  if (!file) return null
+  if (file.thumbnail_url) return String(file.thumbnail_url)
+  if (file.thumbnail_path) {
+    const baseUrl = getApiOriginForStaticAssets()
+    const normalized = String(file.thumbnail_path).replace(/\\/g, '/').replace(/^\/+/, '')
+    return `${baseUrl}/uploads/${normalized}`
+  }
+  return null
+}
+
+// 预览 URL（若后端已下发 preview_url 则直接用；否则回退到 /api/files/preview/:id）
+export const getFilePreviewUrlSmart = (file: HasPreview): string => {
+  if (file && file.preview_url) return String(file.preview_url)
+  return getFilePreviewUrl(file.id)
+}
+
+// 低优先级预加载图片到浏览器缓存
+export const preloadImage = (url: string): Promise<void> => {
+  return new Promise((resolve) => {
+    if (!url) return resolve()
+    const img = new Image()
+    img.decoding = 'async'
+    img.onload = () => resolve()
+    img.onerror = () => resolve()
+    img.src = url
+  })
+}
+
 // 获取文件预览URL
 export const getFilePreviewUrl = (fileId: number): string => {
   // 直接从localStorage和sessionStorage获取token，避免在组件外部使用store
