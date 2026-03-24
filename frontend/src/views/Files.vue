@@ -2142,21 +2142,21 @@ const shareStatusText = computed(() => {
     .action-btn {
       height: 40px;
       padding: 0 16px;
-      border-radius: 12px;
+      border-radius: 10px;
       font-weight: 500;
       transition: all 0.3s ease;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      
+
       &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
       }
-      
+
       &.el-button--primary {
         background: #000000;
         border: none;
         color: #ffffff;
-        
+
         &:hover {
           background: #374151;
         }
@@ -2170,41 +2170,48 @@ const shareStatusText = computed(() => {
     gap: 12px;
     flex: 1;
     max-width: 400px;
-    
+
     .search-input {
       flex: 1;
-      
+
       :deep(.el-input__wrapper) {
-        border-radius: 12px;
+        height: 40px;
+        border-radius: 10px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         border: 1px solid #d1d5db;
         transition: all 0.3s ease;
-        
+
         &:hover {
           border-color: #9ca3af;
           box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
-        
+
         &.is-focus {
           border-color: #000000;
           box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
         }
       }
+
+      :deep(.el-input__inner) {
+        height: 38px;
+        line-height: 38px;
+      }
     }
-    
+
     .sort-dropdown {
       .sort-btn {
-        height: 32px;
-        padding: 0 12px;
+        height: 40px;
+        padding: 0 14px;
         border-radius: 10px;
         font-weight: 500;
         background: #f9fafb;
         border: 1px solid #d1d5db;
         color: #374151;
         transition: all 0.3s ease;
-        
+
         &:hover {
           background: #f3f4f6;
+          border-color: #9ca3af;
           transform: translateY(-1px);
         }
       }
@@ -2214,27 +2221,34 @@ const shareStatusText = computed(() => {
   .toolbar-actions {
     display: flex;
     align-items: center;
-    gap: 12px;
-    
+    gap: 10px;
+
     .filter-live-btn {
-      height: 32px;
+      height: 40px;
       padding: 0 14px;
-      border-radius: 16px; // 与 is-round 协同
+      border-radius: 10px;
       display: inline-flex;
       align-items: center;
+      font-weight: 500;
+      transition: all 0.3s ease;
+
+      &:hover {
+        transform: translateY(-1px);
+      }
     }
 
     .view-toggle {
       .view-btn {
-        width: 36px;
-        height: 32px;
-        border-radius: 8px;
+        height: 40px;
+        min-width: 40px;
+        padding: 0 10px;
+        border-radius: 10px;
         transition: all 0.3s ease;
-        
+
         &:hover {
           transform: translateY(-1px);
         }
-        
+
         &.el-button--primary {
           background: #000000;
           border: none;
@@ -2242,15 +2256,15 @@ const shareStatusText = computed(() => {
         }
       }
     }
-    
+
     .batch-actions {
       .batch-btn {
-        height: 32px;
-        padding: 0 12px;
+        height: 40px;
+        padding: 0 16px;
         border-radius: 10px;
         font-weight: 500;
         transition: all 0.3s ease;
-        
+
         &:hover {
           transform: translateY(-1px);
         }
@@ -3210,15 +3224,16 @@ const shareStatusText = computed(() => {
       padding: 0 20px;
       font-size: 15px;
     }
-    
+
     .toolbar-search .sort-btn {
-      height: 36px;
+      height: 44px;
       padding: 0 16px;
+      font-size: 13px;
     }
-    
-    .toolbar-actions .view-btn {
-      width: 40px;
-      height: 36px;
+
+    .toolbar-actions .view-btn,
+    .toolbar-actions .filter-live-btn {
+      height: 44px;
     }
   }
   
@@ -3312,17 +3327,17 @@ const shareStatusText = computed(() => {
     
     .toolbar-search {
       max-width: 250px;
-      
+
       .sort-btn {
-        height: 28px;
-        padding: 0 10px;
+        height: 40px;
+        padding: 0 12px;
         font-size: 12px;
       }
     }
-    
-    .toolbar-actions .view-btn {
-      width: 32px;
-      height: 28px;
+
+    .toolbar-actions .view-btn,
+    .toolbar-actions .filter-live-btn {
+      height: 40px;
     }
   }
   
@@ -3360,27 +3375,27 @@ const shareStatusText = computed(() => {
   .unified-toolbar {
     padding: 10px 12px;
     gap: 12px;
-    max-width: calc(100vw - 420px); // 与内容区域宽度一致
-    
+    max-width: calc(100vw - 420px);
+
     .toolbar-main .action-btn {
-      height: 36px;
+      height: 40px;
       padding: 0 12px;
       font-size: 13px;
     }
-    
+
     .toolbar-search {
       max-width: 300px;
-      
+
       .sort-btn {
-        height: 28px;
+        height: 40px;
         padding: 0 10px;
         font-size: 12px;
       }
     }
-    
-    .toolbar-actions .view-btn {
-      width: 32px;
-      height: 28px;
+
+    .toolbar-actions .view-btn,
+    .toolbar-actions .filter-live-btn {
+      height: 40px;
     }
   }
   
