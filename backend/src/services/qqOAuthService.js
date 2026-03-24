@@ -4,7 +4,10 @@ class QQOAuthService {
   constructor() {
     this.clientId = process.env.QQ_APP_ID || '102816534';
     this.clientSecret = process.env.QQ_APP_KEY || 'lMkuzpUu75oLelgb';
-    this.redirectUri = process.env.QQ_REDIRECT_URI || 'https://img.vtart.cn/auth/qq/callback';
+    // 使用 FRONTEND_DOMAIN 构建回调 URL，避免硬编码域名
+    const frontendDomain = process.env.FRONTEND_DOMAIN || 'https://img.vtart.cn';
+    this.redirectUri = process.env.QQ_REDIRECT_URI
+      || `${frontendDomain}/auth/qq/callback`;
     this.baseUrl = 'https://graph.qq.com';
   }
 

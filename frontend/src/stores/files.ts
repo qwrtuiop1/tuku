@@ -189,26 +189,33 @@ export const useFilesStore = defineStore('files', () => {
     }
   }
 
-  // 删除文件
+  // 删除文件（本地状态更新，不触发全量刷新，由调用方统一刷新）
   const deleteFile = async (fileId: number) => {
     try {
       await api.delete(`/files/${fileId}`)
       files.value = files.value.filter(file => file.id !== fileId)
       selectedFiles.value = selectedFiles.value.filter(id => id !== fileId)
-      // 重新获取文件列表以确保数据同步
-      await fetchFiles(1)
     } catch (error: any) {
       throw error
     }
   }
 
-  // 批量删除文件
+  // 批量删除文件（调用后端 batch API，单次请求完成所有文件删除）
+  const deleteFiles = async (fileIds: number[]) => {
+    try {
+      await api.delete('/files/batch', { data: { file_ids: fileIds } })
+      files.value = files.value.filter(file => !fileIds.includes(file.id))
+      selectedFiles.value = selectedFiles.value.filter(id => !fileIds.includes(id))
+    } catch (error: any) {
+      throw error
+    }
+  }
+
+  // 保留旧方法以兼容，但改用新的批量 API
   const deleteSelectedFiles = async () => {
-    const deletePromises = selectedFiles.value.map(id => deleteFile(id))
-    await Promise.all(deletePromises)
+    if (selectedFiles.value.length === 0) return
+    await deleteFiles([...selectedFiles.value])
     selectedFiles.value = []
-    // 重新获取文件列表以确保数据同步
-    await fetchFiles(1)
   }
 
   // 创建文件夹

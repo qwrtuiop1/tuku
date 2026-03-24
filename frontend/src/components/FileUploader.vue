@@ -428,12 +428,13 @@ const validateFile = (file: File): boolean => {
     let inferred = file.type
     if (!inferred || inferred === '' || inferred === 'application/octet-stream') {
       const n = (file.name || '').toLowerCase()
-      if (n.endsWith('.heic')) inferred = 'image/heic'
-      else if (n.endsWith('.heif')) inferred = 'image/heif'
+      // GIF/WebP 优先识别，确保进入图片通道（而非被误判为不支持）
+      if (/\.gif$/i.test(n)) inferred = 'image/gif'
+      else if (/\.webp$/i.test(n)) inferred = 'image/webp'
+      else if (/\.heic$/i.test(n)) inferred = 'image/heic'
+      else if (/\.heif$/i.test(n)) inferred = 'image/heif'
       else if (n.endsWith('.jpg') || n.endsWith('.jpeg')) inferred = 'image/jpeg'
       else if (n.endsWith('.png')) inferred = 'image/png'
-      else if (n.endsWith('.gif')) inferred = 'image/gif'
-      else if (n.endsWith('.webp')) inferred = 'image/webp'
       else if (n.endsWith('.mov')) inferred = 'video/quicktime'
       else if (n.endsWith('.mp4') || n.endsWith('.m4v')) inferred = 'video/mp4'
       else if (n.endsWith('.webm')) inferred = 'video/webm'
@@ -466,15 +467,18 @@ const handleDrop = async (e: DragEvent) => {
   await processFiles(files)
 }
 
-// 触发文件选择
+  // 触发文件选择
 const triggerFileInput = () => {
-  // Android：优先使用专用 input，避免系统相册过滤 GIF
+  // Android：专用 input，避免系统相册过滤 GIF/MOV/WebM 等
   if (isDeviceAndroid.value && androidFileInputRef.value) {
     androidFileInputRef.value.accept = [
-      'image/*', 'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-      'image/heic', 'image/heif', 'video/*',
-      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif',
-      '.mp4', '.mov', '.webm', '.mkv', '.avi', '.3gp', '.m4v'
+      'image/*',           // 覆盖所有标准图片（JPEG/PNG 等）
+      'image/gif',         // GIF MIME（某些 Android Chrome 版本需要显式声明）
+      'video/*',           // 所有视频
+      '.jpg', '.jpeg', '.png', '.gif', '.webp', '.heic', '.heif',   // 图片扩展
+      '.mp4', '.mov', '.webm', '.mkv', '.avi', '.3gp', '.m4v',       // 视频扩展
+      '.JPG', '.JPEG', '.PNG', '.GIF', '.WEBP', '.HEIC', '.HEIF',   // 大写扩展（Android 部分机型的 file.name）
+      '.MP4', '.MOV', '.WEBM', '.MKV', '.AVI', '.3GP', '.M4V',      // 大写视频扩展
     ].join(',')
     androidFileInputRef.value.click()
     return
@@ -676,8 +680,20 @@ const processFiles = async (files: File[]) => {
   // 未配对 mov 走普通上传
   movs.forEach(m => { if (!usedMovs.has(m.name)) others.push(m) })
 
-  // 动图单文件作为 live 任务
-  for (const a of anims) await createLiveJob([a])
+  // 动图单文件直接走普通上传通道，由后端根据 magic bytes 识别类型
+  // 注意：不要调用 createLiveJob，否则会触发不必要的转码
+  for (const a of anims) {
+    const preview = await createFilePreview(a)
+    const uploadItem: UploadItem = {
+      id: generateId(),
+      file: a,
+      preview,
+      progress: 0,
+      status: 'pending'
+    }
+    ;(uploadItem as any).liveBasename = a.name.replace(/\.[^.]+$/, '')
+    uploadList.value.push(uploadItem)
+  }
 
   // JPG Motion Photo 轻量检测：读首尾各 256KB，命中关键字则走 live
   for (const jpg of mayJpgs) {

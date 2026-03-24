@@ -28,13 +28,83 @@ async function detectMotionPhoto(buffer) {
   return idx > 0 ? idx - 4 : -1; // 前4字节为 box size
 }
 
+// ── Magic Bytes 内容检测 ──────────────────────────────────────────────────────
+// 即使浏览器上报错误 MIME type（application/octet-stream），也能正确识别格式
+function readMagicBytes(buffer, offset, count) {
+  return buffer.slice(offset, offset + count)
+}
+
+function matchesMagic(buffer, offset, magic) {
+  if (offset + magic.length > buffer.length) return false
+  for (let i = 0; i < magic.length; i++) {
+    if (buffer[offset + i] !== magic[i]) return false
+  }
+  return true
+}
+
+// 检查 GIF87a / GIF89a
+function isGifByContent(buffer) {
+  return matchesMagic(buffer, 0, [0x47, 0x49, 0x46, 0x38, 0x37, 0x61]) || // GIF87a
+         matchesMagic(buffer, 0, [0x47, 0x49, 0x46, 0x38, 0x39, 0x61])    // GIF89a
+}
+
+// 检查 WebP RIFF....WEBP
+function isWebpByContent(buffer) {
+  if (buffer.length < 12) return false
+  return matchesMagic(buffer, 0, [0x52, 0x49, 0x46, 0x46]) && // RIFF
+         matchesMagic(buffer, 8, [0x57, 0x45, 0x42, 0x50])     // WEBP
+}
+
+// 检查 HEIC/HEIF (ftyp box at offset 4)
+function isHeicByContent(buffer) {
+  if (buffer.length < 12) return false
+  return matchesMagic(buffer, 4, [0x66, 0x74, 0x79, 0x70]) // ftyp
+}
+
+// 异步读取文件前 16KB 并检测内容类型
+async function detectFileContentType(file) {
+  try {
+    const buffer = await fs.readFile(file.path)
+    if (isGifByContent(buffer))   return 'image/gif'
+    if (isWebpByContent(buffer))   return 'image/webp'
+    if (isHeicByContent(buffer))   return 'image/heic'
+    // JPEG 也有 ftyp（在 JPEG trailer 里），但 HEIC 的 ftyp 在 offset 4
+    // 已由 isHeicByContent 处理
+    return null // 内容类型无法判断，沿用现有检测
+  } catch {
+    return null
+  }
+}
+
+// 异步读取 JPEG 末尾区域检测 Motion Photo
+async function detectMotionPhotoFromFile(jpegPath) {
+  try {
+    const stats = await fs.stat(jpegPath)
+    const readSize = Math.min(512 * 1024, stats.size)
+    const buf = Buffer.alloc(readSize)
+    const fd = await fs.open(jpegPath, 'r')
+    await fd.read(buf, 0, readSize, Math.max(0, stats.size - readSize))
+    await fd.close()
+    return detectMotionPhoto(buf)
+  } catch {
+    return -1
+  }
+}
+
 async function extractMotionPhotoMp4(jpegPath, outMp4Path) {
-  const data = await fs.readFile(jpegPath);
-  const offset = await detectMotionPhoto(data);
-  if (offset <= 0) return false;
-  const mp4Data = data.slice(offset);
-  await fs.writeFile(outMp4Path, mp4Data);
-  return true;
+  const offset = await detectMotionPhotoFromFile(jpegPath)
+  if (offset <= 0) return false
+  try {
+    const stats = await fs.stat(jpegPath)
+    const fd = await fs.open(jpegPath, 'r')
+    const buf = Buffer.alloc(stats.size - offset)
+    await fd.read(buf, 0, buf.length, offset)
+    await fd.close()
+    await fs.writeFile(outMp4Path, buf)
+    return true
+  } catch {
+    return false
+  }
 }
 
 async function makePosterFromVideo(videoPath, outPosterPath) {
@@ -290,12 +360,29 @@ module.exports = {
 
   async processUploadBatch(userId, files, onProgress, folderId, options = {}) {
     const { pairingId } = options || {};
-    // 识别上传内容（支持 HEIC+MOV 或 JPEG+MOV 配对，优先按显式 pairingId 匹配）
+    // ── 内容检测（magic bytes）优先 ──────────────────────────────────────────
+    // 即使浏览器上报错误 MIME type（application/octet-stream）也能正确识别
+    const gifByContent = new Set()
+    const webpByContent = new Set()
+    const heicByContent = new Set()
+    for (const f of files) {
+      const ct = await detectFileContentType(f)
+      if (ct === 'image/gif')   gifByContent.add(f.originalname.toLowerCase())
+      if (ct === 'image/webp')  webpByContent.add(f.originalname.toLowerCase())
+      if (ct === 'image/heic')   heicByContent.add(f.originalname.toLowerCase())
+    }
+
+    // 识别上传内容（支持 HEIC+MOV 或 JPEG+MOV 配对）
+    // magic bytes 命中 → 直接走对应通道，不再误入 JPEG 分支
     const isMov = (f) => /\.(mov|qt)$/i.test(f.originalname) || f.mimetype === 'video/quicktime'
-    const isHeic = (f) => /\.heic$/i.test(f.originalname) || f.mimetype === 'image/heic'
-    const isJpeg = (f) => /\.jpe?g$/i.test(f.originalname) || f.mimetype === 'image/jpeg'
-    const gif = files.find(f => /\.gif$/i.test(f.originalname) || f.mimetype === 'image/gif');
-    const webp = files.find(f => /\.webp$/i.test(f.originalname) || f.mimetype === 'image/webp');
+    const isHeic = (f) => heicByContent.has(f.originalname.toLowerCase())
+                     || /\.heic$/i.test(f.originalname) || f.mimetype === 'image/heic'
+    const isJpeg = (f) => /\.jpe?g$/i.test(f.originalname) && !isHeic(f)
+                  || (f.mimetype === 'image/jpeg' && !isHeic(f))
+    const gif = files.find(f => gifByContent.has(f.originalname.toLowerCase())
+                             || /\.gif$/i.test(f.originalname) || f.mimetype === 'image/gif')
+    const webp = files.find(f => webpByContent.has(f.originalname.toLowerCase())
+                              || /\.webp$/i.test(f.originalname) || f.mimetype === 'image/webp')
 
     const images = files.filter(f => isHeic(f) || isJpeg(f))
     const movies = files.filter(isMov)

@@ -23,7 +23,7 @@
       <div class="file-counter">
         <span class="current-number">{{ currentIndex + 1 }}</span>
         <span class="separator">/</span>
-        <span class="total-number">{{ files.length }}</span>
+        <span class="total-number">{{ localFiles.length }}</span>
       </div>
       
       <el-button 
@@ -116,8 +116,9 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, ArrowRight, Download, Share, FullScreen } from '@element-plus/icons-vue'
 import FilePreview from './FilePreview.vue'
-import { formatFileSize, getFilePreviewUrl, downloadFile as downloadFileUtil } from '@/utils/helpers'
+import { formatFileSize, getFilePreviewUrl, downloadFile as downloadFileUtil, preloadImage } from '@/utils/helpers'
 import { useSystemStore } from '@/stores/system'
+import { useFilesStore } from '@/stores/files'
 import api from '@/utils/api'
 
 interface FileItem {
@@ -165,7 +166,7 @@ const files = computed(() => {
 })
 
 const currentFile = computed(() => {
-  const file = files.value[currentIndex.value] || null
+  const file = localFiles.value[currentIndex.value] || null
   return file
 })
 
@@ -181,7 +182,7 @@ const reviewStatusText = computed(() => {
   return s === 'pending_review' ? '审核中' : s === 'approved' ? '已通过' : s === 'rejected' ? '未通过' : s
 })
 
-const hasMultipleFiles = computed(() => files.value.length > 1)
+const hasMultipleFiles = computed(() => localFiles.value.length > 1)
 
 const dialogTitle = computed(() => {
   return '文件预览'
@@ -190,6 +191,9 @@ const dialogTitle = computed(() => {
 // 系统设置（分享状态）
 const systemStore = useSystemStore()
 onMounted(() => { if (!systemStore.loaded) systemStore.loadShareStatus() })
+
+// 文件状态管理
+const filesStore = useFilesStore()
 
 // 方法
 const previewContainer = ref<HTMLElement | null>(null)
@@ -217,11 +221,32 @@ const previousFile = () => {
 }
 
 const nextFile = () => {
-  if (currentIndex.value < files.value.length - 1) {
+  if (currentIndex.value < localFiles.value.length - 1) {
     currentIndex.value++
     emit('file-change', currentFile.value, currentIndex.value)
   }
 }
+
+// 预加载当前图片前后各 N 张图片到浏览器缓存，减少切换时的加载等待时间
+const PRELOAD_COUNT = 3
+const preloadAdjacentImages = () => {
+  const allFiles = localFiles.value
+  if (!allFiles.length) return
+  for (let offset = -PRELOAD_COUNT; offset <= PRELOAD_COUNT; offset++) {
+    if (offset === 0) continue
+    const idx = currentIndex.value + offset
+    if (idx < 0 || idx >= allFiles.length) continue
+    const file = allFiles[idx]
+    if (file.file_type !== 'image') continue
+    const url = getFilePreviewUrl(file.id)
+    preloadImage(url)
+  }
+}
+
+// 每次切换文件时触发预加载
+watch(currentIndex, () => {
+  preloadAdjacentImages()
+}, { immediate: true })
 
 const downloadCurrentFile = () => {
   if (currentFile.value) {
@@ -287,40 +312,57 @@ function stopReviewPolling() { if (reviewPoller) { clearInterval(reviewPoller); 
 watch(visible, (v) => { if (!v) stopReviewPolling() })
 
 
-const handleFileDeleted = (fileId: number) => {
+const handleFileDeleted = async (fileId: number) => {
+  // 调用后端批量删除接口（单文件），本地状态立即更新
+  await filesStore.deleteFiles([fileId])
+  ElMessage.success('文件删除成功')
+
+  // 从本地预览列表中移除已删除的文件
+  const idx = localFiles.value.findIndex(f => f.id === fileId)
+  if (idx !== -1) {
+    localFiles.value.splice(idx, 1)
+    if (currentIndex.value >= localFiles.value.length) {
+      currentIndex.value = Math.max(0, localFiles.value.length - 1)
+    }
+  }
+
   emit('file-deleted', fileId)
-  
+
   // 如果删除的是当前文件，切换到下一个文件
   if (currentFile.value?.id === fileId) {
-    if (files.value.length > 1) {
-      if (currentIndex.value < files.value.length - 1) {
-        // 切换到下一个文件
+    if (localFiles.value.length > 1) {
+      if (currentIndex.value < localFiles.value.length - 1) {
         nextFile()
       } else if (currentIndex.value > 0) {
-        // 切换到上一个文件
         previousFile()
       } else {
-        // 没有其他文件，关闭对话框
         handleClose()
       }
     } else {
-      // 只有一个文件，关闭对话框
       handleClose()
     }
   }
 }
 
+// 维护本地可变的文件列表，支持无刷新删除
+const localFiles = ref<FileItem[]>([])
+
+// 当 computed files 更新时同步本地列表
+watch(files, (newFiles) => {
+  localFiles.value = [...newFiles]
+}, { immediate: true })
+
 // 监听初始索引变化
 watch(() => props.initialIndex, (newIndex) => {
-  if (newIndex !== undefined && newIndex >= 0 && newIndex < files.value.length) {
+  if (newIndex !== undefined && newIndex >= 0 && newIndex < localFiles.value.length) {
     currentIndex.value = newIndex
   }
 }, { immediate: true })
 
 // 监听文件变化
 watch(() => props.file, (newFile) => {
-  if (newFile && files.value.length > 0) {
-    const index = files.value.findIndex(f => f.id === newFile.id)
+  if (newFile && localFiles.value.length > 0) {
+    const index = localFiles.value.findIndex(f => f.id === newFile.id)
     if (index !== -1) {
       currentIndex.value = index
     }

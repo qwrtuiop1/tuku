@@ -330,14 +330,13 @@ const deleteFile = async () => {
         type: 'warning'
       }
     )
-    
-    await filesStore.deleteFile(props.file.id)
-    ElMessage.success('文件删除成功')
-    
-    // 触发父组件刷新
+
+    // 通知父组件执行删除并更新状态，避免 store 中重复删除
     emit('file-deleted', props.file.id)
-  } catch (error) {
-    // 用户取消或删除失败
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
   }
 }
 

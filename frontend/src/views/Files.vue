@@ -1487,7 +1487,6 @@ const handleUploadSuccess = () => {
 
 const handleFileDeleted = (fileId: number) => {
   showPreviewDialog.value = false
-  refreshFiles()
 }
 
 const handlePreviewFileChange = (file: any, index: number) => {
@@ -1733,17 +1732,13 @@ const deleteFile = async (file: any) => {
         type: 'warning'
       }
     )
-    
+
     if ((file as any).isLive && (file as any).liveAsset?.id) {
       await deleteLiveAsset((file as any).liveAsset.id)
     } else {
-    await filesStore.deleteFile(file.id)
+      await filesStore.deleteFile(file.id)
     }
     ElMessage.success('文件删除成功')
-    
-    // 刷新文件列表以确保数据同步
-    await filesStore.fetchFiles(1)
-    await filesStore.fetchFolders()
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('删除失败')
@@ -1772,25 +1767,20 @@ const batchDelete = async () => {
     ElMessage.warning('请先选择要删除的项目')
     return
   }
-  
+
   try {
     // 仅实况视图：批量删除实况资源
     if (onlyLive.value) {
+      const idsToDelete: number[] = []
       for (const idStr of selectedFiles.value) {
-        try { 
-          // 从 live_xxx 格式中提取数字ID
-          const id = typeof idStr === 'string' && idStr.startsWith('live_') 
-            ? parseInt(idStr.replace('live_', '')) 
-            : parseInt(idStr)
-          await api.delete(`/live-media/${id}`)
-          // 立即从本地数组中移除
-          const index = liveAssets.value.findIndex(a => a.id === id)
-          if (index !== -1) {
-            liveAssets.value.splice(index, 1)
-          }
-        } catch {}
+        const id = typeof idStr === 'string' && idStr.startsWith('live_')
+          ? parseInt(idStr.replace('live_', ''))
+          : parseInt(idStr)
+        if (!Number.isNaN(id)) idsToDelete.push(id)
       }
-      ElMessage.success(`成功删除 ${selectedFiles.value.length} 个实况`)
+      await Promise.allSettled(idsToDelete.map(id => api.delete(`/live-media/${id}`)))
+      liveAssets.value = liveAssets.value.filter(a => !idsToDelete.includes(a.id))
+      ElMessage.success(`成功删除 ${idsToDelete.length} 个实况`)
       selectedFiles.value = []
       return
     }
@@ -1804,13 +1794,13 @@ const batchDelete = async () => {
         type: 'warning'
       }
     )
-    
-  // 分别处理文件/文件夹/实况
-    const filesToDelete = []
-    const foldersToDelete = []
-  const liveToDelete: number[] = []
-    
-  // 获取所有项目信息（含合并的实况项）
+
+    // 分别处理文件/文件夹/实况
+    const filesToDelete: any[] = []
+    const foldersToDelete: any[] = []
+    const liveToDelete: number[] = []
+
+    // 获取所有项目信息（含合并的实况项）
     const allItems = [
       ...(filesStore.folders as any[]).map(folder => ({
         ...folder,
@@ -1824,15 +1814,15 @@ const batchDelete = async () => {
         isFolder: false
       }))
     ] as any[]
-    
+
     // 分类选中的项目
     for (const itemId of selectedFiles.value) {
-    // 识别实况ID
-    if (typeof itemId === 'string' && itemId.startsWith('live_')) {
-      const numId = parseInt(itemId.replace('live_', ''))
-      if (!Number.isNaN(numId)) liveToDelete.push(numId)
-      continue
-    }
+      // 识别实况ID
+      if (typeof itemId === 'string' && itemId.startsWith('live_')) {
+        const numId = parseInt(itemId.replace('live_', ''))
+        if (!Number.isNaN(numId)) liveToDelete.push(numId)
+        continue
+      }
       const item = allItems.find(item => item.id === itemId)
       if (item) {
         if (item.isFolder) {
@@ -1842,28 +1832,26 @@ const batchDelete = async () => {
         }
       }
     }
-    
-    // 删除文件夹
+
+    // 删除文件夹（本地状态更新）
     for (const folder of foldersToDelete) {
       await filesStore.deleteFolder(folder.id)
     }
-    
-    // 删除文件
-    for (const file of filesToDelete) {
-      await filesStore.deleteFile(file.id)
+
+    // 批量删除文件：使用单次 batch API，无需逐个删除
+    if (filesToDelete.length > 0) {
+      const fileIds = filesToDelete.map(f => f.id)
+      await filesStore.deleteFiles(fileIds)
     }
-    
-  // 删除实况
-  for (const liveId of liveToDelete) {
-    try { await api.delete(`/live-media/${liveId}`) } catch {}
-  }
-  const totalCount = filesToDelete.length + foldersToDelete.length + liveToDelete.length
+
+    // 批量删除实况
+    if (liveToDelete.length > 0) {
+      await Promise.allSettled(liveToDelete.map(id => api.delete(`/live-media/${id}`)))
+    }
+
+    const totalCount = filesToDelete.length + foldersToDelete.length + liveToDelete.length
     ElMessage.success(`成功删除 ${totalCount} 个项目`)
     selectedFiles.value = []
-    
-    // 刷新文件列表以确保数据同步
-    await filesStore.fetchFiles(1)
-    await filesStore.fetchFolders()
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('批量删除失败')
