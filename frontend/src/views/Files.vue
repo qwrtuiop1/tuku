@@ -3355,15 +3355,6 @@ const shareStatusText = computed(() => {
       }
     }
     
-    .card-actions {
-      .action-btn {
-        padding: 2px; // 减少操作按钮内边距
-        
-        :deep(.el-icon) {
-          font-size: 12px; // 减少图标大小
-        }
-      }
-    }
   }
   
   .unified-toolbar {
@@ -3554,15 +3545,6 @@ const shareStatusText = computed(() => {
       }
     }
     
-    .card-actions {
-      .action-btn {
-        padding: 1px; // 进一步减少操作按钮内边距
-        
-        :deep(.el-icon) {
-          font-size: 10px; // 进一步减少图标大小
-        }
-      }
-    }
   }
   
   .file-card {
@@ -3722,15 +3704,6 @@ const shareStatusText = computed(() => {
         }
       }
       
-      .card-actions {
-        .action-btn {
-          padding: 1px; // 最小操作按钮内边距
-          
-          :deep(.el-icon) {
-            font-size: 9px; // 最小图标大小
-          }
-        }
-      }
     }
   }
   
@@ -4195,74 +4168,6 @@ const shareStatusText = computed(() => {
     }
   }
   
-  .card-actions {
-    gap: 4px;
-    padding: 6px;
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transition: all 0.3s ease;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%);
-    backdrop-filter: blur(6px);
-    border-radius: 6px;
-    flex-direction: row;
-    
-    .action-btn {
-      padding: 4px 8px;
-      font-size: 10px;
-      font-weight: 500;
-      min-height: 24px;
-      width: 100%;
-      max-width: 80px;
-      border-radius: 4px;
-      background: rgba(255, 255, 255, 0.9);
-      border: 1px solid rgba(0, 0, 0, 0.1);
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 3px;
-      text-align: center;
-      
-      &:hover {
-        background: rgba(255, 255, 255, 1);
-        border-color: #409eff;
-        color: #409eff;
-        transform: translateY(-1px);
-        box-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
-      }
-      
-      &.danger:hover {
-        background: rgba(245, 108, 108, 0.1);
-        border-color: #f56c6c;
-        color: #f56c6c;
-        box-shadow: 0 2px 8px rgba(245, 108, 108, 0.2);
-      }
-      
-      .el-icon {
-        font-size: 10px;
-        flex-shrink: 0;
-        margin: 0;
-      }
-      
-      span {
-        font-size: 10px;
-        font-weight: 500;
-        flex-shrink: 0;
-        margin: 0;
-        line-height: 1;
-      }
-      
-      // 确保Element Plus按钮内容居中对齐
-      :deep(.el-button__inner) {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 3px;
-        width: 100%;
-      }
-    }
-  }
 }
 
 // 移动端对话框优化
@@ -4713,24 +4618,92 @@ const shareStatusText = computed(() => {
   }
 }
 
-// 在移动端/平板：仅长按显示操作按钮，并以2列栅格布局显示，按钮等分5:5
+// 移动端/平板：长按操作区 — 纵向操作列表（类 Action Sheet），避免 2 列网格行被 align-content: stretch 撑开导致行间空隙过大
 @media (max-width: 1023px) {
   .file-card .card-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr; /* 两列，5:5 等分 */
-    gap: 6px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    gap: 8px;
+    padding: 12px 10px;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
+    background: rgba(241, 245, 249, 0.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: inherit;
   }
+
   .file-card .card-actions .action-btn {
     width: 100%;
-    justify-content: center;
+    max-width: none;
+    min-height: 44px;
+    margin: 0 !important;
+    padding: 10px 14px !important;
+    font-size: 14px !important;
+    font-weight: 500;
+    border-radius: 12px !important;
+    border: none !important;
+    background: rgba(255, 255, 255, 0.99) !important;
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.06),
+      0 0 0 1px rgba(15, 23, 42, 0.07);
+    color: #374151 !important;
+    justify-content: flex-start;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+
+    &:hover {
+      transform: none;
+      color: #2563eb !important;
+      box-shadow:
+        0 2px 8px rgba(37, 99, 235, 0.12),
+        0 0 0 1px rgba(37, 99, 235, 0.2);
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+
+    &.danger {
+      color: #dc2626 !important;
+      box-shadow:
+        0 1px 2px rgba(220, 38, 38, 0.08),
+        0 0 0 1px rgba(220, 38, 38, 0.22);
+
+      &:hover {
+        color: #b91c1c !important;
+        background: rgba(254, 242, 242, 0.98) !important;
+        box-shadow:
+          0 2px 8px rgba(220, 38, 38, 0.15),
+          0 0 0 1px rgba(220, 38, 38, 0.28);
+      }
+    }
+
+    .el-icon,
+    :deep(.el-icon) {
+      font-size: 18px !important;
+      margin: 0 !important;
+      flex-shrink: 0;
+    }
+
+    span {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    :deep(.el-button__inner) {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 10px;
+      width: 100%;
+    }
   }
-  /* 禁用 hover/active 触发，只有 long-pressed 才显示 */
+
   .file-card:hover .card-actions,
   .file-card:active .card-actions {
     opacity: 0 !important;
