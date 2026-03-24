@@ -94,28 +94,41 @@
           v-for="item in uploadList"
           :key="item.id"
           class="upload-item"
-          :class="item.status"
+          :class="[item.status, `type-${item.fileCategory}`]"
         >
           <div class="item-thumbnail">
+            <!-- 图片/动图：显示预览缩略图 -->
             <img
-              v-if="item.file.type.startsWith('image/')"
+              v-if="item.fileCategory === 'image' || item.fileCategory === 'animated'"
               :src="item.preview"
               :alt="item.file.name"
               class="thumbnail-image"
             />
-            <div v-else class="file-icon">
+            <!-- 实况/视频：视频图标 + 动图角标 -->
+            <div v-else-if="item.fileCategory === 'live' || item.fileCategory === 'video'" class="file-icon" :class="item.fileCategory">
               <el-icon><VideoPlay /></el-icon>
+              <span v-if="item.fileCategory === 'live'" class="type-badge">LIVE</span>
+            </div>
+            <!-- 未知类型 -->
+            <div v-else class="file-icon">
+              <el-icon><Document /></el-icon>
             </div>
           </div>
           
           <div class="item-info">
             <div class="item-name">{{ item.file.name }}</div>
-            <div class="item-size">{{ formatFileSize(item.file.size) }}</div>
+            <div class="item-meta">
+              <span class="item-size">{{ formatFileSize(item.file.size) }}</span>
+              <span v-if="item.fileCategory === 'animated'" class="item-tag tag-animated">动图</span>
+              <span v-else-if="item.fileCategory === 'live'" class="item-tag tag-live">实况</span>
+              <span v-else-if="item.fileCategory === 'video'" class="item-tag tag-video">视频</span>
+            </div>
             <div class="item-progress">
               <el-progress
                 :percentage="item.progress"
                 :stroke-width="4"
                 :show-text="false"
+                :color="getProgressColor(item)"
               />
             </div>
           </div>
@@ -140,6 +153,7 @@
             <el-button
               type="text"
               size="small"
+              class="remove-btn"
               @click="removeFromList(item.id)"
             >
               移除
@@ -202,7 +216,8 @@ import {
   Clock,
   Check,
   Close,
-  Monitor
+  Monitor,
+  Document
 } from '@element-plus/icons-vue'
 import { useFilesStore } from '@/stores/files'
 import { formatFileSize } from '@/utils/helpers'
@@ -217,6 +232,8 @@ interface UploadItem {
   progress: number
   status: 'pending' | 'uploading' | 'success' | 'error' | 'canceled'
   error?: string
+  // 识别出的文件子类型
+  fileCategory: 'image' | 'video' | 'animated' | 'live' | 'unknown'
 }
 
 const emit = defineEmits<{
@@ -685,7 +702,8 @@ const processFiles = async (files: File[]) => {
       file: a,
       preview: createFilePreview(a),
       progress: 0,
-      status: 'pending'
+      status: 'pending',
+      fileCategory: /\.gif$/i.test(a.name) ? 'animated' : 'animated'
     }
     ;(uploadItem as any).liveBasename = a.name.replace(/\.[^.]+$/, '')
     uploadList.value.push(uploadItem)
@@ -698,7 +716,9 @@ const processFiles = async (files: File[]) => {
       file,
       preview: createFilePreview(file),
       progress: 0,
-      status: 'pending'
+      status: 'pending',
+      fileCategory: file.type.startsWith('image/') ? 'image' :
+                    file.type.startsWith('video/') ? 'video' : 'unknown'
     }
     ;(uploadItem as any).liveBasename = file.name.replace(/\.[^.]+$/, '')
     uploadList.value.push(uploadItem)
@@ -711,7 +731,8 @@ const processFiles = async (files: File[]) => {
       file: jpg,
       preview: createFilePreview(jpg),
       progress: 0,
-      status: 'pending'
+      status: 'pending',
+      fileCategory: 'image'
     }
     ;(uploadItem as any).liveBasename = jpg.name.replace(/\.[^.]+$/, '')
     uploadList.value.push(uploadItem)
@@ -726,6 +747,7 @@ const processFiles = async (files: File[]) => {
 const detectMotionPhotoAsync = (file: File, item: UploadItem) => {
   detectMotionPhoto(file).then((isMotion) => {
     if (isMotion && item.status === 'pending') {
+      item.fileCategory = 'live'
       item.status = 'uploading'
       isUploading.value = true
       createLiveJob([file])
@@ -875,6 +897,14 @@ const removeFromList = (id: string) => {
   if (index > -1) {
     uploadList.value.splice(index, 1)
   }
+}
+
+// 根据文件类型返回进度条颜色
+const getProgressColor = (item: UploadItem): string => {
+  if (item.fileCategory === 'animated') return '#f59e0b'
+  if (item.fileCategory === 'live') return '#ec4899'
+  if (item.fileCategory === 'video') return '#0ea5e9'
+  return '#667eea'
 }
 
 const statusText = (s: string) => {
@@ -1104,15 +1134,38 @@ onMounted(() => {
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: 16px;
+    padding: 14px 16px;
     border-radius: 12px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     background: #ffffff;
     border: 1px solid #e9ecef;
-    transition: all 0.3s ease;
+    border-left-width: 4px;
+    transition: all 0.25s ease;
     position: relative;
     overflow: hidden;
-    
+
+    // 文件类型 — 左边框 + 图标底色区分
+    &.type-image {
+      border-left-color: #667eea;
+      &::before { background: linear-gradient(180deg, #667eea, #764ba2); }
+    }
+    &.type-video {
+      border-left-color: #0ea5e9;
+      &::before { background: linear-gradient(180deg, #0ea5e9, #06b6d4); }
+    }
+    &.type-animated {
+      border-left-color: #f59e0b;
+      &::before { background: linear-gradient(180deg, #f59e0b, #f97316); }
+    }
+    &.type-live {
+      border-left-color: #ec4899;
+      &::before { background: linear-gradient(180deg, #ec4899, #a855f7); }
+    }
+    &.type-unknown {
+      border-left-color: #9ca3af;
+      &::before { background: linear-gradient(180deg, #9ca3af, #6b7280); }
+    }
+
     &::before {
       content: '';
       position: absolute;
@@ -1121,147 +1174,211 @@ onMounted(() => {
       width: 4px;
       height: 100%;
       background: #e9ecef;
-      transition: all 0.3s ease;
+      transition: all 0.25s ease;
     }
-    
+
     &:hover {
       background: #f8f9fa;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      transform: translateX(2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     }
-    
+
     &.success {
-      background: linear-gradient(135deg, #f0f9ff 0%, #e8f5e8 100%);
-      border-color: #27ae60;
-      
-      &::before {
-        background: linear-gradient(135deg, #27ae60, #2ecc71);
-      }
+      background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+      border-color: #bbf7d0;
+      &::before { background: linear-gradient(180deg, #16a34a, #22c55e) !important; }
     }
-    
+
     &.error {
-      background: linear-gradient(135deg, #fef0f0 0%, #ffe8e8 100%);
-      border-color: #e74c3c;
-      
-      &::before {
-        background: linear-gradient(135deg, #e74c3c, #ff6b6b);
-      }
+      background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+      border-color: #fecaca;
+      &::before { background: linear-gradient(180deg, #dc2626, #ef4444) !important; }
     }
-    
+
     &.uploading {
-      background: linear-gradient(135deg, #f0f9ff 0%, #e6f7ff 100%);
-      border-color: #667eea;
-      
-      &::before {
-        background: linear-gradient(135deg, #667eea, #764ba2);
-      }
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      border-color: #bfdbfe;
+      &::before { background: linear-gradient(180deg, #2563eb, #3b82f6) !important; }
     }
-    
+
+    &.canceled {
+      opacity: 0.6;
+      background: #f9fafb;
+    }
+
     .item-thumbnail {
-      width: 50px;
-      height: 50px;
+      width: 52px;
+      height: 52px;
       border-radius: 10px;
       overflow: hidden;
       flex-shrink: 0;
       border: 2px solid #e9ecef;
-      transition: all 0.3s ease;
-      
+      transition: all 0.25s ease;
+      position: relative;
+      background: #f3f4f6;
+
       &:hover {
         transform: scale(1.05);
+        border-color: #d1d5db;
       }
-      
+
       .thumbnail-image {
         width: 100%;
         height: 100%;
         object-fit: cover;
       }
-      
+
+      // 动图：叠加 GIF 角标
       .file-icon {
         width: 100%;
         height: 100%;
-        background: linear-gradient(135deg, #667eea, #764ba2);
         display: flex;
         align-items: center;
         justify-content: center;
         color: #ffffff;
-        font-size: 20px;
+        font-size: 22px;
+        position: relative;
+
+        &.video {
+          background: linear-gradient(135deg, #0ea5e9, #06b6d4);
+        }
+        &.live {
+          background: linear-gradient(135deg, #ec4899, #a855f7);
+        }
+
+        .type-badge {
+          position: absolute;
+          bottom: 2px;
+          right: 2px;
+          font-size: 7px;
+          font-weight: 700;
+          background: rgba(0, 0, 0, 0.6);
+          color: #fff;
+          padding: 1px 3px;
+          border-radius: 4px;
+          letter-spacing: 0.5px;
+          line-height: 1;
+        }
       }
     }
-    
+
     .item-info {
       flex: 1;
       min-width: 0;
-      
+
       .item-name {
-        font-size: 15px;
+        font-size: 14px;
         font-weight: 600;
-        color: #2c3e50;
-        margin-bottom: 6px;
+        color: #1f2937;
+        margin-bottom: 4px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
       }
-      
-      .item-size {
-        font-size: 13px;
-        color: #7f8c8d;
-        margin-bottom: 10px;
-        font-weight: 500;
+
+      .item-meta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 8px;
+        flex-wrap: wrap;
+
+        .item-size {
+          font-size: 12px;
+          color: #9ca3af;
+          font-weight: 500;
+        }
+
+        .item-tag {
+          font-size: 10px;
+          font-weight: 700;
+          padding: 1px 6px;
+          border-radius: 6px;
+          letter-spacing: 0.5px;
+
+          &.tag-animated {
+            background: rgba(245, 158, 11, 0.12);
+            color: #d97706;
+            border: 1px solid rgba(245, 158, 11, 0.25);
+          }
+          &.tag-live {
+            background: rgba(236, 72, 153, 0.12);
+            color: #db2777;
+            border: 1px solid rgba(236, 72, 153, 0.25);
+          }
+          &.tag-video {
+            background: rgba(14, 165, 233, 0.12);
+            color: #0284c7;
+            border: 1px solid rgba(14, 165, 233, 0.25);
+          }
+        }
       }
-      
+
       .item-progress {
         width: 100%;
-        
+
         :deep(.el-progress) {
           .el-progress-bar__outer {
-            border-radius: 6px;
-            background: rgba(102, 126, 234, 0.1);
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.06);
           }
-          
+
           .el-progress-bar__inner {
-            border-radius: 6px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 4px;
+            transition: width 0.3s ease;
           }
         }
       }
     }
-    
+
     .item-status {
       .status-icon {
         font-size: 24px;
-        
+
         &.success {
-          color: #27ae60;
+          color: #16a34a;
           animation: pulse 2s ease-in-out infinite;
         }
-        
+
         &.error {
-          color: #e74c3c;
+          color: #dc2626;
         }
-        
+
         &.uploading {
-          color: #667eea;
+          color: #2563eb;
           animation: spin 1s linear infinite;
+        }
+
+        &.canceled {
+          color: #9ca3af;
         }
       }
     }
-    
+
     .item-actions {
       display: flex;
-      gap: 8px;
-      
+      gap: 4px;
+      flex-shrink: 0;
+
       :deep(.el-button) {
         font-weight: 600;
         border-radius: 8px;
-        
+        font-size: 13px;
+
         &.el-button--text {
-          color: #667eea;
-          
+          color: #6b7280;
+
           &:hover {
-            color: #764ba2;
-            background: rgba(102, 126, 234, 0.1);
+            color: #374151;
+            background: rgba(107, 114, 128, 0.08);
           }
+        }
+      }
+
+      .remove-btn {
+        &:hover {
+          color: #dc2626 !important;
+          background: rgba(220, 38, 38, 0.06) !important;
         }
       }
     }
