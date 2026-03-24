@@ -2294,7 +2294,7 @@ const shareStatusText = computed(() => {
     .mobile-folder-btn {
       min-width: 0;
       height: 44px;
-      border-radius: 14px;
+      border-radius: 10px;
       font-weight: 600;
       font-size: 14px;
       letter-spacing: 0.02em;
@@ -2335,7 +2335,7 @@ const shareStatusText = computed(() => {
     .mobile-refresh-btn {
       width: 44px;
       height: 44px;
-      border-radius: 14px;
+      border-radius: 10px;
       padding: 0;
       background: rgba(255, 255, 255, 0.92);
       border: 1px solid #e2e8f0;
@@ -2377,7 +2377,8 @@ const shareStatusText = computed(() => {
       width: 100%;
 
       :deep(.el-input__wrapper) {
-        border-radius: 14px;
+        height: 44px;
+        border-radius: 10px;
         box-shadow: none;
         border: 1px solid #e2e8f0;
         background: rgba(248, 250, 252, 0.95);
@@ -2395,6 +2396,11 @@ const shareStatusText = computed(() => {
         }
       }
 
+      :deep(.el-input__inner) {
+        height: 42px;
+        line-height: 42px;
+      }
+
       :deep(.el-input__prefix) {
         color: #94a3b8;
       }
@@ -2402,11 +2408,11 @@ const shareStatusText = computed(() => {
 
     .mobile-sort-dropdown {
       .mobile-sort-btn {
-        width: 40px;
-        height: 40px;
-        min-width: 40px;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
         padding: 0;
-        border-radius: 12px;
+        border-radius: 10px;
         background: rgba(255, 255, 255, 0.92);
         border: 1px solid #e2e8f0;
         color: #475569;
@@ -2426,7 +2432,7 @@ const shareStatusText = computed(() => {
 
     .mobile-view-toggle {
       display: inline-flex;
-      border-radius: 12px;
+      border-radius: 10px;
       overflow: hidden;
       box-shadow: none;
       border: 1px solid #e2e8f0;
@@ -2438,7 +2444,7 @@ const shareStatusText = computed(() => {
         border-radius: 0;
         background: transparent;
         color: #64748b;
-        min-height: 40px;
+        min-height: 44px;
         padding: 0 14px;
         transition: background 0.2s ease, color 0.2s ease;
 
@@ -3457,23 +3463,25 @@ const shareStatusText = computed(() => {
   
   .mobile-toolbar {
     display: block;
-    padding: 6px 0; // 只保留上下内边距，移除左右内边距
-    
+    padding: 6px 0;
+
     .mobile-actions {
       margin-bottom: 10px;
-      
+
       .mobile-upload-btn,
       .mobile-folder-btn {
-        height: 40px;
-        font-size: 13px;
+        height: 44px;
+        font-size: 14px;
+        border-radius: 10px;
       }
-      
+
       .mobile-refresh-btn {
-        width: 40px;
-        height: 40px;
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
       }
     }
-    
+
     .mobile-controls {
       gap: 8px;
 
@@ -3482,28 +3490,30 @@ const shareStatusText = computed(() => {
       }
 
       .mobile-sort-dropdown .mobile-sort-btn {
-        width: 36px;
-        height: 36px;
-        min-width: 36px;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        border-radius: 10px;
       }
 
       .mobile-view-toggle :deep(.el-button) {
-        min-height: 36px;
+        min-height: 44px;
         padding: 0 12px;
       }
     }
-    
+
     .mobile-batch-bar {
       padding: 10px 12px;
       margin-top: 10px;
-      
+
       .batch-info {
         font-size: 13px;
       }
-      
+
       .mobile-batch-btn {
-        width: 36px;
-        height: 32px;
+        width: 44px;
+        height: 36px;
+        border-radius: 10px;
       }
     }
   }
@@ -3637,26 +3647,26 @@ const shareStatusText = computed(() => {
   
   .mobile-toolbar {
     display: block;
-    padding: 8px 0; // 只保留上下内边距，移除左右内边距
-    
+    padding: 8px 0;
+
     .mobile-actions {
       margin-bottom: 8px;
       gap: 6px;
-      
+
       .mobile-upload-btn,
       .mobile-folder-btn {
-        height: 36px;
-        font-size: 12px;
+        height: 44px;
+        font-size: 14px;
         border-radius: 10px;
       }
-      
+
       .mobile-refresh-btn {
-        width: 36px;
-        height: 36px;
+        width: 44px;
+        height: 44px;
         border-radius: 10px;
       }
     }
-    
+
     .mobile-controls {
       gap: 6px;
 
@@ -3665,31 +3675,31 @@ const shareStatusText = computed(() => {
       }
 
       .mobile-sort-dropdown .mobile-sort-btn {
-        width: 32px;
-        height: 32px;
-        min-width: 32px;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
         border-radius: 10px;
       }
 
       .mobile-view-toggle :deep(.el-button) {
-        min-height: 32px;
+        min-height: 44px;
         padding: 0 10px;
       }
     }
-    
+
     .mobile-batch-bar {
       padding: 8px 10px;
       margin-top: 8px;
       border-radius: 10px;
-      
+
       .batch-info {
         font-size: 12px;
       }
-      
+
       .mobile-batch-btn {
-        width: 32px;
-        height: 28px;
-        border-radius: 8px;
+        width: 44px;
+        height: 36px;
+        border-radius: 10px;
       }
     }
   }
@@ -3802,15 +3812,15 @@ const shareStatusText = computed(() => {
 
       .mobile-upload-btn,
       .mobile-folder-btn {
-        height: 36px;
-        font-size: 12px;
-        border-radius: 12px;
+        height: 44px;
+        font-size: 14px;
+        border-radius: 10px;
       }
 
       .mobile-refresh-btn {
-        width: 36px;
-        height: 36px;
-        border-radius: 12px;
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
       }
     }
 
@@ -3822,13 +3832,14 @@ const shareStatusText = computed(() => {
       }
 
       .mobile-sort-dropdown .mobile-sort-btn {
-        width: 32px;
-        height: 32px;
-        min-width: 32px;
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        border-radius: 10px;
       }
 
       .mobile-view-toggle :deep(.el-button) {
-        min-height: 32px;
+        min-height: 44px;
         padding: 0 8px;
       }
     }
