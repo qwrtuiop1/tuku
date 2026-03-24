@@ -105,16 +105,6 @@
       <!-- 顶部导航栏 -->
       <header class="top-header">
         <div class="header-left">
-          <!-- 移动端菜单按钮 -->
-          <el-button
-            v-if="isMobile"
-            type="text"
-            class="mobile-menu-btn"
-            @click="toggleSidebar"
-          >
-            <el-icon><Menu /></el-icon>
-          </el-button>
-          
           <el-breadcrumb separator="/" class="breadcrumb-nav">
             <el-breadcrumb-item
               v-for="item in breadcrumbs"
@@ -1255,32 +1245,6 @@ onUnmounted(() => {
   min-width: 0; // 允许内容收缩
 }
 
-  .mobile-menu-btn {
-    padding: 12px; // 增加内边距
-    border-radius: 12px; // 增加圆角
-    transition: all 0.3s ease;
-    color: #6f6f6f; // 默认中灰（图标随文字颜色）
-    
-    &:hover {
-      background: #f2f2f2;
-      color: #1f1f1f; // 悬停深灰
-    }
-
-    &:active {
-      color: #000000; // 按下黑色
-    }
-    
-    &.is-disabled,
-    &[disabled] {
-      color: #bfbfbf; // 禁用浅灰
-    }
-    
-    :deep(.el-icon) {
-      font-size: 24px; // 增大图标
-      color: currentColor; // 图标使用 currentColor，保持黑白灰
-    }
-  }
-
 .breadcrumb-nav {
   :deep(.el-breadcrumb__item) {
     .el-breadcrumb__inner {
@@ -1817,7 +1781,7 @@ onUnmounted(() => {
     padding: 0 16px;
     max-width: 100vw; // 全宽
     border-radius: 0; // 移除圆角
-    justify-content: center; // 移动端居中显示
+    justify-content: space-between; // 左右分布
     align-items: center; // 垂直居中
   }
   
@@ -1846,14 +1810,14 @@ onUnmounted(() => {
   
   .header-left {
     gap: 12px;
-    flex: 1; // 占用剩余空间
-    justify-content: center; // 居中显示
+    flex: 0 0 auto;
+    justify-content: flex-start;
   }
-  
+
   .header-right {
     gap: 12px;
-    flex: 1; // 占用剩余空间
-    justify-content: center; // 居中显示
+    flex: 0 0 auto;
+    justify-content: flex-end;
   }
   
   .storage-info {
@@ -1893,7 +1857,7 @@ onUnmounted(() => {
     height: 64px; // 增加高度
     max-width: 100vw;
     border-radius: 0;
-    justify-content: center; // 移动端居中显示
+    justify-content: space-between; // 左右分布
     align-items: center; // 垂直居中
   }
   
@@ -1903,8 +1867,8 @@ onUnmounted(() => {
   
   .header-left {
     gap: 8px;
-    flex: 1; // 占用剩余空间
-    justify-content: center; // 居中显示
+    flex: 0 0 auto;
+    justify-content: flex-start;
     
   .breadcrumb-nav {
     :deep(.el-breadcrumb__item) {
@@ -1918,8 +1882,8 @@ onUnmounted(() => {
   
   .header-right {
     gap: 8px;
-    flex: 1; // 占用剩余空间
-    justify-content: center; // 居中显示
+    flex: 0 0 auto;
+    justify-content: flex-end;
   }
   
   .storage-info {
@@ -2046,7 +2010,7 @@ onUnmounted(() => {
     height: 60px; // 增加高度
     max-width: 100vw;
     border-radius: 0;
-    justify-content: center; // 移动端居中显示
+    justify-content: space-between; // 左右分布
     align-items: center; // 垂直居中
   }
   
@@ -2056,8 +2020,8 @@ onUnmounted(() => {
   
   .header-left {
     gap: 6px;
-    flex: 1; // 占用剩余空间
-    justify-content: center; // 居中显示
+    flex: 0 0 auto;
+    justify-content: flex-start;
     
     .breadcrumb-nav {
       :deep(.el-breadcrumb__item) {
@@ -2070,8 +2034,8 @@ onUnmounted(() => {
   
   .header-right {
     gap: 6px;
-    flex: 1; // 占用剩余空间
-    justify-content: center; // 居中显示
+    flex: 0 0 auto;
+    justify-content: flex-end;
   }
   
   .storage-info {
@@ -2198,7 +2162,7 @@ onUnmounted(() => {
     height: 56px; // 增加高度
     max-width: 100vw;
     border-radius: 0;
-    justify-content: center; // 移动端居中显示
+    justify-content: space-between; // 左右分布
     align-items: center; // 垂直居中
   }
   
@@ -2208,14 +2172,14 @@ onUnmounted(() => {
   
   .header-left {
     gap: 6px;
-    flex: 1; // 占用剩余空间
-    justify-content: center; // 居中显示
+    flex: 0 0 auto;
+    justify-content: flex-start;
   }
   
   .header-right {
     gap: 6px;
-    flex: 1; // 占用剩余空间
-    justify-content: center; // 居中显示
+    flex: 0 0 auto;
+    justify-content: flex-end;
   }
   
   .breadcrumb-nav {
