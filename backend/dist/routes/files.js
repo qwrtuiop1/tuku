@@ -442,8 +442,8 @@ router.post('/upload', authenticateToken, asyncHandler(async (req, res) => {
 // 安卓 Live 图可能为 [JPEG][MP4] 且拼接点在文件中部（JPEG 占少、MP4 占多），需扩大搜索
 async function isMotionPhotoJpeg(filePath) {
   const ftyp = Buffer.from('ftyp');
-  const MAX_HEAD = 10 * 1024 * 1024; // 前 10MB：覆盖「JPEG 在前、ftyp 在中部」
-  const MAX_TAIL = 2 * 1024 * 1024;   // 后 2MB：覆盖「JPEG 在后、MP4 在尾巴」
+  const MAX_HEAD = 20 * 1024 * 1024; // 与 liveMediaService 一致，覆盖大体积封面 + 中部 ftyp
+  const MAX_TAIL = 5 * 1024 * 1024;   // 与 liveMediaService 一致
 
   function validateFtypBox(buf, idx, bufStartInFile) {
     if (idx < 4) return null;

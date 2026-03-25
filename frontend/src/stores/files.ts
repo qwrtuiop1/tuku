@@ -480,10 +480,21 @@ export const useFilesStore = defineStore("files", () => {
           if (e.total) item.progress = Math.round((e.loaded * 100) / e.total);
         },
       });
-      // 后端检测为 Motion Photo（返回 202），已在 processItem 通过 live 通道处理
+      // 后端检测为 Motion Photo：返回 202 + jobId，与普通 /live-media/upload 一样需轮询任务
       if (resp.status === 202) {
-        item.status = "success";
-        item.progress = 100;
+        const jobId = normalizeJobId(
+          (resp.data as { jobId?: unknown })?.jobId,
+        );
+        if (jobId) {
+          liveJobItemMap[jobId] = item.id;
+          item.status = "uploading";
+          startLiveJobPolling(jobId);
+        } else {
+          item.status = "error";
+          item.error =
+            (resp.data as { message?: string })?.message || "未返回处理任务 ID";
+          item.progress = 0;
+        }
       } else {
         item.status = "success";
         item.progress = 100;
@@ -592,11 +603,18 @@ export const useFilesStore = defineStore("files", () => {
   }
 
   async function deleteFiles(fileIds: number[]) {
-    await api.delete("/files/batch", { data: { file_ids: fileIds } });
-    files.value = files.value.filter((f) => !fileIds.includes(f.id));
-    selectedFiles.value = selectedFiles.value.filter(
-      (id) => !fileIds.includes(id),
-    );
+    try {
+      await api.delete("/files/batch", { data: { file_ids: fileIds } });
+      files.value = files.value.filter((f) => !fileIds.includes(f.id));
+      selectedFiles.value = selectedFiles.value.filter(
+        (id) => !fileIds.includes(id),
+      );
+    } catch (e: any) {
+      const msg =
+        e.response?.data?.message || e.message || "批量删除失败";
+      ElMessage.error(msg);
+      throw e;
+    }
   }
 
   async function deleteSelectedFiles() {

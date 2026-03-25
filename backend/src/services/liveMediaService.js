@@ -168,18 +168,20 @@ function isHeicByContent(buffer) {
   return matchesMagic(buffer, 4, [0x66, 0x74, 0x79, 0x70]) // ftyp
 }
 
-// 异步读取文件前 16KB 并检测内容类型
+// 仅读文件头检测类型（避免整文件读入内存，大体积 Motion Photo JPEG 会拖垮小内存机器）
 async function detectFileContentType(file) {
   try {
-    const buffer = await fs.readFile(file.path)
-    if (isGifByContent(buffer))   return 'image/gif'
-    if (isWebpByContent(buffer))   return 'image/webp'
-    if (isHeicByContent(buffer))   return 'image/heic'
-    // JPEG 也有 ftyp（在 JPEG trailer 里），但 HEIC 的 ftyp 在 offset 4
-    // 已由 isHeicByContent 处理
-    return null // 内容类型无法判断，沿用现有检测
+    const fd = await fs.open(file.path, 'r');
+    const buf = Buffer.alloc(65536);
+    const { bytesRead } = await fd.read(buf, 0, 65536, 0);
+    await fd.close();
+    const buffer = buf.subarray(0, bytesRead);
+    if (isGifByContent(buffer)) return 'image/gif';
+    if (isWebpByContent(buffer)) return 'image/webp';
+    if (isHeicByContent(buffer)) return 'image/heic';
+    return null;
   } catch {
-    return null
+    return null;
   }
 }
 
@@ -193,6 +195,17 @@ async function extractMotionPhotoMp4(jpegPath, outMp4Path) {
     const buf = Buffer.alloc(stats.size - offset);
     await fd.read(buf, 0, buf.length, offset);
     await fd.close();
+    // 微信 Motion Photo（Motion JPEG 格式）：提取出的字节只有 ftyp+moov，
+    // 没有 mdat 视频轨道，转码会得到空/无效视频。
+    // 在写入前做结构性校验：必须同时包含 moov 和 mdat。
+    const moovBox = Buffer.from('moov');
+    const mdatBox = Buffer.from('mdat');
+    const hasMoov = buf.includes(moovBox);
+    const hasMdat = buf.includes(mdatBox);
+    if (!hasMoov || !hasMdat) {
+      console.log('[LiveMedia] 提取的 MP4 数据不完整（moov:', hasMoov, 'mdat:', hasMdat, '），跳过 Motion Photo 通道，将走动图分支');
+      return false;
+    }
     await fs.writeFile(outMp4Path, buf);
     return true;
   } catch {
@@ -220,6 +233,8 @@ async function makePosterFromVideo(videoPath, outPosterPath) {
 
 async function transcodeToMp4(inputPath, outPath) {
   return new Promise((resolve, reject) => {
+    const durationOpts =
+      MAX_DURATION > 0 ? ['-t', String(MAX_DURATION / 1000)] : [];
     ffmpeg(inputPath)
       .outputOptions([
         '-c:v libx264',
@@ -227,7 +242,7 @@ async function transcodeToMp4(inputPath, outPath) {
         '-pix_fmt yuv420p',
         '-movflags +faststart',
         '-preset veryfast',
-        ...(MAX_DURATION > 0 ? ['-t ' + (MAX_DURATION / 1000)] : []),
+        ...durationOpts,
       ])
       .on('end', () => resolve(true))
       .on('error', (err) => reject(err))
@@ -235,14 +250,110 @@ async function transcodeToMp4(inputPath, outPath) {
   });
 }
 
+/** 静图 → 极短 MP4（实况兜底：无可抽取视频时仍可入库） */
+async function transcodeStaticImageToMp4(inputPath, outPath) {
+  const sec = MAX_DURATION > 0 ? Math.min(2, MAX_DURATION / 1000) : 2;
+  return new Promise((resolve, reject) => {
+    ffmpeg()
+      .input(inputPath)
+      .inputOptions(['-loop', '1', '-t', String(sec)])
+      .outputOptions([
+        '-c:v', 'libx264',
+        '-profile:v', 'high',
+        '-pix_fmt', 'yuv420p',
+        '-movflags', '+faststart',
+        '-preset', 'veryfast',
+        '-t', String(sec),
+      ])
+      .on('end', () => resolve(true))
+      .on('error', (err) => reject(err))
+      .save(outPath);
+  });
+}
+
+/**
+ * 微信 Motion Photo 专用：将内嵌多帧 Motion JPEG 转为 MP4。
+ * 微信的 Motion Photo 不是标准 MP4，而是多个 JPEG 帧拼接在一起。
+ * ffmpeg 直接以 image2 输入会自动按帧率播放，默认 25fps 太快（50 帧只 2 秒）。
+ * 这里：先扫描 JPEG 帧数量，推算合理时长，用 concat demuxer 生成 MP4。
+ */
+async function transcodeMultiFrameJpeg(jpegPath, outMp4Path) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // 1. 统计 JPEG 帧数量
+      const stat = await fs.stat(jpegPath);
+      const scanSize = Math.min(stat.size, 20 * 1024 * 1024); // 最多扫描 20MB
+      const fd = await fs.open(jpegPath, 'r');
+      const scanBuf = Buffer.alloc(scanSize);
+      await fd.read(scanBuf, 0, scanSize, 0);
+      await fd.close();
+
+      let frameCount = 0;
+      for (let i = 0; i < scanBuf.length - 1; i++) {
+        if (scanBuf[i] === 0xff && scanBuf[i + 1] === 0xd8) frameCount++;
+      }
+      if (frameCount < 2) { resolve(false); return; }
+
+      // 2. 估算时长：微信 Motion Photo 通常 1~3 秒（手机录制动图）
+      //   帧数 < 30 → 时长 = 帧数 / 10 fps（每帧 0.1s，接近真实）
+      //   帧数 ≥ 30 → 时长 = 帧数 / 15 fps
+      const estimatedFps = frameCount < 30 ? 10 : 15;
+      const estimatedDurationSec = frameCount / estimatedFps;
+      const durationSec = MAX_DURATION > 0
+        ? Math.min(estimatedDurationSec, MAX_DURATION / 1000)
+        : estimatedDurationSec;
+      const fpsStr = String(estimatedFps);
+
+      console.log(`[LiveMedia] Motion JPEG: ${frameCount} 帧, 估算 ${fpsStr}fps → ${durationSec.toFixed(1)}s`);
+
+      // 3. 用 concat demuxer：按帧率拼接所有 JPEG 帧
+      // 写一个 concat 列表文件
+      const concatFile = outMp4Path + '.concat.txt';
+      const lines = [];
+      for (let i = 0; i < frameCount; i++) {
+        lines.push(`file '${jpegPath.replace(/\\/g, '/')}'`);
+      }
+      await fs.writeFile(concatFile, lines.join('\n'), 'utf-8');
+
+      // 4. ffmpeg concat 编码为 H.264 MP4
+      ffmpeg()
+        .input(concatFile)
+        .inputOptions(['-f', 'concat', '-safe', '0', '-r', fpsStr])
+        .inputFPS(fpsStr)
+        .outputOptions([
+          '-c:v', 'libx264',
+          '-profile:v', 'high',
+          '-pix_fmt', 'yuv420p',
+          '-movflags', '+faststart',
+          '-preset', 'veryfast',
+          '-shortest',
+          ...(MAX_DURATION > 0 ? ['-t', String(MAX_DURATION / 1000)] : []),
+        ])
+        .on('end', async () => {
+          try { await fs.remove(concatFile); } catch (_) {}
+          resolve(true);
+        })
+        .on('error', async (err) => {
+          try { await fs.remove(concatFile); } catch (_) {}
+          reject(err);
+        })
+        .save(outMp4Path);
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
 async function transcodeToWebm(inputPath, outPath) {
   return new Promise((resolve, reject) => {
+    const durationOpts =
+      MAX_DURATION > 0 ? ['-t', String(MAX_DURATION / 1000)] : [];
     ffmpeg(inputPath)
       .outputOptions([
         '-c:v libvpx-vp9',
         '-b:v 0',
         '-crf 35',
-        ...(MAX_DURATION > 0 ? ['-t ' + (MAX_DURATION / 1000)] : []),
+        ...durationOpts,
       ])
       .on('end', () => resolve(true))
       .on('error', (err) => reject(err))
@@ -263,6 +374,8 @@ function parseVariants() {
 
 async function transcodeVariantMp4(inputPath, outPath, width, height, bitrateK) {
   return new Promise((resolve, reject) => {
+    const durationOpts =
+      MAX_DURATION > 0 ? ['-t', String(MAX_DURATION / 1000)] : [];
     ffmpeg(inputPath)
       .videoFilters(`scale=${width}:${height}:force_original_aspect_ratio=decrease`)
       .outputOptions([
@@ -271,7 +384,7 @@ async function transcodeVariantMp4(inputPath, outPath, width, height, bitrateK) 
         '-pix_fmt yuv420p',
         '-movflags +faststart',
         '-preset veryfast',
-        ...(MAX_DURATION > 0 ? ['-t ' + (MAX_DURATION / 1000)] : []),
+        ...durationOpts,
       ])
       .on('end', () => resolve(true))
       .on('error', (err) => reject(err))
@@ -587,57 +700,81 @@ module.exports = {
     if (jpeg) {
       console.log('[LiveMedia] 尝试作为 Motion Photo 处理:', jpeg.originalname);
       if (onProgress) onProgress(15);
-      // 检测并抽取
-      const [tmpDir] = await Promise.all([fs.mkdtemp(path.join(BASE_STORAGE, 'tmp_'))]);
-      const extractedMp4 = path.join(tmpDir, 'motion.mp4');
-      const offset = await findMotionPhotoMp4ByteOffset(jpeg.path);
-      console.log('[LiveMedia] Motion Photo 偏移量检测:', offset);
-      const ok = await extractMotionPhotoMp4(jpeg.path, extractedMp4);
-      console.log('[LiveMedia] Motion Photo 提取结果:', ok);
-      if (ok) {
-        const assetId = await insertAssetRow(userId, { folder_id: folderId || null, kind: 'motion_photo', poster_path: '', loopable: true });
-        const assetDir = await ensureAssetDir(userId, assetId);
-        let originalImagePath = null;
-        if (KEEP_ORIGINAL) {
-          originalImagePath = path.join(assetDir, path.basename(jpeg.path));
-          await fs.copy(jpeg.path, originalImagePath);
-        }
-        if (onProgress) onProgress(40);
-        const mp4Path = path.join(assetDir, 'video.mp4');
-        await transcodeToMp4(extractedMp4, mp4Path);
-        const webmPath = path.join(assetDir, 'video.webm');
-        if (MAKE_WEBM) {
-          try { await transcodeToWebm(extractedMp4, webmPath); } catch (e) { /* ignore */ }
-        }
-        const posterPath = path.join(assetDir, 'poster.jpg');
-        await makePosterFromVideo(mp4Path, posterPath);
-        const meta = await getVideoMetadata(mp4Path);
+      let tmpDir = null;
+      try {
+        tmpDir = await fs.mkdtemp(path.join(BASE_STORAGE, 'tmp_'));
+        const extractedMp4 = path.join(tmpDir, 'motion.mp4');
+        const offset = await findMotionPhotoMp4ByteOffset(jpeg.path);
+        console.log('[LiveMedia] Motion Photo 偏移量检测:', offset);
+        const ok = await extractMotionPhotoMp4(jpeg.path, extractedMp4);
+        console.log('[LiveMedia] Motion Photo 提取结果:', ok);
+        if (ok) {
+          const assetId = await insertAssetRow(userId, { folder_id: folderId || null, kind: 'motion_photo', poster_path: '', loopable: true });
+          const assetDir = await ensureAssetDir(userId, assetId);
+          let originalImagePath = null;
+          if (KEEP_ORIGINAL) {
+            originalImagePath = path.join(assetDir, path.basename(jpeg.path));
+            await fs.copy(jpeg.path, originalImagePath);
+          }
+          if (onProgress) onProgress(40);
+          const mp4Path = path.join(assetDir, 'video.mp4');
+          await transcodeToMp4(extractedMp4, mp4Path);
+          const webmPath = path.join(assetDir, 'video.webm');
+          if (MAKE_WEBM) {
+            try { await transcodeToWebm(extractedMp4, webmPath); } catch (e) { /* ignore */ }
+          }
+          const posterPath = path.join(assetDir, 'poster.jpg');
+          await makePosterFromVideo(mp4Path, posterPath);
+          const meta = await getVideoMetadata(mp4Path);
 
-        await pool.execute(
-          `UPDATE live_media_assets SET poster_path=?, video_mp4_path=?, video_webm_path=?, original_image_path=?, duration_ms=?, width=?, height=?, fps=? WHERE id=?`,
-          [
-            toRelative(posterPath),
-            toRelative(mp4Path),
-            MAKE_WEBM ? toRelative(webmPath) : null,
-            originalImagePath ? toRelative(originalImagePath) : null,
-            meta.durationMs || null,
-            meta.width || null,
-            meta.height || null,
-            meta.fps || null,
-            assetId
-          ]
-        );
-        try { await generateVariants(assetId, mp4Path, assetDir); } catch(_) {}
-        try { await fs.remove(tmpDir); } catch (_) {}
-        if (onProgress) onProgress(90);
-        return { assetId };
+          await pool.execute(
+            `UPDATE live_media_assets SET poster_path=?, video_mp4_path=?, video_webm_path=?, original_image_path=?, duration_ms=?, width=?, height=?, fps=? WHERE id=?`,
+            [
+              toRelative(posterPath),
+              toRelative(mp4Path),
+              MAKE_WEBM ? toRelative(webmPath) : null,
+              originalImagePath ? toRelative(originalImagePath) : null,
+              meta.durationMs || null,
+              meta.width || null,
+              meta.height || null,
+              meta.fps || null,
+              assetId
+            ]
+          );
+          try { await generateVariants(assetId, mp4Path, assetDir); } catch(_) {}
+          if (onProgress) onProgress(90);
+          return { assetId };
+        }
+      } finally {
+        if (tmpDir) try { await fs.remove(tmpDir); } catch (_) {}
       }
     }
 
-    // 动图 GIF/WebP
-    if (gif || webp) {
+    // 微信 Motion Photo（纯 JPEG 内嵌多帧 Motion JPEG）
+    // 封面 JPEG 常 2～5MB，第二帧 SOI 在数 MB 之后；若只扫前 1MB 会误判为单帧 → 无法识别。
+    const MOTION_JPEG_SOI_SCAN = 40 * 1024 * 1024;
+    let isMotionJpeg = false;
+    if (jpeg) {
+      try {
+        const st = await fs.stat(jpeg.path);
+        const scanSize = Math.min(MOTION_JPEG_SOI_SCAN, st.size);
+        const headBuf = Buffer.alloc(scanSize);
+        const fd2 = await fs.open(jpeg.path, 'r');
+        await fd2.read(headBuf, 0, scanSize, 0);
+        await fd2.close();
+        let soiCount = 0;
+        for (let i = 0; i < headBuf.length - 1; i++) {
+          if (headBuf[i] === 0xff && headBuf[i + 1] === 0xd8) soiCount++;
+        }
+        isMotionJpeg = soiCount > 1;
+        console.log('[LiveMedia] Motion JPEG 检测（前', Math.round(scanSize / 1024 / 1024), 'MB 内 SOI）:', soiCount, '→', isMotionJpeg ? '走动图' : '单帧');
+      } catch (_) {}
+    }
+
+    // 动图 GIF/WebP + 微信 Motion JPEG（无标准 MP4 轨道）
+    if (gif || webp || isMotionJpeg) {
       if (onProgress) onProgress(20);
-      const input = gif || webp;
+      const input = gif || webp || jpeg;
       const assetId = await insertAssetRow(userId, { folder_id: folderId || null, kind: 'animated', poster_path: '', loopable: true });
       const assetDir = await ensureAssetDir(userId, assetId);
       let originalImagePath = null;
@@ -645,22 +782,36 @@ module.exports = {
         originalImagePath = path.join(assetDir, path.basename(input.path));
         await fs.copy(input.path, originalImagePath);
       }
+      const workInput = originalImagePath || input.path;
 
       const mp4Path = path.join(assetDir, 'video.mp4');
-      await transcodeToMp4(originalImagePath, mp4Path);
+      if (isMotionJpeg) {
+        try {
+          await transcodeMultiFrameJpeg(workInput, mp4Path);
+        } catch (e) {
+          console.error('[LiveMedia] Motion JPEG 转码失败:', e.message);
+        }
+        try {
+          if (!(await fs.pathExists(mp4Path)) || (await fs.stat(mp4Path)).size < 200) {
+            await transcodeStaticImageToMp4(workInput, mp4Path);
+          }
+        } catch (_) {}
+      } else {
+        await transcodeToMp4(workInput, mp4Path);
+      }
       const webmPath = path.join(assetDir, 'video.webm');
       if (MAKE_WEBM) {
-        try { await transcodeToWebm(originalImagePath, webmPath); } catch (e) { /* ignore */ }
+        try { await transcodeToWebm(workInput, webmPath); } catch (e) { /* ignore */ }
       }
       if (onProgress) onProgress(70);
       // 生成封面（直接取第一帧）
       const posterPath = path.join(assetDir, 'poster.jpg');
       try {
-        const meta = await sharp(originalImagePath).metadata();
+        const meta = await sharp(workInput).metadata();
         if (meta && (meta.pages && meta.pages > 1)) {
-          await sharp(originalImagePath, { pages: 1 }).jpeg({ quality: POSTER_QUALITY }).toFile(posterPath);
+          await sharp(workInput, { pages: 1 }).jpeg({ quality: POSTER_QUALITY }).toFile(posterPath);
         } else {
-          await sharp(originalImagePath).jpeg({ quality: POSTER_QUALITY }).toFile(posterPath);
+          await sharp(workInput).jpeg({ quality: POSTER_QUALITY }).toFile(posterPath);
         }
       } catch (_) {
         // 兜底：从视频取首帧
@@ -687,6 +838,48 @@ module.exports = {
       return { assetId };
     }
 
+    // 单张 JPEG 兜底：无可配对 MOV、无 MP4 轨道、扫描范围内仅 1 个 SOI（压缩掉实况或误标）
+    if (jpeg && files.length === 1) {
+      console.log('[LiveMedia] 单 JPEG 兜底：生成静图短 MP4');
+      if (onProgress) onProgress(20);
+      const input = jpeg;
+      const assetId = await insertAssetRow(userId, { folder_id: folderId || null, kind: 'animated', poster_path: '', loopable: true });
+      const assetDir = await ensureAssetDir(userId, assetId);
+      let originalImagePath = null;
+      if (KEEP_ORIGINAL) {
+        originalImagePath = path.join(assetDir, path.basename(input.path));
+        await fs.copy(input.path, originalImagePath);
+      }
+      const workPath = originalImagePath || input.path;
+      const mp4Path = path.join(assetDir, 'video.mp4');
+      const posterPath = path.join(assetDir, 'poster.jpg');
+      await sharp(workPath).jpeg({ quality: POSTER_QUALITY }).toFile(posterPath);
+      await transcodeStaticImageToMp4(workPath, mp4Path);
+      const webmPath = path.join(assetDir, 'video.webm');
+      if (MAKE_WEBM) {
+        try { await transcodeToWebm(workPath, webmPath); } catch (e) { /* ignore */ }
+      }
+      if (onProgress) onProgress(70);
+      const meta = await getVideoMetadata(mp4Path);
+      await pool.execute(
+        `UPDATE live_media_assets SET poster_path=?, video_mp4_path=?, video_webm_path=?, original_image_path=?, duration_ms=?, width=?, height=?, fps=? WHERE id=?`,
+        [
+          toRelative(posterPath),
+          toRelative(mp4Path),
+          MAKE_WEBM ? toRelative(webmPath) : null,
+          originalImagePath ? toRelative(originalImagePath) : null,
+          meta.durationMs || null,
+          meta.width || null,
+          meta.height || null,
+          meta.fps || null,
+          assetId
+        ]
+      );
+      try { await generateVariants(assetId, mp4Path, assetDir); } catch (_) {}
+      if (onProgress) onProgress(90);
+      return { assetId };
+    }
+
     // 抛出错误前，记录详细的诊断信息
     console.log('[LiveMedia] 最终诊断:');
     console.log('  - images.length:', images?.length);
@@ -696,7 +889,7 @@ module.exports = {
     console.log('  - webp:', webp?.originalname);
     console.log('  - imageFile:', imageFile?.originalname);
     console.log('  - videoFile:', videoFile?.originalname);
-    
+
     throw new Error('无法识别的实况上传内容');
   },
 
