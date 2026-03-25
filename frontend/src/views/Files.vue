@@ -671,17 +671,45 @@
 
   <!-- 右键菜单已移除 -->
 
-  <!-- 上传对话框 -->
+  <!-- 上传对话框（状态在 filesStore，弹窗关闭后上传继续在后台运行） -->
   <el-dialog
     v-model="showUploadDialog"
     title="上传文件"
     :width="isMobile ? '95%' : '600px'"
-    :close-on-click-modal="false"
+    :close-on-click-modal="true"
     :class="{ 'mobile-upload-dialog': isMobile }"
     :modal-class="isMobile ? 'mobile-modal' : ''"
   >
     <FileUploader @upload-success="handleUploadSuccess" />
   </el-dialog>
+
+  <!-- 全局上传进度条（弹窗关闭后仍显示在页面底部，后台上传继续运行） -->
+  <transition name="slide-up">
+    <div
+      v-if="!showUploadDialog && globalBarVisible"
+      class="global-upload-bar"
+    >
+      <div class="gub-header">
+        <span class="gub-title">
+          <el-icon class="gub-icon"><Upload /></el-icon>
+          {{ filesStore.uploadStats.error > 0
+            ? `完成 · ${filesStore.uploadStats.success} 成功，${filesStore.uploadStats.error} 失败`
+            : filesStore.uploadItems.every(i => i.status === 'success')
+              ? `已完成 · ${filesStore.uploadStats.success} 个文件`
+              : `上传中 · ${filesStore.uploadStats.success}/${filesStore.uploadItems.length} 完成` }}
+        </span>
+        <el-button size="small" type="text" @click="showUploadDialog = true"
+          >查看详情</el-button
+        >
+      </div>
+      <el-progress
+        :percentage="globalUploadPercent"
+        :stroke-width="4"
+        :show-text="false"
+        :color="globalUploadColor"
+      />
+    </div>
+  </transition>
 
   <!-- 增强预览对话框 -->
   <EnhancedPreviewDialog
@@ -1009,6 +1037,55 @@ const liveTheme = ref<Record<number, "light" | "dark">>({});
 const setLiveTheme = (id: number, t: "light" | "dark") => {
   liveTheme.value[id] = t;
 };
+
+  // 全局上传进度条（弹窗关闭时在页面底部显示）
+  const globalUploadPercent = computed(() => {
+    const items = filesStore.uploadItems;
+    if (!items.length) return 0;
+    const done = items.filter(
+      (i) =>
+        i.status === "success" || i.status === "error" || i.status === "canceled",
+    ).length;
+    return Math.round((done / items.length) * 100);
+  });
+  const globalUploadColor = computed(() => {
+    const { success, error } = filesStore.uploadStats;
+    const items = filesStore.uploadItems;
+    if (!items.length) return "#667eea";
+    if (items.every((i) => i.status === "success")) return "#16a34a";
+    if (items.some((i) => i.status === "error")) return "#dc2626";
+    return "#2563eb";
+  });
+
+  // 全部成功且无失败时，2 秒后自动隐藏全局进度条
+  const globalBarVisible = ref(false);
+  let globalBarTimer: ReturnType<typeof setTimeout> | null = null;
+
+  watch(
+    () => filesStore.uploadItems,
+    (items) => {
+      if (!items.length) { globalBarVisible.value = false; return; }
+      const allDone = items.every(
+        (i) => i.status === "success" || i.status === "error" || i.status === "canceled",
+      );
+      const hasError = items.some((i) => i.status === "error");
+      if (allDone) {
+        if (!hasError) {
+          // 无失败：2 秒后隐藏
+          if (globalBarTimer) clearTimeout(globalBarTimer);
+          globalBarTimer = setTimeout(() => { globalBarVisible.value = false; }, 2000);
+        } else {
+          // 有失败：保持显示
+          globalBarVisible.value = true;
+        }
+      } else {
+        // 仍在上传：保持显示
+        if (globalBarTimer) { clearTimeout(globalBarTimer); globalBarTimer = null; }
+        globalBarVisible.value = true;
+      }
+    },
+    { deep: true },
+  );
 
 // 关键词解析：支持中文/英文类型关键字
 const parseTypeKeywords = (q: string) => {
@@ -1745,7 +1822,7 @@ const deleteItem = async (item: any) => {
 };
 
 const handleUploadSuccess = () => {
-  showUploadDialog.value = false;
+  // 不再关闭弹窗，由用户自行决定何时关闭；上传状态已在 store 中保留
   refreshFiles();
 };
 
@@ -5252,5 +5329,53 @@ const shareStatusText = computed(() => {
 }
 .review-status .status-row .value.rejected {
   color: #dc2626;
+}
+
+// 全局上传进度条（弹窗关闭后显示在页面底部）
+.global-upload-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+  padding: 10px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  .gub-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .gub-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+  }
+
+  .gub-icon {
+    font-size: 16px;
+    color: #2563eb;
+  }
+}
+
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition:
+    transform 0.3s ease,
+    opacity 0.3s ease;
+}
+.slide-up-enter-from,
+.slide-up-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
 }
 </style>

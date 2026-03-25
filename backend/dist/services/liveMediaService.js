@@ -453,18 +453,6 @@ module.exports = {
 
   async processUploadBatch(userId, files, onProgress, folderId, options = {}) {
     const { pairingId } = options || {};
-    
-    // 调试日志：记录所有上传的文件信息
-    console.log('[LiveMedia] 上传文件数量:', files.length);
-    for (const f of files) {
-      console.log('[LiveMedia] 文件:', {
-        name: f.originalname,
-        mimetype: f.mimetype,
-        size: f.size,
-        path: f.path
-      });
-    }
-
     // ── 内容检测（magic bytes）优先 ──────────────────────────────────────────
     // 即使浏览器上报错误 MIME type（application/octet-stream）也能正确识别
     const gifByContent = new Set()
@@ -472,7 +460,6 @@ module.exports = {
     const heicByContent = new Set()
     for (const f of files) {
       const ct = await detectFileContentType(f)
-      console.log('[LiveMedia] Magic bytes 检测:', f.originalname, '->', ct);
       if (ct === 'image/gif')   gifByContent.add(f.originalname.toLowerCase())
       if (ct === 'image/webp')  webpByContent.add(f.originalname.toLowerCase())
       if (ct === 'image/heic')   heicByContent.add(f.originalname.toLowerCase())
@@ -489,14 +476,6 @@ module.exports = {
                              || /\.gif$/i.test(f.originalname) || f.mimetype === 'image/gif')
     const webp = files.find(f => webpByContent.has(f.originalname.toLowerCase())
                               || /\.webp$/i.test(f.originalname) || f.mimetype === 'image/webp')
-
-    console.log('[LiveMedia] 分类结果:', {
-      isMov: files.filter(isMov).map(f => f.originalname),
-      isHeic: files.filter(isHeic).map(f => f.originalname),
-      isJpeg: files.filter(isJpeg).map(f => f.originalname),
-      isGif: gif ? gif.originalname : null,
-      isWebp: webp ? webp.originalname : null
-    });
 
     const images = files.filter(f => isHeic(f) || isJpeg(f))
     const movies = files.filter(isMov)
@@ -516,7 +495,6 @@ module.exports = {
       // 直接取第一张图和第一段视频作为配对
       imageFile = images[0]
       videoFile = movies[0]
-      console.log('[LiveMedia] pairingId 配对成功:', imageFile.originalname, '+', videoFile.originalname);
     } else if (images.length && movies.length) {
       // 兼容旧逻辑：按同名基名匹配（Android / 桌面端拖拽上传）
       const movMap = new Map()
@@ -527,7 +505,6 @@ module.exports = {
       }
       // 若未配对成功，退化为任意取一对
       if (!imageFile) { imageFile = images[0]; videoFile = movies[0] }
-      console.log('[LiveMedia] 文件名配对结果:', imageFile?.originalname, '+', videoFile?.originalname);
     }
 
     // iOS Live Photo
@@ -585,15 +562,11 @@ module.exports = {
 
     // Android Motion Photo (JPEG内嵌MP4)
     if (jpeg) {
-      console.log('[LiveMedia] 尝试作为 Motion Photo 处理:', jpeg.originalname);
       if (onProgress) onProgress(15);
       // 检测并抽取
       const [tmpDir] = await Promise.all([fs.mkdtemp(path.join(BASE_STORAGE, 'tmp_'))]);
       const extractedMp4 = path.join(tmpDir, 'motion.mp4');
-      const offset = await findMotionPhotoMp4ByteOffset(jpeg.path);
-      console.log('[LiveMedia] Motion Photo 偏移量检测:', offset);
       const ok = await extractMotionPhotoMp4(jpeg.path, extractedMp4);
-      console.log('[LiveMedia] Motion Photo 提取结果:', ok);
       if (ok) {
         const assetId = await insertAssetRow(userId, { folder_id: folderId || null, kind: 'motion_photo', poster_path: '', loopable: true });
         const assetDir = await ensureAssetDir(userId, assetId);
@@ -687,16 +660,6 @@ module.exports = {
       return { assetId };
     }
 
-    // 抛出错误前，记录详细的诊断信息
-    console.log('[LiveMedia] 最终诊断:');
-    console.log('  - images.length:', images?.length);
-    console.log('  - movies.length:', movies?.length);
-    console.log('  - jpeg:', jpeg?.originalname);
-    console.log('  - gif:', gif?.originalname);
-    console.log('  - webp:', webp?.originalname);
-    console.log('  - imageFile:', imageFile?.originalname);
-    console.log('  - videoFile:', videoFile?.originalname);
-    
     throw new Error('无法识别的实况上传内容');
   },
 

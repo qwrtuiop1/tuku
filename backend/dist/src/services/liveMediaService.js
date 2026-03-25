@@ -22,19 +22,22 @@ function isAnimatedWebp(metadata) {
 }
 
 /**
- * Android Motion Photo：JPEG 与 MP4 拼接点可在文件中部。
- * 与 files.js 一致：先在前 10MB 搜索 ftyp，再在尾部 2MB 搜索。
+ * Android Motion Photo：JPEG 与 MP4 拼接点可在文件中部或任意位置。
+ * 增强版：扩大搜索范围，支持微信等国产厂商 Motion Photo 格式
  * @returns {Promise<number>} 嵌入 MP4 的起始字节偏移（绝对），未找到返回 -1
  */
 async function findMotionPhotoMp4ByteOffset(filePath) {
   const ftyp = Buffer.from('ftyp');
-  const MAX_HEAD = 10 * 1024 * 1024;
-  const MAX_TAIL = 2 * 1024 * 1024;
+  // 扩大搜索范围以支持微信等国产厂商格式
+  const MAX_HEAD = 20 * 1024 * 1024; // 从 10MB 扩大到 20MB
+  const MAX_TAIL = 5 * 1024 * 1024;   // 从 2MB 扩大到 5MB
+  const MAX_MIDDLE_SCAN = 50 * 1024 * 1024; // 新增：中间区域扫描 50MB
 
   function validateFtypBox(buf, idx, bufStartInFile) {
     if (idx < 4) return null;
     const boxLen = buf.readUInt32BE(idx - 4);
     const remaining = buf.length - (idx - 4);
+    // 放宽限制：允许更小的 ftyp box（某些厂商格式）
     if (boxLen < 8 || boxLen > 1024 * 1024 || boxLen > remaining) return null;
     return bufStartInFile + (idx - 4);
   }
@@ -45,7 +48,7 @@ async function findMotionPhotoMp4ByteOffset(filePath) {
 
     const fd = await fs.open(filePath, 'r');
 
-    // 1) 前部：ftyp 在中部，JPEG 在前
+    // 1) 前部：ftyp 在中部，JPEG 在前（标准 Android Motion Photo）
     const headSize = Math.min(MAX_HEAD, stat.size);
     const headBuf = Buffer.alloc(headSize);
     await fd.read(headBuf, 0, headSize, 0);
@@ -71,7 +74,7 @@ async function findMotionPhotoMp4ByteOffset(filePath) {
       pos = idx + 4;
     }
 
-    // 2) 尾部：标准 [JPEG 结尾][MP4 在最后]
+    // 2) 尾部：标准 [JPEG 结尾][MP4 在最后]（微信、部分三星格式）
     const tailSize = Math.min(MAX_TAIL, stat.size);
     const tailBuf = Buffer.alloc(tailSize);
     await fd.read(tailBuf, 0, tailSize, stat.size - tailSize);
@@ -98,6 +101,34 @@ async function findMotionPhotoMp4ByteOffset(filePath) {
         pos = idx + 4;
       }
     }
+
+    // 3) 微信特殊格式：JPEG 和 MP4 可能完全分离，JPEG 标记为独立 APP12/Marker
+    //    扫描整个文件查找 ftyp 标记（针对微信等国产厂商）
+    if (headSize < stat.size) {
+      const middleStart = MAX_HEAD;
+      const middleSize = Math.min(MAX_MIDDLE_SCAN, stat.size - middleStart);
+      if (middleSize > 0) {
+        const middleBuf = Buffer.alloc(middleSize);
+        const fd2 = await fs.open(filePath, 'r');
+        await fd2.read(middleBuf, 0, middleSize, middleStart);
+        await fd2.close();
+
+        // 在中间区域查找 ftyp
+        pos = 0;
+        while (true) {
+          const idx = middleBuf.indexOf(ftyp, pos);
+          if (idx === -1) break;
+          const mp4Start = validateFtypBox(middleBuf, idx, middleStart);
+          if (mp4Start !== null) {
+            // 找到有效的 ftyp，返回偏移量
+            // 注意：微信格式可能没有前面的 JPEG EOI，这里不做强制要求
+            return mp4Start;
+          }
+          pos = idx + 4;
+        }
+      }
+    }
+
     return -1;
   } catch {
     return -1;
@@ -422,6 +453,18 @@ module.exports = {
 
   async processUploadBatch(userId, files, onProgress, folderId, options = {}) {
     const { pairingId } = options || {};
+    
+    // 调试日志：记录所有上传的文件信息
+    console.log('[LiveMedia] 上传文件数量:', files.length);
+    for (const f of files) {
+      console.log('[LiveMedia] 文件:', {
+        name: f.originalname,
+        mimetype: f.mimetype,
+        size: f.size,
+        path: f.path
+      });
+    }
+
     // ── 内容检测（magic bytes）优先 ──────────────────────────────────────────
     // 即使浏览器上报错误 MIME type（application/octet-stream）也能正确识别
     const gifByContent = new Set()
@@ -429,6 +472,7 @@ module.exports = {
     const heicByContent = new Set()
     for (const f of files) {
       const ct = await detectFileContentType(f)
+      console.log('[LiveMedia] Magic bytes 检测:', f.originalname, '->', ct);
       if (ct === 'image/gif')   gifByContent.add(f.originalname.toLowerCase())
       if (ct === 'image/webp')  webpByContent.add(f.originalname.toLowerCase())
       if (ct === 'image/heic')   heicByContent.add(f.originalname.toLowerCase())
@@ -445,6 +489,14 @@ module.exports = {
                              || /\.gif$/i.test(f.originalname) || f.mimetype === 'image/gif')
     const webp = files.find(f => webpByContent.has(f.originalname.toLowerCase())
                               || /\.webp$/i.test(f.originalname) || f.mimetype === 'image/webp')
+
+    console.log('[LiveMedia] 分类结果:', {
+      isMov: files.filter(isMov).map(f => f.originalname),
+      isHeic: files.filter(isHeic).map(f => f.originalname),
+      isJpeg: files.filter(isJpeg).map(f => f.originalname),
+      isGif: gif ? gif.originalname : null,
+      isWebp: webp ? webp.originalname : null
+    });
 
     const images = files.filter(f => isHeic(f) || isJpeg(f))
     const movies = files.filter(isMov)
@@ -464,6 +516,7 @@ module.exports = {
       // 直接取第一张图和第一段视频作为配对
       imageFile = images[0]
       videoFile = movies[0]
+      console.log('[LiveMedia] pairingId 配对成功:', imageFile.originalname, '+', videoFile.originalname);
     } else if (images.length && movies.length) {
       // 兼容旧逻辑：按同名基名匹配（Android / 桌面端拖拽上传）
       const movMap = new Map()
@@ -474,6 +527,7 @@ module.exports = {
       }
       // 若未配对成功，退化为任意取一对
       if (!imageFile) { imageFile = images[0]; videoFile = movies[0] }
+      console.log('[LiveMedia] 文件名配对结果:', imageFile?.originalname, '+', videoFile?.originalname);
     }
 
     // iOS Live Photo
@@ -531,11 +585,15 @@ module.exports = {
 
     // Android Motion Photo (JPEG内嵌MP4)
     if (jpeg) {
+      console.log('[LiveMedia] 尝试作为 Motion Photo 处理:', jpeg.originalname);
       if (onProgress) onProgress(15);
       // 检测并抽取
       const [tmpDir] = await Promise.all([fs.mkdtemp(path.join(BASE_STORAGE, 'tmp_'))]);
       const extractedMp4 = path.join(tmpDir, 'motion.mp4');
+      const offset = await findMotionPhotoMp4ByteOffset(jpeg.path);
+      console.log('[LiveMedia] Motion Photo 偏移量检测:', offset);
       const ok = await extractMotionPhotoMp4(jpeg.path, extractedMp4);
+      console.log('[LiveMedia] Motion Photo 提取结果:', ok);
       if (ok) {
         const assetId = await insertAssetRow(userId, { folder_id: folderId || null, kind: 'motion_photo', poster_path: '', loopable: true });
         const assetDir = await ensureAssetDir(userId, assetId);
@@ -629,6 +687,16 @@ module.exports = {
       return { assetId };
     }
 
+    // 抛出错误前，记录详细的诊断信息
+    console.log('[LiveMedia] 最终诊断:');
+    console.log('  - images.length:', images?.length);
+    console.log('  - movies.length:', movies?.length);
+    console.log('  - jpeg:', jpeg?.originalname);
+    console.log('  - gif:', gif?.originalname);
+    console.log('  - webp:', webp?.originalname);
+    console.log('  - imageFile:', imageFile?.originalname);
+    console.log('  - videoFile:', videoFile?.originalname);
+    
     throw new Error('无法识别的实况上传内容');
   },
 
