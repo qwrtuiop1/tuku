@@ -17,20 +17,6 @@
         <div class="upload-tips">
           <span class="tip-item">支持图片、HEIC/HEIF 和 MP4/MOV 视频</span>
           <span class="tip-item">单个文件最大{{ maxFileSizeMB }}MB</span>
-          <span class="tip-item">同名"图片+短视频"将自动识别为实况图</span>
-          <!-- iOS 16.4+ PhotosPicker 原生实况图入口 -->
-          <span v-if="photosPickerSupported" class="tip-item tip-live">
-            <el-button
-              type="primary"
-              size="small"
-              link
-              :loading="photosPickerLoading"
-              @click.stop="openPhotosPicker"
-            >
-              <el-icon><VideoPlay /></el-icon>
-              iOS 原生选择实况图（推荐）
-            </el-button>
-          </span>
         </div>
       </div>
     </div>
@@ -43,15 +29,6 @@
       :accept="computedUnifiedAccept"
       style="display: none"
       @change="handleFileSelect"
-    />
-    <!-- iOS 实况专用选择输入 -->
-    <input
-      ref="liveFileInputRef"
-      type="file"
-      multiple
-      accept=".heic,.heif,.jpg,.jpeg,.mov,.gif,.webp,image/heic,image/heif,image/jpeg,video/quicktime,image/gif,image/webp"
-      style="display: none"
-      @change="handleLiveSelect"
     />
 
     <!-- 上传队列（store 全局状态，弹窗关闭后继续显示） -->
@@ -79,14 +56,9 @@
             <div v-else class="thumb-icon" :class="item.fileCategory">
               <el-icon
                 ><VideoPlay
-                  v-if="
-                    item.fileCategory === 'live' ||
-                    item.fileCategory === 'video'
-                  " /><Document v-else
+                  v-if="item.fileCategory === 'video'"
+                /><Document v-else
               /></el-icon>
-              <span v-if="item.fileCategory === 'live'" class="live-badge"
-                >LIVE</span
-              >
               <span v-if="item.fileCategory === 'animated'" class="live-badge"
                 >GIF</span
               >
@@ -98,11 +70,8 @@
             <div class="item-name">{{ item.file.name }}</div>
             <div class="item-meta">
               <span class="item-size">{{ formatSize(item.file.size) }}</span>
-              <span v-if="item.fileCategory === 'live'" class="tag tag-live"
-                >实况</span
-              >
               <span
-                v-else-if="item.fileCategory === 'animated'"
+                v-if="item.fileCategory === 'animated'"
                 class="tag tag-animated"
                 >动图</span
               >
@@ -184,23 +153,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Live 后台任务 -->
-    <div v-if="liveJobs.length > 0" class="live-jobs">
-      <div class="live-jobs-header"><h4>实况处理中</h4></div>
-      <div v-for="job in liveJobs" :key="job.id" class="live-job-item">
-        <div class="job-info">
-          <span class="job-id">任务 {{ job.id.slice(0, 12) }}…</span>
-          <span class="job-status">{{ jobStatusText(job.status) }}</span>
-        </div>
-        <el-progress
-          :percentage="job.progress"
-          :stroke-width="4"
-          :show-text="false"
-          color="#ec4899"
-        />
-      </div>
-    </div>
   </div>
 </template>
 
@@ -218,9 +170,6 @@ import {
 } from "@element-plus/icons-vue";
 import { useFilesStore } from "@/stores/files";
 import { formatFileSize } from "@/utils/helpers";
-import api from "@/utils/api";
-import { useLivePhotoPicker } from "@/composables/useLivePhotoPicker";
-import { useDeviceInfo } from "@/composables/useDeviceInfo";
 
 const emit = defineEmits<{ "upload-success": [] }>();
 const filesStore = useFilesStore();
@@ -228,18 +177,11 @@ const filesStore = useFilesStore();
 // ── 上传队列状态（来自 store）─────────────────────────────────────
 const uploadItems = computed(() => filesStore.uploadItems);
 const uploadStats = computed(() => filesStore.uploadStats);
-const liveJobs = computed(() => filesStore.liveJobs);
 const maxFileSizeMB = computed(() => filesStore.systemSettings.maxFileSize);
-
-// ── 设备信息 ─────────────────────────────────────────────────────
-const { isIOS: isDeviceIOS } = useDeviceInfo();
 
 // ── accept ────────────────────────────────────────────────────────
 const computedUnifiedAccept = computed(() => {
-  if (isDeviceIOS) {
-    return "image/*,image/heic,image/heif,video/*,video/quicktime";
-  }
-  // Android + 桌面：全类型
+  // 全类型支持
   const imageExts = [
     ".jpg",
     ".jpeg",
@@ -270,43 +212,8 @@ const computedUnifiedAccept = computed(() => {
   ].join(",");
 });
 
-// ── PhotosPicker（iOS 16.4+）──────────────────────────────────────
-const {
-  isSupported: photosPickerSupported,
-  isLoading: photosPickerLoading,
-  openPhotosPicker,
-} = useLivePhotoPicker({
-  onPicked: async (results) => {
-    for (const result of results) {
-      const fd = new FormData();
-      fd.append("files", result.imageFile, result.filename);
-      if (result.videoBlob) {
-        const videoExt = result.filename.replace(/\.[^.]+$/, ".mov");
-        fd.append("files", result.videoBlob, videoExt);
-      }
-      fd.append("pairing_id", result.pairingId);
-      if (filesStore.currentFolder)
-        fd.append("folder_id", String(filesStore.currentFolder));
-      try {
-        const resp = await api.post("/live-media/upload", fd, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        const jobId = normalizeJobId(resp.data?.jobId);
-        if (jobId) filesStore.startLiveJobPolling(jobId);
-      } catch (e: any) {
-        ElMessage.error(e.response?.data?.message || "实况图上传失败");
-      }
-    }
-  },
-  onError: (msg) => {
-    ElMessage.error(msg);
-    triggerLiveInput();
-  },
-});
-
 // ── refs ─────────────────────────────────────────────────────────
 const fileInputRef = ref<HTMLInputElement>();
-const liveFileInputRef = ref<HTMLInputElement>();
 const isDragOver = ref(false);
 
 // ── 触发选择 ────────────────────────────────────────────────────
@@ -314,9 +221,6 @@ const triggerFileInput = () => {
   if (fileInputRef.value)
     fileInputRef.value.accept = computedUnifiedAccept.value;
   fileInputRef.value?.click();
-};
-const triggerLiveInput = () => {
-  liveFileInputRef.value?.click();
 };
 
 // ── 文件选择处理 ─────────────────────────────────────────────────
@@ -326,54 +230,8 @@ const handleFileSelect = async (e: Event) => {
   target.value = "";
   if (!files.length) return;
 
-  // iOS 引导补选 MOV
-  if (isDeviceIOS) {
-    const names = files.map((f) => f.name.toLowerCase());
-    const hasImg = names.some((n) => /\.(heic|heif|jpg|jpeg)$/.test(n));
-    const hasMov = names.some((n) => n.endsWith(".mov"));
-    if (hasImg && !hasMov) {
-      try {
-        await ElMessageBox.confirm(
-          "检测到选择了图片，是否继续选择对应的实况视频（MOV）以形成实况？",
-          "提示",
-          {
-            type: "info",
-            confirmButtonText: "去选择",
-            cancelButtonText: "先上传图片",
-          },
-        );
-        triggerLiveInput();
-      } catch {}
-    }
-  }
-
-  // 重建 MOV 配对表
-  filesStore.rebuildMovPairs(files);
+  // 添文件到上传队列
   filesStore.addFiles(files);
-};
-
-// ── Live 专用选择（iOS） ─────────────────────────────────────────
-const handleLiveSelect = async (e: Event) => {
-  const target = e.target as HTMLInputElement;
-  const files = Array.from(target.files || []);
-  target.value = "";
-  if (!files.length) return;
-  try {
-    const fd = new FormData();
-    for (const f of files) fd.append("files", f);
-    if (filesStore.currentFolder)
-      fd.append("folder_id", String(filesStore.currentFolder));
-    const resp = await api.post("/live-media/upload", fd, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    const jobId = normalizeJobId(resp.data?.jobId);
-    if (jobId) {
-      ElMessage.success("实况上传已受理，开始处理...");
-      filesStore.startLiveJobPolling(jobId);
-    }
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.message || "实况上传失败");
-  }
 };
 
 // ── 拖拽 ────────────────────────────────────────────────────────
@@ -387,7 +245,6 @@ const handleDrop = async (e: DragEvent) => {
   isDragOver.value = false;
   const files = Array.from(e.dataTransfer?.files || []);
   if (!files.length) return;
-  filesStore.rebuildMovPairs(files);
   filesStore.addFiles(files);
 };
 
@@ -396,17 +253,8 @@ const formatSize = (bytes: number) => formatFileSize(bytes);
 
 const progressColor = (cat: string) => {
   if (cat === "animated") return "#f59e0b";
-  if (cat === "live") return "#ec4899";
   if (cat === "video") return "#0ea5e9";
   return "#667eea";
-};
-
-const jobStatusText = (s: string) => {
-  if (s === "queued") return "排队中";
-  if (s === "processing") return "处理中";
-  if (s === "completed") return "已完成";
-  if (s === "failed") return "失败";
-  return s;
 };
 
 function normalizeJobId(raw: any): string | null {
@@ -430,6 +278,8 @@ const retryUploadItem = (id: string) => filesStore.retryUploadItem(id);
 // ── 初始化 ─────────────────────────────────────────────────────
 onMounted(() => {
   filesStore.fetchSystemSettings();
+  // 获取 COS 配置（用于前端直传）
+  filesStore.fetchCosConfig();
 });
 </script>
 
@@ -484,10 +334,6 @@ onMounted(() => {
       background: rgba(55, 65, 81, 0.08);
       border-radius: 20px;
       border: 1px solid rgba(55, 65, 81, 0.15);
-    }
-    .tip-live {
-      background: rgba(236, 72, 153, 0.1);
-      border-color: rgba(236, 72, 153, 0.25);
     }
   }
 }
@@ -570,9 +416,6 @@ onMounted(() => {
   &.type-animated {
     border-left-color: #f59e0b;
   }
-  &.type-live {
-    border-left-color: #ec4899;
-  }
 
   .item-thumb {
     width: 44px;
@@ -600,9 +443,6 @@ onMounted(() => {
       }
       &.video {
         background: linear-gradient(135deg, #0ea5e9, #06b6d4);
-      }
-      &.live {
-        background: linear-gradient(135deg, #ec4899, #a855f7);
       }
       &.animated {
         background: linear-gradient(135deg, #f59e0b, #f97316);
@@ -664,10 +504,6 @@ onMounted(() => {
       background: rgba(245, 158, 11, 0.12);
       color: #d97706;
     }
-    .tag-live {
-      background: rgba(236, 72, 153, 0.12);
-      color: #db2777;
-    }
     .tag-detecting {
       background: rgba(139, 92, 246, 0.12);
       color: #7c3aed;
@@ -715,43 +551,6 @@ onMounted(() => {
       &:hover {
         color: #dc2626;
       }
-    }
-  }
-}
-
-.live-jobs {
-  margin-top: 16px;
-  padding: 12px;
-  background: #fff;
-  border: 1px solid #f3e8ff;
-  border-radius: 10px;
-  .live-jobs-header {
-    margin-bottom: 10px;
-    h4 {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 600;
-      color: #7c3aed;
-    }
-  }
-  .live-job-item {
-    padding: 10px 12px;
-    background: #faf5ff;
-    border-radius: 8px;
-    margin-bottom: 8px;
-    .job-info {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 6px;
-    }
-    .job-id {
-      font-size: 12px;
-      font-weight: 600;
-      color: #6d28d9;
-    }
-    .job-status {
-      font-size: 12px;
-      color: #7c3aed;
     }
   }
 }

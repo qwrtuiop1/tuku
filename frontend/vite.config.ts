@@ -39,8 +39,10 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true
+        // 开发环境指向远程服务器
+        target: 'https://tukubackend.vtart.cn',
+        changeOrigin: true,
+        secure: false
       }
     }
   },

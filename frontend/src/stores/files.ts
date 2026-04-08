@@ -3,6 +3,30 @@ import { ref, computed } from "vue";
 import { ElMessage } from "element-plus";
 import api from "@/utils/api";
 
+// COS 配置接口
+interface CosConfig {
+  enable: boolean;
+  bucket: string;
+  region: string;
+  host: string;
+}
+
+// COS 临时凭证接口
+interface CosCredential {
+  bucket: string;
+  region: string;
+  host: string;
+  tmpSecretId: string;
+  tmpSecretKey: string;
+  sessionToken: string;
+  expiredTime: number;
+  uploadPath: string;
+  allowPrefix: string;
+  maxSize: number;
+  allowExts: string[];
+  callbackUrl: string;
+}
+
 export interface FileItem {
   id: number;
   filename: string;
@@ -36,7 +60,6 @@ export type UploadCategory =
   | "image"
   | "video"
   | "animated"
-  | "live"
   | "unknown";
 
 export interface UploadItem {
@@ -46,7 +69,6 @@ export interface UploadItem {
   progress: number;
   status:
     | "pending"
-    | "detecting"
     | "uploading"
     | "success"
     | "error"
@@ -130,6 +152,49 @@ export const useFilesStore = defineStore("files", () => {
     } catch {}
   }
 
+  // ── COS 前端直传配置 ─────────────────────────────────────
+  const cosConfig = ref<CosConfig | null>(null);
+  const cosCredential = ref<CosCredential | null>(null);
+  let credentialExpireTime = 0;
+
+  async function fetchCosConfig() {
+    try {
+      const { data } = await api.get("/files/cos-config");
+      cosConfig.value = data.data;
+    } catch {
+      cosConfig.value = null;
+    }
+  }
+
+  async function getCosCredential(fileType: "image" | "video" = "image") {
+    // 如果凭证还有效，直接返回
+    if (cosCredential.value && Date.now() < credentialExpireTime - 60000) {
+      return cosCredential.value;
+    }
+
+    try {
+      const { data } = await api.get("/files/cos-credential", {
+        params: { type: fileType, folder_id: currentFolder.value },
+      });
+
+      if (data.success && data.data) {
+        cosCredential.value = data.data;
+        credentialExpireTime = data.data.expiredTime * 1000; // 转换为毫秒
+        return cosCredential.value;
+      }
+    } catch (e) {
+      console.error("[COS] 获取凭证失败:", e);
+    }
+    return null;
+  }
+
+  function isCosEnabled() {
+    // TODO: 如果需要禁用 COS 前端直传，返回 false
+    // 暂时强制禁用，使用后端上传
+    return false;
+    // return cosConfig.value?.enable === true;
+  }
+
   // ── 类型识别 + 上传（串行，逐文件）────────────────────────────
   async function processUploadQueue() {
     uploadActive.value = true;
@@ -142,24 +207,13 @@ export const useFilesStore = defineStore("files", () => {
     const { success } = uploadStats.value;
     if (success > 0) {
       ElMessage.success(`成功上传 ${success} 个文件`);
+      // 上传成功后自动刷新文件列表
+      await refreshFiles();
     }
   }
 
   async function processItem(item: UploadItem) {
     const n = item.file.name.toLowerCase();
-
-    // ── HEIC：有同名 MOV 配对 → Live ─────────────────────
-    if (n.endsWith(".heic") && movPairMap.has(n)) {
-      const paired = movPairMap.get(n)!;
-      pairedConsumed.add(paired.name);
-      item.status = "uploading";
-      const ok = await createLiveJob([item.file, paired], item.id);
-      if (ok) {
-        item.status = "success";
-        item.progress = 100;
-      }
-      return;
-    }
 
     // ── GIF / WebP → animated ────────────────────────────
     if (/\.(gif|webp)$/i.test(n)) {
@@ -169,13 +223,7 @@ export const useFilesStore = defineStore("files", () => {
       return;
     }
 
-    // ── MOV（已配对）→ 跳过 ─────────────────────────────
-    if (n.endsWith(".mov") && pairedConsumed.has(item.file.name)) {
-      removeUploadItem(item.id);
-      return;
-    }
-
-    // ── MOV（未配对）→ video ─────────────────────────────
+    // ── MOV → video ─────────────────────────────
     if (n.endsWith(".mov")) {
       item.fileCategory = "video";
       item.status = "uploading";
@@ -183,27 +231,18 @@ export const useFilesStore = defineStore("files", () => {
       return;
     }
 
-    // ── HEIC（无配对）→ image ───────────────────────────
+    // ── HEIC → image ───────────────────────────
     if (n.endsWith(".heic")) {
       item.status = "uploading";
       await uploadSingleFile(item);
       return;
     }
 
-    // ── JPG / JPEG：必须先检测 Motion Photo ──────────────
+    // ── JPG / JPEG → image ──────────────
     if (n.endsWith(".jpg") || n.endsWith(".jpeg")) {
-      item.status = "detecting";
-      const isMotion = await detectMotionPhoto(item.file);
-      if (isMotion) {
-        item.fileCategory = "live";
-        item.status = "uploading";
-        const ok = await createLiveJob([item.file], item.id);
-        if (!ok) return; // 上传失败已在 createLiveJob 中处理
-      } else {
-        item.fileCategory = "image";
-        item.status = "uploading";
-        await uploadSingleFile(item);
-      }
+      item.fileCategory = "image";
+      item.status = "uploading";
+      await uploadSingleFile(item);
       return;
     }
 
@@ -212,258 +251,38 @@ export const useFilesStore = defineStore("files", () => {
     await uploadSingleFile(item);
   }
 
-  // ── MOV 配对表（每次 addFiles 时重建）──────────────────────
-  const movPairMap = new Map<string, File>();
-  const pairedConsumed = new Set<string>();
-
-  function rebuildMovPairs(files: File[]) {
-    movPairMap.clear();
-    pairedConsumed.clear();
-    for (const f of files) {
-      if (f.name.toLowerCase().endsWith(".mov")) {
-        movPairMap.set(f.name.toLowerCase(), f);
-      }
-    }
-    // 给 HEIC 配对查询（base 名）
-    const toBase = (n: string) => n.replace(/\.[^.]+$/, "").toLowerCase();
-    for (const f of files) {
-      if (f.name.toLowerCase().endsWith(".heic")) {
-        const base = toBase(f.name.toLowerCase());
-        if (movPairMap.has(base)) {
-          // movPairMap 里存的是 .mov，需要映射
-          // base = "IMG_123"，查找名为 "IMG_123.mov" 的文件
-          for (const [k, v] of movPairMap) {
-            if (k === base + ".mov") {
-              movPairMap.set(base, v);
-              break;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // ── Motion Photo 检测（客户端）─────────────────────────────
-  // 增强版：扩大搜索范围，支持微信等国产厂商 Motion Photo 格式
-  async function detectMotionPhoto(file: File): Promise<boolean> {
-    const readChunk = (start: number, len: number): Promise<ArrayBuffer> =>
-      new Promise((resolve, reject) => {
-        const fr = new FileReader();
-        fr.onload = () => resolve(fr.result as ArrayBuffer);
-        fr.onerror = reject;
-        fr.readAsArrayBuffer(
-          file.slice(start, Math.min(file.size, start + len)),
-        );
-      });
-
-    const validateFtyp = (bytes: Uint8Array, idx: number) => {
-      if (idx < 4) return false;
-      const boxLen =
-        (bytes[idx - 4]! << 24) |
-        (bytes[idx - 3]! << 16) |
-        (bytes[idx - 2]! << 8) |
-        bytes[idx - 1]!;
-      const remaining = bytes.length - (idx - 4);
-      // 放宽限制以支持某些厂商格式
-      return boxLen >= 8 && boxLen <= 1024 * 1024 && boxLen <= remaining;
-    };
-
-    const findFtypIndex = (bytes: Uint8Array, start: number = 0): number => {
-      for (let j = start; j <= bytes.length - 4; j++) {
-        if (
-          bytes[j] === 0x66 &&
-          bytes[j + 1] === 0x74 &&
-          bytes[j + 2] === 0x79 &&
-          bytes[j + 3] === 0x70
-        ) {
-          return j;
-        }
-      }
-      return -1;
-    };
-
-    try {
-      if (file.size < 16) return false;
-      // 扩大搜索范围以支持微信等国产厂商格式
-      const MAX_HEAD = 20 * 1024 * 1024; // 从 10MB 扩大到 20MB
-      const MAX_TAIL = 5 * 1024 * 1024;  // 从 2MB 扩大到 5MB
-      const MAX_MIDDLE_SCAN = 50 * 1024 * 1024; // 新增：中间区域扫描 50MB
-
-      // 前部：JPEG 在前、ftyp 在中部（标准 Android Motion Photo）
-      const headSize = Math.min(MAX_HEAD, file.size);
-      const headBytes = new Uint8Array(await readChunk(0, headSize));
-      let pos = 0;
-      for (;;) {
-        const idx = findFtypIndex(headBytes, pos);
-        if (idx === -1) break;
-        if (validateFtyp(headBytes, idx)) {
-          let eoiBefore = -1;
-          for (let i = idx - 1; i >= 1; i--) {
-            if (headBytes[i - 1] === 0xff && headBytes[i] === 0xd9) {
-              eoiBefore = i + 1;
-              break;
-            }
-          }
-          if (eoiBefore > 0 && eoiBefore < idx) return true;
-        }
-        pos = idx + 4;
-      }
-
-      // 尾部：JPEG 在后、MP4 紧跟 EOI（微信、部分三星格式）
-      const tailSize = Math.min(MAX_TAIL, file.size);
-      const tailBytes = new Uint8Array(
-        await readChunk(file.size - tailSize, tailSize),
-      );
-      let eoiAfter = -1;
-      for (let i = tailBytes.length - 2; i >= 0; i--) {
-        if (tailBytes[i] === 0xff && tailBytes[i + 1] === 0xd9) {
-          eoiAfter = i + 2;
-          break;
-        }
-      }
-      if (eoiAfter >= 0 && eoiAfter < tailBytes.length - 8) {
-        const after = tailBytes.subarray(eoiAfter);
-        pos = 0;
-        for (;;) {
-          const idx = findFtypIndex(after, pos);
-          if (idx === -1) break;
-          if (idx >= 4 && validateFtyp(after, idx)) return true;
-          pos = idx + 4;
-        }
-      }
-
-      // 微信特殊格式：JPEG 和 MP4 可能完全分离，扫描中间区域
-      if (headSize < file.size) {
-        const middleStart = MAX_HEAD;
-        const middleSize = Math.min(MAX_MIDDLE_SCAN, file.size - middleStart);
-        if (middleSize > 0) {
-          const middleBytes = new Uint8Array(await readChunk(middleStart, middleSize));
-          pos = 0;
-          for (;;) {
-            const idx = findFtypIndex(middleBytes, pos);
-            if (idx === -1) break;
-            // 微信格式可能没有前面的 JPEG EOI，找到即返回
-            if (validateFtyp(middleBytes, idx)) return true;
-            pos = idx + 4;
-          }
-        }
-      }
-    } catch {}
-    return false;
-  }
-
-  // ── Live Job ─────────────────────────────────────────────
-  const liveJobControllers: Record<string, AbortController> = {};
-  const liveJobs = ref<Array<{ id: string; status: string; progress: number }>>(
-    [],
-  );
-
-  // item → jobId 映射（用于轮询时找到 UploadItem 并更新状态）
-  const liveJobItemMap: Record<string, string> = {};
-
-  async function createLiveJob(
-    batch: File[],
-    itemId?: string,
-    pairingId?: string,
-  ): Promise<boolean> {
-    const fd = new FormData();
-    for (const f of batch) fd.append("files", f);
-    if (currentFolder.value)
-      fd.append("folder_id", String(currentFolder.value));
-    if (pairingId) fd.append("pairing_id", pairingId);
-    const controller = new AbortController();
-    try {
-      const resp = await api.post("/live-media/upload", fd, {
-        headers: { "Content-Type": "multipart/form-data" },
-        signal: controller.signal,
-      });
-      const jobId = normalizeJobId(resp.data?.jobId);
-      if (jobId) {
-        liveJobControllers[jobId] = controller;
-        liveJobItemMap[jobId] = itemId ?? "";
-        startLiveJobPolling(jobId);
-      }
-      return true;
-    } catch (e: any) {
-      // 上传请求本身失败（如网络错误、服务器 500），由轮询的 failed 状态统一处理错误提示，
-      // 此处不再弹 ElMessage 避免同一错误弹两次。
-      if (itemId) {
-        const item = uploadItems.value.find((i) => i.id === itemId);
-        if (item) {
-          item.status = "error";
-          item.error = e.response?.data?.message || "动图上传失败";
-          item.progress = 0;
-        }
-      }
-      return false;
-    }
-  }
-
-  function normalizeJobId(raw: any): string | null {
-    if (raw == null) return null;
-    if (typeof raw === "string" || typeof raw === "number") return String(raw);
-    if (typeof raw === "object") {
-      if (raw.id != null) return String(raw.id);
-      if (raw.jobId != null) return String(raw.jobId);
-    }
-    return null;
-  }
-
-  function startLiveJobPolling(jobId: string) {
-    const itemId = liveJobItemMap[jobId];
-    const item = itemId ? uploadItems.value.find((i) => i.id === itemId) : null;
-
-    liveJobs.value.push({ id: jobId, status: "queued", progress: 0 });
-    const poll = async () => {
-      try {
-        const { data } = await api.get(
-          `/live-media/jobs/${encodeURIComponent(String(jobId))}`,
-        );
-        const idx = liveJobs.value.findIndex((j) => j.id === jobId);
-        if (idx !== -1) {
-          liveJobs.value[idx] = {
-            id: jobId,
-            status: data.status,
-            progress: data.progress || 0,
-          };
-        }
-        // 同步进度到 UploadItem
-        if (item && data.progress != null) {
-          item.progress = data.progress;
-        }
-        if (data.status === "completed") {
-          ElMessage.success("实况处理完成");
-          if (item) {
-            item.status = "success";
-            item.progress = 100;
-          }
-          liveJobs.value.splice(idx, 1);
-          delete liveJobItemMap[jobId];
-          delete liveJobControllers[jobId];
-        } else if (data.status === "failed") {
-          const msg = data.error || "实况处理失败";
-          if (item) {
-            item.status = "error";
-            item.error = msg;
-            item.progress = 0;
-          }
-          liveJobs.value.splice(idx, 1);
-          delete liveJobItemMap[jobId];
-          delete liveJobControllers[jobId];
-        } else {
-          setTimeout(poll, 1200);
-        }
-      } catch {
-        setTimeout(poll, 1200);
-      }
-    };
-    setTimeout(poll, 1200);
-  }
-
   // ── 普通文件上传 ──────────────────────────────────────────
   const uploadControllers: Record<string, AbortController> = {};
 
-  async function uploadSingleFile(item: UploadItem) {
+  // 生成 COS 上传签名（简化版）
+  function generateCosSignature(method: string, key: string, credential: CosCredential) {
+    const now = Math.floor(Date.now() / 1000);
+    const expiredTime = credential.expiredTime;
+    const signTime = `${now - 300}-${expiredTime}`;
+
+    const urlString = `${method.toLowerCase()}\n/${key}\n\nhost=${credential.bucket}.cos.${credential.region}.myqcloud.com\n`;
+    const signature = CryptoJS.HmacSHA1(urlString, credential.tmpSecretKey).toString(CryptoJS.enc.Base64);
+
+    const signParams = [
+      `q-sign-algorithm=sha1`,
+      `q-ak=${credential.tmpSecretId}`,
+      `q-sign-time=${signTime}`,
+      `q-key-time=${signTime}`,
+      `q-header-list=host`,
+      `q-url-param-list=`,
+      `q-signature=${signature}`
+    ].join("&");
+
+    return signParams;
+  }
+
+  async function uploadSingleFile(item: UploadItem, noCosFallback = false) {
+    // 优先使用 COS 前端直传（除非明确禁止）
+    if (isCosEnabled() && !noCosFallback) {
+      return await uploadToCos(item);
+    }
+
+    // 降级到后端上传
     const fd = new FormData();
     fd.append("file", item.file);
     if (currentFolder.value)
@@ -480,31 +299,117 @@ export const useFilesStore = defineStore("files", () => {
           if (e.total) item.progress = Math.round((e.loaded * 100) / e.total);
         },
       });
-      // 后端检测为 Motion Photo：返回 202 + jobId，与普通 /live-media/upload 一样需轮询任务
-      if (resp.status === 202) {
-        const jobId = normalizeJobId(
-          (resp.data as { jobId?: unknown })?.jobId,
-        );
-        if (jobId) {
-          liveJobItemMap[jobId] = item.id;
-          item.status = "uploading";
-          startLiveJobPolling(jobId);
-        } else {
-          item.status = "error";
-          item.error =
-            (resp.data as { message?: string })?.message || "未返回处理任务 ID";
-          item.progress = 0;
-        }
-      } else {
-        item.status = "success";
-        item.progress = 100;
-      }
+      console.log('[Upload] Success:', resp.data);
+      item.status = "success";
+      item.progress = 100;
     } catch (e: any) {
+      console.error('[Upload] Error:', e);
       if (e.message?.includes("canceled") || e.code === "ERR_CANCELED") {
         item.status = "canceled";
       } else {
         item.status = "error";
         item.error = e.response?.data?.message || e.message || "上传失败";
+      }
+    } finally {
+      delete uploadControllers[item.id];
+    }
+  }
+
+  // ── COS 前端直传 ──────────────────────────────────────
+  async function uploadToCos(item: UploadItem) {
+    const fileType = item.fileCategory === "video" ? "video" : "image";
+    const credential = await getCosCredential(fileType);
+
+    if (!credential) {
+      console.warn("[COS] 获取凭证失败，降级到后端上传");
+      return uploadSingleFile(item, true); // 传递标志，禁止递归使用 COS
+    }
+
+    const controller = new AbortController();
+    uploadControllers[item.id] = controller;
+
+    try {
+      // 生成唯一的文件名
+      const ext = item.file.name.substring(item.file.name.lastIndexOf("."));
+      const filename = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}${ext}`;
+      const cosKey = `${credential.uploadPath}/${filename}`;
+
+      // 生成签名
+      const signParams = generateCosSignature("PUT", cosKey, credential);
+
+      // 上传到 COS（使用 fetch API）
+      const uploadUrl = `${credential.host}/${cosKey}?${signParams}`;
+      const host = `${credential.bucket}.cos.${credential.region}.myqcloud.com`;
+
+      item.progress = 0;
+
+      const resp = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Host": host,
+          "Content-Type": item.file.type || "application/octet-stream",
+          "Content-Length": String(item.file.size),
+          // 安全令牌（临时密钥必传）
+          "x-cos-security-token": credential.sessionToken,
+        },
+        body: item.file,
+        signal: controller.signal,
+      });
+
+      // 检查响应状态
+      // 成功：200 OK, 201 Created
+      if (resp.ok) {
+        item.progress = 100;
+
+        // 上传成功后，通知后端注册文件
+        const callbackResp = await api.post("/files/cos-callback", {
+          cosKey,
+          originalName: item.file.name,
+          fileSize: item.file.size,
+          mimeType: item.file.type,
+          folder_id: currentFolder.value,
+        });
+
+        if (callbackResp.data.success) {
+          item.status = "success";
+        } else {
+          throw new Error(callbackResp.data.message || "文件注册失败");
+        }
+      } else {
+        // 解析错误信息
+        let errorMsg = `COS 上传失败: HTTP ${resp.status}`;
+        try {
+          const errorData = await resp.json();
+          // 尝试从 CI 错误响应中提取信息
+          if (errorData.Error) {
+            errorMsg = errorData.Error.Message || errorMsg;
+          } else if (errorData.message) {
+            errorMsg = errorData.message;
+          }
+        } catch {
+          // 响应不是 JSON，尝试获取文本
+          const errorText = await resp.text();
+          if (errorText) {
+            errorMsg += ` - ${errorText.substring(0, 200)}`;
+          }
+        }
+
+        // 获取 request-id 用于调试
+        const requestId = resp.headers.get("x-ci-request-id");
+        if (requestId) {
+          console.error(`[COS] Request ID: ${requestId}`);
+        }
+
+        throw new Error(errorMsg);
+      }
+    } catch (e: any) {
+      if (e.name === "AbortError" || e.message?.includes("canceled")) {
+        item.status = "canceled";
+      } else {
+        console.error("[COS] 上传失败:", e);
+        // COS 上传失败，降级到后端（禁止递归使用 COS）
+        console.log("[COS] 降级到后端上传...");
+        return uploadSingleFile(item, true);
       }
     } finally {
       delete uploadControllers[item.id];
@@ -535,6 +440,10 @@ export const useFilesStore = defineStore("files", () => {
   }
 
   // ── 文件列表 ──────────────────────────────────────────────
+  async function refreshFiles() {
+    await fetchFiles(1);
+  }
+
   const filteredFiles = computed(() => {
     let result = files.value;
     if (fileTypeFilter.value !== "all")
@@ -681,21 +590,23 @@ export const useFilesStore = defineStore("files", () => {
     uploadItems,
     uploadActive,
     uploadStats,
-    liveJobs,
     fetchFiles,
     fetchFolders,
     fetchFolderPath,
     addFiles,
-    rebuildMovPairs,
     removeUploadItem,
     clearUploadItems,
     retryUploadItem,
     cancelUploadItem,
     uploadSingleFile,
-    createLiveJob,
-    startLiveJobPolling,
+    uploadToCos,
     fetchSystemSettings,
     systemSettings,
+    cosConfig,
+    cosCredential,
+    fetchCosConfig,
+    getCosCredential,
+    isCosEnabled,
     deleteFile,
     deleteFiles,
     deleteSelectedFiles,
