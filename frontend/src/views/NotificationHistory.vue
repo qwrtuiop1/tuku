@@ -8,8 +8,8 @@
           <p class="page-subtitle">查看和管理系统通知记录</p>
         </div>
         <div class="header-actions">
-          <!-- 桌面端按钮组 -->
-          <div class="desktop-actions">
+          <!-- 桌面端按钮组（平板及以下用下拉菜单，避免顶栏挤爆） -->
+          <div class="desktop-actions" v-show="!isNarrowLayout">
             <el-button type="primary" @click="showCreateNotificationDialog">
               <el-icon><Plus /></el-icon>
               编辑通知
@@ -28,8 +28,8 @@
             </el-button>
           </div>
           
-          <!-- 移动端下拉菜单 -->
-          <div class="mobile-actions">
+          <!-- 平板/移动端下拉菜单 -->
+          <div class="mobile-actions" v-show="isNarrowLayout">
             <el-dropdown @command="handleMobileAction" placement="bottom-end">
               <el-button type="primary" size="small">
                 <el-icon><MoreFilled /></el-icon>
@@ -186,107 +186,9 @@
               <el-tag type="info" size="small">总计: {{ totalCount }}</el-tag>
               <el-tag type="warning" size="small" v-if="unreadCount > 0">未读: {{ unreadCount }}</el-tag>
             </div>
-    
-    <!-- 通知编辑对话框 -->
-    <el-dialog
-      v-model="notificationDialogVisible"
-      :title="isEditing ? '编辑通知' : '创建通知'"
-      :width="isMobile ? '95%' : '600px'"
-      :close-on-click-modal="false"
-      class="notification-dialog"
-    >
-      <el-form
-        ref="notificationFormRef"
-        :model="notificationForm"
-        :rules="notificationRules"
-        label-width="100px"
-      >
-        <el-form-item label="通知标题" prop="title">
-          <el-input
-            v-model="notificationForm.title"
-            placeholder="请输入通知标题"
-            maxlength="100"
-            show-word-limit
-          />
-        </el-form-item>
-        
-        <el-form-item label="通知内容" prop="content">
-          <el-input
-            v-model="notificationForm.content"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入通知内容"
-            maxlength="500"
-            show-word-limit
-          />
-        </el-form-item>
-        
-        <el-form-item label="通知类型" prop="type">
-          <el-select v-model="notificationForm.type" placeholder="请选择通知类型">
-            <el-option label="系统通知" value="system" />
-            <el-option label="维护通知" value="maintenance" />
-            <el-option label="安全提醒" value="security_alert" />
-            <el-option label="存储警告" value="storage_warning" />
-            <el-option label="邮件通知" value="email" />
-          </el-select>
-        </el-form-item>
-        
-        <el-form-item label="优先级" prop="priority">
-          <el-select v-model="notificationForm.priority" placeholder="请选择优先级">
-            <el-option label="低" value="low" />
-            <el-option label="普通" value="normal" />
-            <el-option label="高" value="high" />
-            <el-option label="紧急" value="urgent" />
-          </el-select>
-        </el-form-item>
-        
-        <el-form-item label="发送时间" prop="sendAt">
-          <el-date-picker
-            v-model="notificationForm.sendAt"
-            type="datetime"
-            placeholder="选择发送时间"
-            format="YYYY-MM-DD HH:mm:ss"
-            value-format="YYYY-MM-DD HH:mm:ss"
-          />
-        </el-form-item>
-        
-        <el-form-item label="删除时间" prop="deleteAt">
-          <el-date-picker
-            v-model="notificationForm.deleteAt"
-            type="datetime"
-            placeholder="选择删除时间（可选）"
-            format="YYYY-MM-DD HH:mm:ss"
-            value-format="YYYY-MM-DD HH:mm:ss"
-          />
-        </el-form-item>
-        
-        <el-form-item label="发送范围">
-          <el-radio-group v-model="notificationForm.target">
-            <el-radio label="all">所有用户</el-radio>
-            <el-radio label="admin">仅管理员</el-radio>
-            <el-radio label="user">仅普通用户</el-radio>
-          </el-radio-group>
-        </el-form-item>
-      </el-form>
-      
-      <template #footer>
-        <div class="dialog-footer">
-          <div class="dialog-button-group">
-            <div class="dialog-button-item">
-              <el-button @click="notificationDialogVisible = false">取消</el-button>
-            </div>
-            <div class="dialog-button-item">
-              <el-button type="primary" @click="saveNotification" :loading="saving">
-                {{ isEditing ? '更新' : '创建' }}
-              </el-button>
-            </div>
           </div>
-        </div>
-      </template>
-    </el-dialog>
-  </div>
-</template>
-        
+        </template>
+
         <div class="notifications-list" v-loading="loading">
           <div v-if="notifications.length === 0 && !loading" class="empty-state">
             <el-empty description="暂无通知记录" />
@@ -379,11 +281,110 @@
       </el-card>
     </div>
 
+    <!-- 通知编辑对话框 -->
+    <el-dialog
+      v-model="notificationDialogVisible"
+      :title="isEditing ? '编辑通知' : '创建通知'"
+      :width="dialogWidth"
+      :close-on-click-modal="false"
+      class="notification-dialog"
+      :append-to-body="true"
+    >
+      <el-form
+        ref="notificationFormRef"
+        :model="notificationForm"
+        :rules="notificationRules"
+        label-width="100px"
+      >
+        <el-form-item label="通知标题" prop="title">
+          <el-input
+            v-model="notificationForm.title"
+            placeholder="请输入通知标题"
+            maxlength="100"
+            show-word-limit
+          />
+        </el-form-item>
+
+        <el-form-item label="通知内容" prop="content">
+          <el-input
+            v-model="notificationForm.content"
+            type="textarea"
+            :rows="4"
+            placeholder="请输入通知内容"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+
+        <el-form-item label="通知类型" prop="type">
+          <el-select v-model="notificationForm.type" placeholder="请选择通知类型">
+            <el-option label="系统通知" value="system" />
+            <el-option label="维护通知" value="maintenance" />
+            <el-option label="安全提醒" value="security_alert" />
+            <el-option label="存储警告" value="storage_warning" />
+            <el-option label="邮件通知" value="email" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="优先级" prop="priority">
+          <el-select v-model="notificationForm.priority" placeholder="请选择优先级">
+            <el-option label="低" value="low" />
+            <el-option label="普通" value="normal" />
+            <el-option label="高" value="high" />
+            <el-option label="紧急" value="urgent" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="发送时间" prop="sendAt">
+          <el-date-picker
+            v-model="notificationForm.sendAt"
+            type="datetime"
+            placeholder="选择发送时间"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+          />
+        </el-form-item>
+
+        <el-form-item label="删除时间" prop="deleteAt">
+          <el-date-picker
+            v-model="notificationForm.deleteAt"
+            type="datetime"
+            placeholder="选择删除时间（可选）"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+          />
+        </el-form-item>
+
+        <el-form-item label="发送范围">
+          <el-radio-group v-model="notificationForm.target">
+            <el-radio label="all">所有用户</el-radio>
+            <el-radio label="admin">仅管理员</el-radio>
+            <el-radio label="user">仅普通用户</el-radio>
+          </el-radio-group>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <div class="dialog-button-group">
+            <div class="dialog-button-item">
+              <el-button @click="notificationDialogVisible = false">取消</el-button>
+            </div>
+            <div class="dialog-button-item">
+              <el-button type="primary" @click="saveNotification" :loading="saving">
+                {{ isEditing ? '更新' : '创建' }}
+              </el-button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </el-dialog>
+
     <!-- 通知详情对话框 -->
     <el-dialog
       v-model="detailDialogVisible"
       title="通知详情"
-      :width="isMobile ? '95%' : '600px'"
+      :width="dialogWidth"
       :close-on-click-modal="false"
       class="notification-detail-dialog"
       :append-to-body="true"
@@ -465,12 +466,20 @@ import api from '@/utils/api'
 const loading = ref(false)
 const saving = ref(false)
 
-// 移动端检测
+// 响应式断点：<768 手机；<1024 平板（与筛选区、顶栏操作一致）
 const isMobile = ref(false)
+const isNarrowLayout = ref(false)
 
-// 检测屏幕尺寸
+const dialogWidth = computed(() => {
+  if (isMobile.value) return '95%'
+  if (isNarrowLayout.value) return '92%'
+  return '600px'
+})
+
 const checkScreenSize = () => {
-  isMobile.value = window.innerWidth < 768
+  const w = window.innerWidth
+  isMobile.value = w < 768
+  isNarrowLayout.value = w < 1024
 }
 
 // 移动端操作处理
@@ -1159,48 +1168,45 @@ onUnmounted(() => {
     .header-actions {
       display: flex;
       gap: 12px;
-      
+      flex-shrink: 0;
+
       .desktop-actions {
         display: flex;
+        flex-wrap: wrap;
         gap: 12px;
+        justify-content: flex-end;
       }
-      
+
       .mobile-actions {
-        display: none;
+        margin-left: auto;
       }
     }
   }
-  
-  // 移动端适配
-  @media (max-width: 768px) {
+
+  // 平板/手机：顶栏纵向排列（操作区由 v-show 切换桌面按钮 / 下拉）
+  @media (max-width: 1023px) {
     margin-bottom: 16px;
-    
+
     .header-content {
       flex-direction: column;
-      align-items: flex-start;
+      align-items: stretch;
       gap: 16px;
-      
-      .header-left {
-        .page-title {
-          font-size: 24px;
-        }
-        
-        .page-subtitle {
-          font-size: 13px;
-        }
+    }
+
+    .header-actions {
+      width: 100%;
+      justify-content: flex-end;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .header-left {
+      .page-title {
+        font-size: 24px;
       }
-      
-      .header-actions {
-        width: 100%;
-        justify-content: flex-end;
-        
-        .desktop-actions {
-          display: none;
-        }
-        
-        .mobile-actions {
-          display: block;
-        }
+
+      .page-subtitle {
+        font-size: 13px;
       }
     }
   }
@@ -1213,18 +1219,42 @@ onUnmounted(() => {
     .desktop-filter {
       .filter-content {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-        
+        flex-wrap: wrap;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 12px 16px;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+
         .filter-left {
           display: flex;
-          gap: 16px;
+          flex: 1 1 auto;
+          flex-wrap: wrap;
+          gap: 12px;
           align-items: center;
+          min-width: 0;
+
+          :deep(.el-select) {
+            width: 160px;
+            max-width: 100%;
+          }
+
+          :deep(.el-date-editor) {
+            flex: 1 1 260px;
+            min-width: 0;
+            max-width: 100%;
+          }
         }
-        
+
         .filter-right {
+          flex: 1 1 220px;
+          min-width: 0;
+          max-width: 100%;
+
           .search-input {
-            width: 300px;
+            width: 100%;
+            max-width: 100%;
           }
         }
       }
@@ -1235,29 +1265,38 @@ onUnmounted(() => {
       
       .mobile-filter-row {
         display: flex;
+        flex-wrap: wrap;
         gap: 12px;
         margin-bottom: 12px;
-        
+
         &:last-child {
           margin-bottom: 0;
         }
-        
+
         .el-select {
-          flex: 1;
+          flex: 1 1 160px;
+          min-width: 0;
+        }
+
+        .el-input {
+          width: 100%;
+          min-width: 0;
         }
       }
     }
   }
-  
-  // 移动端适配
-  @media (max-width: 768px) {
+
+  // 平板及以下：使用纵向筛选，避免一行挤爆
+  @media (max-width: 1023px) {
     margin-bottom: 16px;
-    
+
     .filter-card {
+      overflow: hidden;
+
       .desktop-filter {
         display: none;
       }
-      
+
       .mobile-filter {
         display: block;
       }
