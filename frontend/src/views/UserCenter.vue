@@ -483,6 +483,36 @@
                     </el-form-item>
                   </el-form>
                 </div>
+
+                <div class="preferences-section">
+                  <h4>回收站设置</h4>
+                  <el-form label-width="100px" class="preferences-form">
+                    <el-form-item label="保留时间">
+                      <el-select v-model="preferences.recycleDays" style="width: 200px">
+                        <el-option :value="7" label="7天" />
+                        <el-option :value="15" label="15天" />
+                        <el-option :value="30" label="30天" />
+                        <el-option :value="60" label="60天" />
+                        <el-option :value="0" label="永久保留" />
+                      </el-select>
+                    </el-form-item>
+
+                    <el-form-item label="自动清理">
+                      <el-switch v-model="preferences.autoCleanup" />
+                      <div class="form-hint">开启后，过期的文件会自动清理</div>
+                    </el-form-item>
+
+                    <el-form-item>
+                      <el-button
+                        type="primary"
+                        @click="saveRecycleSettings"
+                        :loading="saving"
+                      >
+                        保存回收站设置
+                      </el-button>
+                    </el-form-item>
+                  </el-form>
+                </div>
               </el-tab-pane>
             </el-tabs>
           </el-card>
@@ -669,7 +699,9 @@ const preferences = reactive({
   defaultView: 'grid',
   emailNotifications: true,
   storageWarnings: true,
-  securityAlerts: true
+  securityAlerts: true,
+  recycleDays: 30,
+  autoCleanup: true
 })
 
 const quickSettings = reactive({
@@ -999,7 +1031,14 @@ const loadUserSettingsFromServer = async () => {
       preferences.storageWarnings = notifData.storageWarnings ?? true
       preferences.securityAlerts = notifData.securityAlerts ?? true
     }
-    
+
+    // 加载回收站设置
+    try {
+      const recycleResponse = await api.get('/recycle/settings')
+      preferences.recycleDays = recycleResponse.data.recycle_days ?? 30
+      preferences.autoCleanup = recycleResponse.data.auto_cleanup ?? true
+    } catch {}
+
   } catch (error: any) {
     
     // 如果服务器加载失败，使用本地存储的默认值
@@ -1434,6 +1473,21 @@ const saveNotificationSettings = async () => {
     } else {
       ElMessage.error('保存通知设置失败，请稍后重试')
     }
+  } finally {
+    saving.value = false
+  }
+}
+
+const saveRecycleSettings = async () => {
+  saving.value = true
+  try {
+    await api.put('/recycle/settings', {
+      recycle_days: preferences.recycleDays,
+      auto_cleanup: preferences.autoCleanup
+    })
+    ElMessage.success('回收站设置已保存')
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '保存失败')
   } finally {
     saving.value = false
   }

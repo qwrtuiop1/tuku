@@ -15,7 +15,11 @@ class DatabaseInitService {
       'create_live_media_assets.sql',
       'create_live_media_jobs.sql',
       'create_live_media_variants.sql',
-      'add_live_media_folder_id.sql'
+      'add_live_media_folder_id.sql',
+      // 新功能表
+      'add_tags.sql',
+      'add_albums.sql',
+      'add_recycle_bin.sql'
     ];
   }
 

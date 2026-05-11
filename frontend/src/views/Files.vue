@@ -2119,14 +2119,44 @@ const clearSelection = () => {
 };
 
 // 批量操作
-const batchDownload = () => {
+const batchDownload = async () => {
   if (selectedFiles.value.length === 0) {
-    ElMessage.warning("请先选择要下载的项目");
+    ElMessage.warning('请先选择要下载的项目');
     return;
   }
 
-  ElMessage.info(`开始下载 ${selectedFiles.value.length} 个项目`);
-  // 这里可以实现批量下载逻辑
+  try {
+    ElMessage.info(`正在打包 ${selectedFiles.value.length} 个文件...`);
+    const response = await api.post('/files/batch-download', {
+      file_ids: selectedFiles.value
+    }, {
+      responseType: 'blob',
+      timeout: 120000
+    });
+
+    const blob = new Blob([response.data], { type: 'application/zip' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `files_${Date.now()}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+    ElMessage.success(`成功下载 ${selectedFiles.value.length} 个文件`);
+  } catch (error: any) {
+    if (error?.response?.data) {
+      try {
+        const text = await error.response.data.text();
+        const json = JSON.parse(text);
+        ElMessage.error(json.message || '批量下载失败');
+      } catch {
+        ElMessage.error('批量下载失败');
+      }
+    } else {
+      ElMessage.error('批量下载失败');
+    }
+  }
 };
 
 const batchDelete = async () => {

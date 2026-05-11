@@ -54,7 +54,25 @@
             <el-icon><User /></el-icon>
             <span>个人资料</span>
           </el-menu-item>
-          
+
+          <!-- 通知管理 -->
+          <el-menu-item index="/notifications">
+            <el-icon><Bell /></el-icon>
+            <span>通知管理</span>
+          </el-menu-item>
+
+          <!-- 回收站 -->
+          <el-menu-item index="/recycle-bin">
+            <el-icon><Delete /></el-icon>
+            <span>回收站</span>
+          </el-menu-item>
+
+          <!-- 我的相册 -->
+          <el-menu-item index="/albums">
+            <el-icon><Picture /></el-icon>
+            <span>我的相册</span>
+          </el-menu-item>
+
           <!-- 管理员专用菜单 -->
           <el-menu-item v-if="authStore.isAdmin" index="/admin">
             <el-icon><Setting /></el-icon>
@@ -85,6 +103,10 @@
               <el-dropdown-item command="profile">
                 <el-icon><User /></el-icon>
                 个人资料
+              </el-dropdown-item>
+              <el-dropdown-item command="help">
+                <el-icon><QuestionFilled /></el-icon>
+                帮助中心
               </el-dropdown-item>
               <el-dropdown-item v-if="authStore.isAdmin" command="settings">
                 <el-icon><Setting /></el-icon>
@@ -357,6 +379,8 @@ import {
   MoreFilled,
   Menu,
   User,
+  Bell,
+  Delete,
   SwitchButton,
   ArrowDown,
   UserFilled,
@@ -364,9 +388,9 @@ import {
   Document,
   Tools,
   Close,
-  Bell,
   Grid,
-  List
+  List,
+  QuestionFilled
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { formatFileSize, getStorageUsageColor, formatPercentage } from '@/utils/helpers'
@@ -459,7 +483,8 @@ const breadcrumbs = computed(() => {
     '/dashboard': { name: '仪表盘', path: '/dashboard' },
     '/admin': { name: '管理控制台', path: '/admin' },
     '/user-center': { name: '个人资料', path: '/user-center' },
-    '/settings': { name: '系统设置', path: '/settings' }
+    '/settings': { name: '系统设置', path: '/settings' },
+    '/help': { name: '帮助中心', path: '/help' }
   }
   
   return breadcrumbMap[route.path] ? [breadcrumbMap[route.path]] : []
@@ -506,6 +531,9 @@ const handleUserCommand = async (command: string) => {
   switch (command) {
     case 'profile':
       router.push('/user-center')
+      break
+    case 'help':
+      router.push('/help')
       break
     case 'settings':
       if (authStore.isAdmin) {
@@ -1134,11 +1162,35 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   background: #ffffff;
-  
+  gap: 12px;
+
   &.collapsed {
     justify-content: center;
     padding: 8px;
     gap: 8px;
+  }
+}
+
+.help-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #6b7280;
+  text-decoration: none;
+  font-size: 13px;
+  transition: color 0.2s;
+  white-space: nowrap;
+
+  &:hover {
+    color: #409eff;
+  }
+
+  .el-icon {
+    font-size: 16px;
+  }
+
+  &.collapsed {
+    justify-content: center;
   }
 }
 

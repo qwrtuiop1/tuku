@@ -71,12 +71,29 @@
       
       <div class="toolbar-right">
         <el-button-group>
+          <el-tooltip content="左旋转90°" placement="top">
+            <el-button @click="rotateImage('left')">
+              <el-icon><RefreshLeft /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="右旋转90°" placement="top">
+            <el-button @click="rotateImage('right')">
+              <el-icon><RefreshRight /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip v-if="previewRotation !== 0" content="保存旋转" placement="top">
+            <el-button @click="saveRotation" :loading="isSavingRotation" type="primary">
+              保存
+            </el-button>
+          </el-tooltip>
+        </el-button-group>
+        <el-button-group>
           <el-tooltip content="全屏" placement="top">
             <el-button @click="toggleFullscreen">
               <el-icon><FullScreen /></el-icon>
             </el-button>
           </el-tooltip>
-          
+
           <el-tooltip content="下载" placement="top">
             <el-button @click="downloadImage">
               <el-icon><Download /></el-icon>
@@ -118,9 +135,12 @@ import {
   View,
   Download,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  RefreshLeft,
+  RefreshRight
 } from '@element-plus/icons-vue'
 import { getFilePreviewUrl, downloadFile as downloadFileUtil } from '@/utils/helpers'
+import api from '@/utils/api'
 
 interface ImageItem {
   id: number
@@ -164,6 +184,8 @@ const imageRef = ref<HTMLImageElement>()
 const videoRef = ref<HTMLVideoElement>()
 const isPlayingLive = ref(false)
 const liveVideoUrl = ref<string | null>(null)
+const previewRotation = ref(0) // 预览旋转角度
+const isSavingRotation = ref(false)
 let pressTimer: any = null
 
 // 常量
@@ -181,8 +203,9 @@ const currentIndex = computed(() => {
 })
 
 const imageStyle = computed(() => ({
-  transform: `translate(${panX.value}px, ${panY.value}px) scale(${zoomLevel.value})`,
-  cursor: isPanning.value ? 'grabbing' : (zoomLevel.value > 1 ? 'grab' : 'default')
+  transform: `translate(${panX.value}px, ${panY.value}px) scale(${zoomLevel.value}) rotate(${previewRotation.value}deg)`,
+  cursor: isPanning.value ? 'grabbing' : (zoomLevel.value > 1 ? 'grab' : 'default'),
+  transition: previewRotation.value === 0 ? 'transform 0.3s ease' : 'none'
 }))
 
 // 方法
@@ -269,6 +292,29 @@ const resetView = () => {
   panX.value = 0
   panY.value = 0
   isZoomed.value = false
+  previewRotation.value = 0
+}
+
+const rotateImage = async (direction: 'left' | 'right') => {
+  const delta = direction === 'left' ? -90 : 90
+  previewRotation.value = (previewRotation.value + delta + 360) % 360
+}
+
+const saveRotation = async () => {
+  if (!props.image || previewRotation.value === 0) return
+  try {
+    isSavingRotation.value = true
+    const angle = previewRotation.value === 180 ? 180 : (previewRotation.value === 90 ? 90 : -90)
+    await api.post(`/files/${props.image.id}/rotate`, { angle })
+    ElMessage.success('图片已保存旋转')
+    previewRotation.value = 0
+    resetView()
+    emit('load')
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '保存旋转失败')
+  } finally {
+    isSavingRotation.value = false
+  }
 }
 
 const zoomIn = () => {

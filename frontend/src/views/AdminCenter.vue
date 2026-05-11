@@ -5183,7 +5183,6 @@ onUnmounted(() => {
       }
     }
   }
-}
 
 /* 审核设置样式（黑白灰） */
 .moderation-form {
@@ -9185,6 +9184,8 @@ onUnmounted(() => {
 
 .user-profile-popover .bio-block .bio {
   color: #2c3e50;
+}
+
 }
 
 @media (max-width: 768px) {

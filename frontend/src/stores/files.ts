@@ -482,7 +482,7 @@ export const useFilesStore = defineStore("files", () => {
       if (searchQuery.value) params.search = searchQuery.value;
       const resp = await api.get("/files", { params });
       if (currentFolder.value !== folderSnapshot) return;
-      files.value = resp.data.files;
+      files.value = resp.data.files || [];
       pagination.value = resp.data.pagination;
     } catch {
     } finally {
@@ -558,6 +558,15 @@ export const useFilesStore = defineStore("files", () => {
   async function renameFile(fileId: number, newName: string) {
     await api.put(`/files/${fileId}`, { original_name: newName });
     await fetchFiles();
+  }
+
+  // 回收站相关
+  async function restoreFromRecycle(fileIds: number[]) {
+    await api.post('/recycle/restore', { file_ids: fileIds });
+  }
+
+  async function permanentlyDelete(fileIds: number[]) {
+    await api.delete('/recycle', { data: { file_ids: fileIds } });
   }
 
   // 获取收藏列表
@@ -651,6 +660,8 @@ export const useFilesStore = defineStore("files", () => {
     deleteFolder,
     renameFolder,
     renameFile,
+    restoreFromRecycle,
+    permanentlyDelete,
     fetchFavorites,
     toggleFavorite,
     isFavorited,

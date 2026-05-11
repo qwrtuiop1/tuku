@@ -24,6 +24,9 @@ const liveMediaRoutes = require('./routes/liveMedia');
 const shareRoutes = require('./routes/share');
 const favoriteRoutes = require('./routes/favorites');
 const nginxConfigRoutes = require('./routes/nginxConfig');
+const tagsRoutes = require('./routes/tags');
+const albumsRoutes = require('./routes/albums');
+const recycleRoutes = require('./routes/recycle');
 const { errorHandler } = require('./middleware/errorHandler');
 const { authenticateToken } = require('./middleware/auth');
 const { checkMaintenanceMode } = require('./middleware/maintenance');
@@ -213,6 +216,9 @@ app.use('/api/files', authenticateToken, fileRoutes);
 app.use('/api/live-media', authenticateToken, liveMediaRoutes);
 app.use('/api/share', shareRoutes); // 公开分享，无需认证
 app.use('/api/favorites', authenticateToken, favoriteRoutes); // 收藏路由
+app.use('/api/tags', authenticateToken, tagsRoutes);
+app.use('/api/albums', authenticateToken, albumsRoutes);
+app.use('/api/recycle', authenticateToken, recycleRoutes);
 
 // 健康检查
 app.get('/api/health', (req, res) => {

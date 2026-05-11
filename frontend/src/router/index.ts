@@ -164,10 +164,45 @@ const routes = [
         path: '/notifications',
         name: 'NotificationHistory',
         component: () => import('@/views/NotificationHistory.vue'),
-        meta: { 
-          title: '通知历史',
-          requiresAuth: true,
-          requiresAdmin: true 
+        meta: {
+          title: '通知管理',
+          requiresAuth: true
+        }
+      },
+      {
+        path: '/recycle-bin',
+        name: 'RecycleBin',
+        component: () => import('@/views/RecycleBin.vue'),
+        meta: {
+          title: '回收站',
+          requiresAuth: true
+        }
+      },
+      {
+        path: '/albums',
+        name: 'Albums',
+        component: () => import('@/views/Albums.vue'),
+        meta: {
+          title: '我的相册',
+          requiresAuth: true
+        }
+      },
+      {
+        path: '/albums/:id',
+        name: 'AlbumDetail',
+        component: () => import('@/views/AlbumDetail.vue'),
+        meta: {
+          title: '相册详情',
+          requiresAuth: true
+        }
+      },
+      {
+        path: '/help',
+        name: 'HelpCenter',
+        component: () => import('@/views/HelpCenter.vue'),
+        meta: {
+          title: '帮助中心',
+          requiresAuth: false
         }
       },
     ]

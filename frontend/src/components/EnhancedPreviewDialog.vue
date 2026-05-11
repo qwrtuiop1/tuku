@@ -55,7 +55,15 @@
         <div class="details-list">
           <div class="detail-item">
             <span class="label">名称</span>
-            <span class="value" :title="currentFile.original_name">{{ currentFile.original_name }}</span>
+            <div class="value value-edit" v-if="!renaming">
+              <span class="file-name-text" :title="currentFile.original_name">{{ currentFile.original_name }}</span>
+              <el-button type="text" size="small" class="rename-btn" @click="startRename" :icon="Edit" />
+            </div>
+            <div class="value-edit" v-else>
+              <el-input v-model="renameValue" size="small" class="rename-input" @keyup.enter="confirmRename" @keyup.escape="cancelRename" ref="renameInputRef" />
+              <el-button type="primary" size="small" @click="confirmRename" :loading="renaming">确认</el-button>
+              <el-button size="small" @click="cancelRename">取消</el-button>
+            </div>
           </div>
           <div class="detail-item">
             <span class="label">大小</span>
@@ -77,6 +85,16 @@
             <span class="label">创建时间</span>
             <span class="value">{{ new Date(currentFile.created_at).toLocaleString() }}</span>
           </div>
+          <div class="detail-item" v-if="currentFile.folder_name">
+            <span class="label">所属文件夹</span>
+            <span class="value folder-link" @click="navigateToFolder" :title="currentFile.folder_name">
+              <el-icon><FolderOpened /></el-icon>{{ currentFile.folder_name }}
+            </span>
+          </div>
+          <div class="detail-item" v-if="currentFile.file_hash">
+            <span class="label">文件哈希</span>
+            <span class="value hash-value" :title="currentFile.file_hash">{{ currentFile.file_hash.substring(0, 16) + '...' }}</span>
+          </div>
         </div>
         <div class="details-actions">
           <div class="action-item">
@@ -97,6 +115,24 @@
               全屏
             </el-button>
           </div>
+          <div class="action-item">
+            <el-button @click="copyLink" class="gray-btn">
+              <el-icon><CopyDocument /></el-icon>
+              复制链接
+            </el-button>
+          </div>
+          <div class="action-item">
+            <el-button @click="toggleFavorite" class="gray-btn" :class="{ 'is-favorited': isFavorited }">
+              <el-icon><Star /></el-icon>
+              {{ isFavorited ? '已收藏' : '收藏' }}
+            </el-button>
+          </div>
+          <div class="action-item" v-if="!renaming">
+            <el-button @click="startRename" class="gray-btn">
+              <el-icon><Edit /></el-icon>
+              重命名
+            </el-button>
+          </div>
         </div>
         <div v-if="reviewStatus" class="review-status">
           <div class="row"><span class="label">审核状态</span><span class="value" :class="reviewStatus.status">{{ reviewStatusText }}</span></div>
@@ -112,9 +148,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, ArrowRight, Download, Share, FullScreen } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, Download, Share, FullScreen, Edit, CopyDocument, Star, FolderOpened } from '@element-plus/icons-vue'
 import FilePreview from './FilePreview.vue'
 import { formatFileSize, getFilePreviewUrl, downloadFile as downloadFileUtil, preloadImage } from '@/utils/helpers'
 import { useSystemStore } from '@/stores/system'
@@ -182,6 +218,14 @@ const reviewStatusText = computed(() => {
   return s === 'pending_review' ? '审核中' : s === 'approved' ? '已通过' : s === 'rejected' ? '未通过' : s
 })
 
+// 重命名状态
+const renaming = ref(false)
+const renameValue = ref('')
+const renameInputRef = ref<HTMLInputElement>()
+
+// 收藏状态
+const isFavorited = ref(false)
+
 const hasMultipleFiles = computed(() => localFiles.value.length > 1)
 
 const dialogTitle = computed(() => {
@@ -202,6 +246,97 @@ const localFiles = ref<FileItem[]>([])
 watch(files, (newFiles) => {
   localFiles.value = [...newFiles]
 }, { immediate: true })
+
+// 监听 currentFile 变化时更新收藏状态
+watch(currentFile, async (file) => {
+  if (file) {
+    await checkFavoriteStatus(file.id)
+  }
+}, { immediate: true })
+
+async function checkFavoriteStatus(fileId: number) {
+  try {
+    const resp = await api.get(`/favorites/check/${fileId}`)
+    isFavorited.value = resp.data.isFavorite
+  } catch {
+    isFavorited.value = false
+  }
+}
+
+async function toggleFavorite() {
+  if (!currentFile.value) return
+  try {
+    await filesStore.toggleFavorite(currentFile.value.id)
+    isFavorited.value = !isFavorited.value
+    ElMessage.success(isFavorited.value ? '已添加收藏' : '已取消收藏')
+  } catch {
+    ElMessage.error('操作失败')
+  }
+}
+
+async function copyLink() {
+  if (!currentFile.value) return
+  const url = `${window.location.origin}/share/${currentFile.value.id}`
+  try {
+    await navigator.clipboard.writeText(url)
+    ElMessage.success('链接已复制')
+  } catch {
+    ElMessage.error('复制失败，请手动复制')
+  }
+}
+
+function navigateToFolder() {
+  if (!currentFile.value?.folder_id) return
+  visible.value = false
+  const router = (window as any).router
+  if (router) {
+    router.push({ path: '/', query: { folder_id: currentFile.value.folder_id } })
+  }
+}
+
+function startRename() {
+  if (!currentFile.value) return
+  renameValue.value = currentFile.value.original_name
+  renaming.value = true
+  nextTick(() => {
+    const input = document.querySelector('.rename-input .el-input__inner') as HTMLInputElement
+    if (input) {
+      input.focus()
+      const dotIndex = input.value.lastIndexOf('.')
+      if (dotIndex > 0) {
+        input.setSelectionRange(0, dotIndex)
+      }
+    }
+  })
+}
+
+function cancelRename() {
+  renaming.value = false
+  renameValue.value = ''
+}
+
+async function confirmRename() {
+  if (!currentFile.value || !renameValue.value.trim()) return
+  const newName = renameValue.value.trim()
+  if (newName === currentFile.value.original_name) {
+    renaming.value = false
+    return
+  }
+  try {
+    renaming.value = true
+    await filesStore.renameFile(currentFile.value.id, newName)
+    const idx = localFiles.value.findIndex(f => f.id === currentFile.value!.id)
+    if (idx !== -1) {
+      localFiles.value[idx] = { ...localFiles.value[idx], original_name: newName }
+    }
+    renaming.value = false
+    renameValue.value = ''
+    ElMessage.success('文件名已更新')
+  } catch (e: any) {
+    renaming.value = false
+    ElMessage.error(e?.response?.data?.message || '重命名失败')
+  }
+}
 
 // 方法
 const previewContainer = ref<HTMLElement | null>(null)
@@ -567,6 +702,7 @@ watch(() => props.file, (newFile) => {
   display: grid;
   grid-template-columns: 84px 1fr;
   align-items: center;
+  gap: 4px;
 }
 
 .detail-item .label {
@@ -580,6 +716,60 @@ watch(() => props.file, (newFile) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.detail-item .value-edit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.file-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.rename-btn {
+  padding: 2px !important;
+  min-height: unset !important;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+
+.rename-btn:hover {
+  opacity: 1;
+}
+
+.rename-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.folder-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #409eff;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.folder-link:hover {
+  color: #66b1ff;
+}
+
+.hash-value {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.is-favorited .el-icon {
+  color: #e6a23c;
 }
 
 .details-actions {

@@ -264,7 +264,7 @@ const createUploadMiddleware = async () => {
 
 // 获取文件列表
 router.get('/', authenticateToken, asyncHandler(async (req, res) => {
-  const { folder_id, page = 1, limit = 20, file_type, search } = req.query;
+  const { folder_id, page = 1, limit = 20, file_type, search, q, type, date_from, date_to, sort_by, sort_order, include_folders } = req.query;
   const offset = (page - 1) * limit;
 
   // 加载 CI 配置
@@ -274,6 +274,9 @@ router.get('/', authenticateToken, asyncHandler(async (req, res) => {
     ci = await ciService.getInstance();
   }
 
+  const searchQuery = search || q || '';
+  const filterType = type || file_type || '';
+
   let query = `
     SELECT f.*
     FROM files f
@@ -281,25 +284,40 @@ router.get('/', authenticateToken, asyncHandler(async (req, res) => {
   `;
   const params = [req.user.id];
 
-  if (folder_id !== undefined && folder_id !== null) {
+  if (folder_id !== undefined && folder_id !== null && folder_id !== '') {
     query += ' AND f.folder_id = ?';
     params.push(folder_id);
+  } else if (folder_id === '') {
+    // 空字符串表示搜索全部目录
   } else {
-    // 如果没有指定folder_id，只返回根目录文件（folder_id为null）
     query += ' AND f.folder_id IS NULL';
   }
 
-  if (file_type) {
+  if (filterType && (filterType === 'image' || filterType === 'video')) {
     query += ' AND f.file_type = ?';
-    params.push(file_type);
+    params.push(filterType);
   }
 
-  if (search) {
+  if (searchQuery) {
     query += ' AND (f.original_name LIKE ? OR f.filename LIKE ?)';
-    params.push(`%${search}%`, `%${search}%`);
+    params.push(`%${searchQuery}%`, `%${searchQuery}%`);
   }
 
-  query += ` ORDER BY f.created_at DESC LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
+  if (date_from) {
+    query += ' AND f.created_at >= ?';
+    params.push(date_from);
+  }
+
+  if (date_to) {
+    query += ' AND f.created_at <= ?';
+    params.push(`${date_to} 23:59:59`);
+  }
+
+  // 动态排序
+  const validSortFields = { name: 'f.original_name', date: 'f.created_at', size: 'f.file_size', type: 'f.file_type' };
+  const sortField = validSortFields[sort_by] || 'f.created_at';
+  const sortDir = sort_order === 'asc' ? 'ASC' : 'DESC';
+  query += ` ORDER BY ${sortField} ${sortDir} LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}`;
 
   const [files] = await pool.execute(query, params);
 
@@ -307,30 +325,50 @@ router.get('/', authenticateToken, asyncHandler(async (req, res) => {
   let countQuery = 'SELECT COUNT(*) as total FROM files WHERE user_id = ?';
   const countParams = [req.user.id];
 
-  if (folder_id !== undefined && folder_id !== null) {
+  if (folder_id !== undefined && folder_id !== null && folder_id !== '') {
     countQuery += ' AND folder_id = ?';
     countParams.push(folder_id);
+  } else if (folder_id === '') {
   } else {
-    // 如果没有指定folder_id，只返回根目录文件（folder_id为null）
     countQuery += ' AND folder_id IS NULL';
   }
 
-  if (file_type) {
+  if (filterType && (filterType === 'image' || filterType === 'video')) {
     countQuery += ' AND file_type = ?';
-    countParams.push(file_type);
+    countParams.push(filterType);
   }
 
-  if (search) {
+  if (searchQuery) {
     countQuery += ' AND (original_name LIKE ? OR filename LIKE ?)';
-    countParams.push(`%${search}%`, `%${search}%`);
+    countParams.push(`%${searchQuery}%`, `%${searchQuery}%`);
+  }
+
+  if (date_from) {
+    countQuery += ' AND created_at >= ?';
+    countParams.push(date_from);
+  }
+
+  if (date_to) {
+    countQuery += ' AND created_at <= ?';
+    countParams.push(`${date_to} 23:59:59`);
   }
 
   const [countResult] = await pool.execute(countQuery, countParams);
 
+  // 获取文件夹搜索结果（如果需要）
+  let folderResults = [];
+  if (include_folders === '1' && searchQuery) {
+    const [folders] = await pool.execute(
+      `SELECT id, folder_name, parent_folder_id, created_at FROM folders WHERE user_id = ? AND folder_name LIKE ? LIMIT 20`,
+      [req.user.id, `%${searchQuery}%`]
+    );
+    folderResults = folders;
+  }
+
   // 为每个文件添加完整的访问URL
   const backendDomain = process.env.BACKEND_DOMAIN || 'https://tukubackend.vtart.cn';
   const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
-  
+
   const filesWithUrls = files.map(file => {
     // 处理文件名乱码问题
     let displayName = file.original_name;
@@ -421,6 +459,7 @@ router.get('/', authenticateToken, asyncHandler(async (req, res) => {
 
   res.json({
     files: filesWithUrls,
+    folders: folderResults,
     pagination: {
       page: parseInt(page),
       limit: parseInt(limit),
@@ -1006,77 +1045,37 @@ router.delete('/batch', authenticateToken, asyncHandler(async (req, res) => {
     return res.status(404).json({ message: '没有找到要删除的文件' });
   }
 
-  // 加载 CI 配置
-  let ci = null;
-  const useCi = await isCiEnabled();
-  if (useCi) {
-    ci = await ciService.getInstance();
+  // 获取用户的回收站设置
+  const [prefs] = await pool.execute(
+    'SELECT recycle_days FROM user_preferences WHERE user_id = ?',
+    [userId]
+  );
+  const recycleDays = prefs.length > 0 && prefs[0].recycle_days !== null ? prefs[0].recycle_days : 30;
+
+  // 计算过期时间
+  const expireOffset = recycleDays === 0
+    ? new Date('2099-12-31 23:59:59')
+    : new Date(Date.now() + recycleDays * 24 * 60 * 60 * 1000);
+
+  // 将所有文件移入回收站
+  for (const file of files) {
+    try {
+      await pool.execute(
+        `INSERT INTO recycle_bin (user_id, file_id, original_name, file_path, thumbnail_path,
+         file_type, file_size, mime_type, width, height, duration, file_hash, expire_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [userId, file.id, file.original_name, file.file_path, file.thumbnail_path,
+         file.file_type, file.file_size, file.mime_type, file.width, file.height,
+         file.duration, file.file_hash, expireOffset]
+      );
+      // 从 files 表移除（保留 id 以便恢复）
+      await pool.execute('DELETE FROM files WHERE id = ?', [file.id]);
+    } catch (e) {
+      console.error('批量移入回收站失败:', e);
+    }
   }
 
-  const totalSize = files.reduce((sum, f) => sum + (Number(f.file_size) || 0), 0);
-  const deletePromises = files.map(async (file) => {
-    try {
-      const isCosFile = (file.file_path || '').startsWith('users/');
-
-      if (isCosFile && ci && ci.enable) {
-        // 删除 COS 对象
-        await ci.deleteObject(file.file_path);
-        if (file.thumbnail_path) {
-          await ci.deleteObject(file.thumbnail_path);
-        }
-      } else {
-        // 删除本地文件
-        const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
-        let filePath;
-
-        if (path.isAbsolute(file.file_path)) {
-          filePath = file.file_path;
-        } else {
-          let normalizedPath = file.file_path.replace(/\\/g, '/');
-          if (normalizedPath.startsWith('storage/')) {
-            normalizedPath = normalizedPath.substring(8);
-          }
-          filePath = path.resolve(baseUploadPath, normalizedPath);
-        }
-
-        if (await fs.pathExists(filePath)) {
-          await fs.remove(filePath);
-        }
-
-        if (file.thumbnail_path) {
-          let thumbnailPath;
-          if (path.isAbsolute(file.thumbnail_path)) {
-            thumbnailPath = file.thumbnail_path;
-          } else {
-            let normalizedThumbnailPath = file.thumbnail_path.replace(/\\/g, '/');
-            if (normalizedThumbnailPath.startsWith('storage/')) {
-              normalizedThumbnailPath = normalizedThumbnailPath.substring(8);
-            }
-            thumbnailPath = path.resolve(baseUploadPath, normalizedThumbnailPath);
-          }
-          if (await fs.pathExists(thumbnailPath)) {
-            await fs.remove(thumbnailPath);
-          }
-        }
-      }
-    } catch (error) {
-      // 批量删除物理文件失败，继续处理
-    }
-  });
-
-  await Promise.all(deletePromises);
-
-  await pool.execute(
-    `DELETE FROM files WHERE id IN (${placeholders}) AND user_id = ?`,
-    [...file_ids, userId]
-  );
-
-  await pool.execute(
-    'UPDATE users SET used_storage = used_storage - ? WHERE id = ?',
-    [totalSize, userId]
-  );
-
-  res.json({ message: `成功删除 ${files.length} 个文件` });
+  res.json({ message: `已将 ${files.length} 个文件移入回收站，将在 ${recycleDays === 0 ? '永久保留' : recycleDays + '天后自动清理'}后删除` });
 }));
 
 // 重命名文件
@@ -1099,13 +1098,68 @@ router.put('/:id', authenticateToken, asyncHandler(async (req, res) => {
     return res.status(404).json({ message: '文件不存在' });
   }
 
-  // 更新文件名
-  await pool.execute(
-    'UPDATE files SET original_name = ? WHERE id = ? AND user_id = ?',
-    [original_name.trim(), fileId, userId]
-  );
+  const file = files[0];
+  const newOriginalName = original_name.trim();
 
-  res.json({ message: '文件重命名成功' });
+  // 同步修改物理文件名
+  try {
+    const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
+    let normalizedFilePath = (file.file_path || '').replace(/\\/g, '/');
+    if (normalizedFilePath.startsWith('/')) normalizedFilePath = normalizedFilePath.substring(1);
+    if (!normalizedFilePath.startsWith('users/') && !normalizedFilePath.startsWith('storage/')) {
+      normalizedFilePath = 'users/' + normalizedFilePath;
+    }
+    normalizedFilePath = normalizedFilePath.replace(/^storage\//, '').replace(/^users\//, '');
+    const oldAbsPath = path.resolve(baseUploadPath, 'users/' + normalizedFilePath);
+
+    if (await fs.pathExists(oldAbsPath)) {
+      const ext = path.extname(newOriginalName);
+      const newFilename = `${uuidv4()}${ext}`;
+      const dirOfFile = path.dirname(oldAbsPath);
+      const newAbsPath = path.join(dirOfFile, newFilename);
+      await fs.rename(oldAbsPath, newAbsPath);
+
+      // 同步修改缩略图
+      let normalizedThumbPath = (file.thumbnail_path || '').replace(/\\/g, '/');
+      if (normalizedThumbPath) {
+        if (normalizedThumbPath.startsWith('/')) normalizedThumbPath = normalizedThumbPath.substring(1);
+        if (!normalizedThumbPath.startsWith('users/') && !normalizedThumbPath.startsWith('storage/')) {
+          normalizedThumbPath = 'users/' + normalizedThumbPath;
+        }
+        normalizedThumbPath = normalizedThumbPath.replace(/^storage\//, '').replace(/^users\//, '');
+        const oldThumbAbs = path.resolve(baseUploadPath, 'users/' + normalizedThumbPath);
+        if (await fs.pathExists(oldThumbAbs)) {
+          const thumbExt = path.extname(newOriginalName) || '.jpg';
+          const newThumbFilename = 'thumb_' + path.basename(newFilename, path.extname(newFilename)) + '.jpg';
+          const newThumbAbs = path.join(path.dirname(oldThumbAbs), newThumbFilename);
+          await fs.rename(oldThumbAbs, newThumbAbs);
+        }
+      }
+
+      // 更新数据库中的 filename 和 file_path
+      const newFilePath = path.join(path.dirname('users/' + normalizedFilePath), newFilename).replace(/\\/g, '/');
+      await pool.execute(
+        'UPDATE files SET original_name = ?, filename = ?, file_path = ? WHERE id = ? AND user_id = ?',
+        [newOriginalName, newFilename, newFilePath, fileId, userId]
+      );
+      res.json({ message: '文件重命名成功', new_filename: newOriginalName });
+    } else {
+      // 文件不存在于磁盘，仅更新数据库中的 original_name
+      await pool.execute(
+        'UPDATE files SET original_name = ? WHERE id = ? AND user_id = ?',
+        [newOriginalName, fileId, userId]
+      );
+      res.json({ message: '文件名已更新（物理文件未找到）', new_filename: newOriginalName });
+    }
+  } catch (renameError) {
+    console.error('物理文件重命名失败:', renameError);
+    // 物理文件操作失败时，仍更新数据库中的 original_name
+    await pool.execute(
+      'UPDATE files SET original_name = ? WHERE id = ? AND user_id = ?',
+      [newOriginalName, fileId, userId]
+    );
+    res.json({ message: '文件名已更新', new_filename: newOriginalName });
+  }
 }));
 
 // 批量重命名文件
@@ -1275,7 +1329,7 @@ router.post('/:id/copy', authenticateToken, asyncHandler(async (req, res) => {
   });
 }));
 
-// 删除文件
+// 删除文件（移入回收站）
 router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
   const fileId = req.params.id;
   const userId = req.user.id;
@@ -1291,71 +1345,37 @@ router.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
   }
 
   const file = files[0];
-  const isCosFile = (file.file_path || '').startsWith('users/');
 
-  // 删除物理文件
-  try {
-    if (isCosFile) {
-      // 删除 COS 对象
-      const useCi = await isCiEnabled();
-      if (useCi) {
-        const ci = await ciService.getInstance();
-        if (ci.enable) {
-          await ci.deleteObject(file.file_path);
-          if (file.thumbnail_path) {
-            await ci.deleteObject(file.thumbnail_path);
-          }
-        }
-      }
-    } else {
-      // 删除本地文件
-      const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
-      let filePath;
+  // 获取用户的回收站设置
+  const [prefs] = await pool.execute(
+    'SELECT recycle_days FROM user_preferences WHERE user_id = ?',
+    [userId]
+  );
+  const recycleDays = prefs.length > 0 && prefs[0].recycle_days !== null ? prefs[0].recycle_days : 30;
 
-      if (path.isAbsolute(file.file_path)) {
-        filePath = file.file_path;
-      } else {
-        let normalizedPath = file.file_path.replace(/\\/g, '/');
-        if (normalizedPath.startsWith('storage/')) {
-          normalizedPath = normalizedPath.substring(8);
-        }
-        filePath = path.resolve(baseUploadPath, normalizedPath);
-      }
-
-      if (await fs.pathExists(filePath)) {
-        await fs.remove(filePath);
-      }
-
-      if (file.thumbnail_path) {
-        let thumbnailPath;
-        if (path.isAbsolute(file.thumbnail_path)) {
-          thumbnailPath = file.thumbnail_path;
-        } else {
-          let normalizedThumbnailPath = file.thumbnail_path.replace(/\\/g, '/');
-          if (normalizedThumbnailPath.startsWith('storage/')) {
-            normalizedThumbnailPath = normalizedThumbnailPath.substring(8);
-          }
-          thumbnailPath = path.resolve(baseUploadPath, normalizedThumbnailPath);
-        }
-        if (await fs.pathExists(thumbnailPath)) {
-          await fs.remove(thumbnailPath);
-        }
-      }
-    }
-  } catch (error) {
-    console.error('删除物理文件失败:', error);
+  // 计算过期时间
+  let expireAt;
+  if (recycleDays === 0) {
+    // 永久保存
+    expireAt = new Date('2099-12-31 23:59:59');
+  } else {
+    expireAt = new Date(Date.now() + recycleDays * 24 * 60 * 60 * 1000);
   }
 
-  // 从数据库删除记录
-  await pool.execute('DELETE FROM files WHERE id = ?', [fileId]);
-
-  // 更新用户存储使用量
+  // 将文件移入回收站（保留物理文件）
   await pool.execute(
-    'UPDATE users SET used_storage = used_storage - ? WHERE id = ?',
-    [file.file_size, userId]
+    `INSERT INTO recycle_bin (user_id, file_id, original_name, file_path, thumbnail_path,
+     file_type, file_size, mime_type, width, height, duration, file_hash, expire_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [userId, fileId, file.original_name, file.file_path, file.thumbnail_path,
+     file.file_type, file.file_size, file.mime_type, file.width, file.height,
+     file.duration, file.file_hash, expireAt]
   );
 
-  res.json({ message: '文件删除成功' });
+  // 从 files 表中移除记录（但保留 id，以便恢复时用原 id）
+  await pool.execute('DELETE FROM files WHERE id = ?', [fileId]);
+
+  res.json({ message: `文件已移入回收站，将在 ${recycleDays === 0 ? '永久保留' : recycleDays + '天后自动清理'}后删除` });
 }));
 
 // 批量移动文件
@@ -2260,6 +2280,142 @@ router.get('/export', authenticateToken, asyncHandler(async (req, res) => {
     console.error('导出失败:', error);
     res.status(500).json({ message: '导出失败' });
   }
+}));
+
+// 图片旋转
+router.post('/:id/rotate', authenticateToken, asyncHandler(async (req, res) => {
+  const fileId = req.params.id;
+  const { angle } = req.body;
+  const userId = req.user.id;
+
+  const validAngles = [90, -90, 180];
+  if (!angle || !validAngles.includes(Number(angle))) {
+    return res.status(400).json({ message: '旋转角度必须是 90、-90 或 180' });
+  }
+
+  const [files] = await pool.execute(
+    'SELECT * FROM files WHERE id = ? AND user_id = ? AND file_type = ?',
+    [fileId, userId, 'image']
+  );
+
+  if (files.length === 0) {
+    return res.status(404).json({ message: '图片不存在' });
+  }
+
+  const file = files[0];
+  const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
+  let normalizedFilePath = (file.file_path || '').replace(/\\/g, '/');
+  if (normalizedFilePath.startsWith('/')) normalizedFilePath = normalizedFilePath.substring(1);
+  if (!normalizedFilePath.startsWith('users/')) {
+    normalizedFilePath = 'users/' + normalizedFilePath;
+  }
+  const absPath = path.resolve(baseUploadPath, normalizedFilePath);
+
+  if (!(await fs.pathExists(absPath))) {
+    return res.status(404).json({ message: '物理文件不存在' });
+  }
+
+  // 读取并旋转图片
+  const metadata = await sharp(absPath).metadata();
+  let rotatedBuffer;
+  const rotationAngle = Number(angle);
+
+  if (rotationAngle === 90) {
+    rotatedBuffer = await sharp(absPath).rotate(90).toBuffer();
+  } else if (rotationAngle === -90) {
+    rotatedBuffer = await sharp(absPath).rotate(-90).toBuffer();
+  } else {
+    rotatedBuffer = await sharp(absPath).rotate(180).toBuffer();
+  }
+
+  // 覆盖保存
+  await fs.writeFile(absPath, rotatedBuffer);
+
+  // 更新宽高（90/-90 互换宽高）
+  let newWidth = file.width;
+  let newHeight = file.height;
+  if ((rotationAngle === 90 || rotationAngle === -90) && file.width && file.height) {
+    newWidth = file.height;
+    newHeight = file.width;
+  }
+
+  // 重新生成缩略图
+  let newThumbnailPath = file.thumbnail_path;
+  let normalizedThumbPath = (file.thumbnail_path || '').replace(/\\/g, '/');
+  if (normalizedThumbPath && !normalizedThumbPath.startsWith('users/')) {
+    normalizedThumbPath = 'users/' + normalizedThumbPath;
+  }
+  const thumbDir = path.dirname(path.resolve(baseUploadPath, normalizedThumbPath || absPath));
+  const thumbFilename = 'thumb_' + path.basename(absPath, path.extname(absPath)) + '.jpg';
+  const thumbAbsPath = path.join(thumbDir, thumbFilename);
+  try {
+    await fs.ensureDir(thumbDir);
+    const thumbSize = parseInt(process.env.THUMBNAIL_SIZE || '300');
+    await sharp(rotatedBuffer)
+      .resize(thumbSize, thumbSize, { fit: 'inside' })
+      .jpeg({ quality: 80 })
+      .toFile(thumbAbsPath);
+    newThumbnailPath = path.relative(baseUploadPath, thumbAbsPath).replace(/\\/g, '/');
+  } catch (thumbErr) {
+    console.error('缩略图重新生成失败:', thumbErr);
+  }
+
+  await pool.execute(
+    'UPDATE files SET width = ?, height = ?, thumbnail_path = ? WHERE id = ?',
+    [newWidth, newHeight, newThumbnailPath, fileId]
+  );
+
+  res.json({ message: '图片旋转成功', width: newWidth, height: newHeight });
+}));
+
+// 批量下载（zip打包）
+router.post('/batch-download', authenticateToken, asyncHandler(async (req, res) => {
+  const { file_ids } = req.body;
+  if (!file_ids || !Array.isArray(file_ids) || file_ids.length === 0) {
+    return res.status(400).json({ message: '请提供要下载的文件ID列表' });
+  }
+
+  // 查询文件
+  const placeholders = file_ids.map(() => '?').join(',');
+  const [files] = await pool.execute(
+    `SELECT * FROM files WHERE id IN (${placeholders}) AND user_id = ?`,
+    [...file_ids, req.user.id]
+  );
+
+  if (files.length === 0) {
+    return res.status(404).json({ message: '没有找到可下载的文件' });
+  }
+
+  // 动态导入 archiver
+  let archiver;
+  try {
+    archiver = require('archiver');
+  } catch (e) {
+    return res.status(500).json({ message: '批量下载功能未安装，请联系管理员' });
+  }
+
+  const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
+  const archive = archiver('zip', { zlib: { level: 5 } });
+
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename=files_${Date.now()}.zip`);
+
+  archive.on('error', (err) => { throw err; });
+  archive.pipe(res);
+
+  for (const file of files) {
+    let normalizedFilePath = (file.file_path || '').replace(/\\/g, '/');
+    if (normalizedFilePath.startsWith('/')) normalizedFilePath = normalizedFilePath.substring(1);
+    if (!normalizedFilePath.startsWith('users/')) {
+      normalizedFilePath = 'users/' + normalizedFilePath;
+    }
+    const absPath = path.resolve(baseUploadPath, normalizedFilePath);
+    if (await fs.pathExists(absPath)) {
+      archive.file(absPath, { name: file.original_name });
+    }
+  }
+
+  archive.finalize();
 }));
 
 module.exports = router;
