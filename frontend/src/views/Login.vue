@@ -930,7 +930,7 @@ onMounted(() => {
     padding: 80px 20px 20px; // 移动端使用20px
     gap: 30px;
     min-height: auto; // 移动端不强制最小高度
-    align-items: flex-start; // 移动端顶部对齐而不是居中
+    align-items: center; // 移动端水平居中
   }
   
   .info-panel {
@@ -1139,7 +1139,7 @@ onMounted(() => {
     padding: 60px 16px 16px; // 小屏幕使用16px
     gap: 24px;
     min-height: auto; // 移动端不强制最小高度
-    align-items: flex-start; // 移动端顶部对齐而不是居中
+    align-items: center; // 移动端水平居中
   }
   
   .info-panel {
@@ -1341,7 +1341,7 @@ onMounted(() => {
     padding: 50px 12px 12px;
     gap: 20px;
     min-height: auto; // 移动端不强制最小高度
-    align-items: flex-start; // 移动端顶部对齐而不是居中
+    align-items: center; // 移动端水平居中
   }
   
   .info-panel {

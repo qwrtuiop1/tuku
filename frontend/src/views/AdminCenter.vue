@@ -4909,38 +4909,53 @@ onUnmounted(() => {
         .quick-actions-row {
           gap: 12px;
           display: flex !important;
-          flex-wrap: nowrap !important; // 桌面端不换行
-          
+          flex-wrap: wrap !important;
+          justify-content: flex-start;
+          overflow-x: auto;
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+
+          &::-webkit-scrollbar {
+            display: none;
+          }
+
           :deep(.el-col) {
             padding-left: 0 !important;
             padding-right: 0 !important;
-            flex: 0 0 auto !important;
+            flex: 1 1 calc(25% - 12px);
+            min-width: 0;
           }
         }
         
         .quick-action-btn {
           width: 100%;
+          min-width: 0;
           height: 48px;
           display: flex;
-          flex-direction: column;
+          flex-direction: row;
           align-items: center;
           justify-content: center;
-          gap: 4px;
+          gap: 6px;
           border-radius: 8px;
           transition: all 0.3s ease;
-          
+          white-space: nowrap;
+          overflow: hidden;
+
           &:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
           }
           
           .el-icon {
-            font-size: 20px;
+            font-size: 18px;
+            flex-shrink: 0;
           }
           
           span {
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
           }
         }
       }
@@ -6729,17 +6744,34 @@ onUnmounted(() => {
   .admin-center-page {
     padding: 20px;
   }
-  
+
   .admin-center-content {
     .desktop-layout {
       .el-col {
         &:first-child {
           flex: 0 0 200px; // 固定侧边栏宽度
         }
-        
+
         &:last-child {
           flex: 1; // 内容区域自适应
         }
+      }
+    }
+  }
+
+  .quick-actions-row {
+    :deep(.el-col) {
+      flex: 1 1 calc(25% - 12px) !important;
+      min-width: 0;
+    }
+
+    .quick-action-btn {
+      .el-icon {
+        font-size: 16px;
+      }
+
+      span {
+        font-size: 12px;
       }
     }
   }
@@ -6913,6 +6945,24 @@ onUnmounted(() => {
     
     .quick-actions-row {
       flex-wrap: wrap !important;
+      gap: 8px;
+
+      :deep(.el-col) {
+        flex: 1 1 calc(50% - 8px) !important;
+        min-width: 0;
+      }
+
+      .quick-action-btn {
+        height: 40px;
+
+        .el-icon {
+          font-size: 14px;
+        }
+
+        span {
+          font-size: 11px;
+        }
+      }
     }
     
     .admin-panel-card {
@@ -6936,13 +6986,21 @@ onUnmounted(() => {
         }
         
         .quick-actions {
+          padding: 12px;
+          margin-bottom: 16px;
+
+          h4 {
+            font-size: 14px;
+            margin-bottom: 12px;
+          }
+
           .quick-action-btn {
             height: 40px;
-            
+
             .el-icon {
-              font-size: 16px;
+              font-size: 14px;
             }
-            
+
             span {
               font-size: 11px;
             }

@@ -237,7 +237,25 @@ class DatabaseInitService {
     try {
       await pool.execute("ALTER TABLE live_media_jobs MODIFY COLUMN status ENUM('queued','processing','completed','failed','cancelled') NOT NULL DEFAULT 'queued'");
     } catch (_) {}
-    
+
+    // 兜底：确保 file_favorites 表存在
+    try {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS file_favorites (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          user_id INT NOT NULL,
+          file_id INT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
+          UNIQUE KEY unique_user_file_favorite (user_id, file_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ file_favorites 表检查完成');
+    } catch (e) {
+      console.error('❌ 兜底创建 file_favorites 表失败:', e.message);
+    }
+
     return true;
   }
 }

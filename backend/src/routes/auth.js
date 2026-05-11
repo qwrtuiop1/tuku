@@ -994,7 +994,7 @@ router.post('/verify-forgot-password', [
     const jwt = require('jsonwebtoken');
     const resetToken = jwt.sign(
       { typ: 'reset_pw', username, email },
-      process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback',
+      process.env.JWT_SECRET,
       { expiresIn: '10m' }
     )
 
@@ -1096,7 +1096,7 @@ router.post('/reset-password-new', [
     if (resetToken) {
       try {
         const jwt = require('jsonwebtoken')
-        const payload = jwt.verify(resetToken, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback')
+        const payload = jwt.verify(resetToken, process.env.JWT_SECRET)
         tokenOk = (payload?.typ === 'reset_pw' && payload?.username === username && payload?.email === email)
       } catch (e) { tokenOk = false }
     }
@@ -1923,7 +1923,7 @@ router.post('/qq/callback', [
       // 手动校验token，获取 userId
       const jwt = require('jsonwebtoken');
       const raw = req.headers.authorization.replace(/^Bearer\s+/i, '');
-      const decoded = jwt.verify(raw, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback');
+      const decoded = jwt.verify(raw, process.env.JWT_SECRET);
       const userId = decoded.userId;
 
       // 检查 openId 是否已被其它账号占用
@@ -1971,7 +1971,7 @@ router.post('/qq/callback', [
         nickname: qqUserInfo.nickname || '',
         avatar: qqUserInfo.avatar || ''
       };
-      const tempToken = jwt.sign(tempPayload, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback', { expiresIn: '30m' });
+      const tempToken = jwt.sign(tempPayload, process.env.JWT_SECRET, { expiresIn: '30m' });
       return res.json({
         success: true,
         needs_confirm: true,
@@ -2076,7 +2076,7 @@ router.post('/qq/complete-signup', [
   const jwt = require('jsonwebtoken');
   let payload;
   try {
-    payload = jwt.verify(tempToken, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback');
+    payload = jwt.verify(tempToken, process.env.JWT_SECRET);
     if (payload.typ !== 'qq_signup') throw new Error('invalid token');
   } catch (e) {
     return res.status(400).json({ success: false, message: '临时令牌无效或已过期' });
@@ -2140,7 +2140,7 @@ router.post('/epass/callback', asyncHandler(async (req, res) => {
       }
       const jwt = require('jsonwebtoken')
       const raw = req.headers.authorization.replace(/^Bearer\s+/i, '')
-      const decoded = jwt.verify(raw, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback')
+      const decoded = jwt.verify(raw, process.env.JWT_SECRET)
       const userId = decoded.userId
       // 唯一性校验
       const [exist] = await pool.execute('SELECT id FROM users WHERE epass_id = ?', [info.epassId])
@@ -2155,7 +2155,7 @@ router.post('/epass/callback', asyncHandler(async (req, res) => {
       // 首次：返回确认注册所需信息（包含 bio）
       const jwt = require('jsonwebtoken')
       const tempPayload = { typ: 'epass_signup', epassId: info.epassId, username: info.username || '', avatar: info.avatar || '', email: info.email || '', bio: info.bio || '' }
-      const tempToken = jwt.sign(tempPayload, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback', { expiresIn: '30m' })
+      const tempToken = jwt.sign(tempPayload, process.env.JWT_SECRET, { expiresIn: '30m' })
       return res.json({ success: true, needs_confirm: true, tempToken, profile: { provider: 'epass', nickname: info.username || '', avatar: info.avatar || '', email: info.email || '' } })
     }
     const user = users[0]
@@ -2200,7 +2200,7 @@ router.post('/epass/complete-signup', [
   const jwt = require('jsonwebtoken')
   let payload
   try {
-    payload = jwt.verify(tempToken, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback')
+    payload = jwt.verify(tempToken, process.env.JWT_SECRET)
     if (payload.typ !== 'epass_signup') throw new Error('invalid token')
   } catch {
     return res.status(400).json({ success: false, message: '临时令牌无效或已过期' })
@@ -2233,7 +2233,7 @@ router.post('/epass/confirm-register', [
   const jwt = require('jsonwebtoken')
   let payload
   try {
-    payload = jwt.verify(tempToken, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback')
+    payload = jwt.verify(tempToken, process.env.JWT_SECRET)
     if (payload.typ !== 'epass_signup') throw new Error('invalid token')
   } catch {
     return res.status(400).json({ success: false, message: '临时令牌无效或已过期' })
@@ -2366,7 +2366,7 @@ router.post('/qq/confirm-register', [
   const jwt = require('jsonwebtoken')
   let payload
   try {
-    payload = jwt.verify(tempToken, process.env.JWT_SECRET || 'tuku_default_jwt_secret_key_2024_fallback')
+    payload = jwt.verify(tempToken, process.env.JWT_SECRET)
     if (payload.typ !== 'qq_signup') throw new Error('invalid token')
   } catch {
     return res.status(400).json({ success: false, message: '临时令牌无效或已过期' })
@@ -2568,3 +2568,11 @@ router.get('/password-policy', asyncHandler(async (req, res) => {
   }
 }));
 
+// 获取 CSRF Token（用于表单安全）
+router.get('/csrf-token', authenticateToken, (req, res) => {
+  const crypto = require('crypto');
+  const token = crypto.randomBytes(32).toString('hex');
+  res.json({ csrfToken: token });
+});
+
+module.exports = router;

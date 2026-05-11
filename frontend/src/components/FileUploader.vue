@@ -96,7 +96,7 @@
               <el-progress
                 :percentage="item.progress"
                 :stroke-width="4"
-                :show-text="false"
+                :show-text="true"
                 :color="progressColor(item.fileCategory)"
               />
             </div>

@@ -75,6 +75,7 @@ export interface UploadItem {
     | "canceled";
   error?: string;
   fileCategory: UploadCategory;
+  retryCount?: number;
 }
 
 export const useFilesStore = defineStore("files", () => {
@@ -86,6 +87,7 @@ export const useFilesStore = defineStore("files", () => {
   const viewMode = ref<"grid" | "list">("grid");
   const searchQuery = ref("");
   const fileTypeFilter = ref<"all" | "image" | "video">("all");
+  const favorites = ref<any[]>([]); // 收藏列表
 
   // 分页信息
   const pagination = ref({ page: 1, limit: 20, total: 0, pages: 0 });
@@ -107,7 +109,7 @@ export const useFilesStore = defineStore("files", () => {
   function addFiles(newFiles: File[]) {
     for (const file of newFiles) {
       const item: UploadItem = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: crypto.randomUUID(),
         file,
         preview: file.type.startsWith("image/")
           ? URL.createObjectURL(file)
@@ -115,6 +117,7 @@ export const useFilesStore = defineStore("files", () => {
         progress: 0,
         status: "pending",
         fileCategory: inferCategory(file),
+        retryCount: 0,
       };
       uploadItems.value.push(item);
     }
@@ -202,6 +205,16 @@ export const useFilesStore = defineStore("files", () => {
       const item = uploadItems.value.find((i) => i.status === "pending");
       if (!item) break;
       await processItem(item);
+
+      // 自动重试逻辑：上传失败且未超过最大重试次数
+      if (item.status === "error" && (item.retryCount || 0) < 3) {
+        const delay = Math.pow(2, item.retryCount || 0) * 1000; // 指数退避: 1s, 2s, 4s
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        item.retryCount = (item.retryCount || 0) + 1;
+        item.status = "pending";
+        item.progress = 0;
+        item.error = undefined;
+      }
     }
     uploadActive.value = false;
     const { success } = uploadStats.value;
@@ -448,14 +461,6 @@ export const useFilesStore = defineStore("files", () => {
     let result = files.value;
     if (fileTypeFilter.value !== "all")
       result = result.filter((f) => f.file_type === fileTypeFilter.value);
-    if (searchQuery.value) {
-      const q = searchQuery.value.toLowerCase();
-      result = result.filter(
-        (f) =>
-          f.original_name.toLowerCase().includes(q) ||
-          f.filename.toLowerCase().includes(q),
-      );
-    }
     return result;
   });
 
@@ -555,6 +560,37 @@ export const useFilesStore = defineStore("files", () => {
     await fetchFiles();
   }
 
+  // 获取收藏列表
+  async function fetchFavorites() {
+    try {
+      const { data } = await api.get("/favorites");
+      favorites.value = data.favorites || [];
+    } catch {
+      favorites.value = [];
+    }
+  }
+
+  // 切换收藏状态
+  async function toggleFavorite(fileId: number): Promise<boolean> {
+    try {
+      const resp = await api.get(`/favorites/check/${fileId}`);
+      if (resp.data.isFavorite) {
+        await api.delete(`/favorites/${fileId}`);
+      } else {
+        await api.post("/favorites", { file_id: fileId });
+      }
+      await fetchFavorites();
+      return !resp.data.isFavorite;
+    } catch {
+      return false;
+    }
+  }
+
+  // 检查文件是否已收藏
+  function isFavorited(fileId: number): boolean {
+    return favorites.value.some((f) => f.file_id === fileId);
+  }
+
   function selectFile(fileId: number) {
     if (!selectedFiles.value.includes(fileId)) selectedFiles.value.push(fileId);
   }
@@ -583,6 +619,7 @@ export const useFilesStore = defineStore("files", () => {
     viewMode,
     searchQuery,
     fileTypeFilter,
+    favorites,
     pagination,
     filteredFiles,
     selectedFilesData,
@@ -614,6 +651,9 @@ export const useFilesStore = defineStore("files", () => {
     deleteFolder,
     renameFolder,
     renameFile,
+    fetchFavorites,
+    toggleFavorite,
+    isFavorited,
     selectFile,
     unselectFile,
     toggleFileSelection,

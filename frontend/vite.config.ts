@@ -5,6 +5,10 @@ import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
+// PWA 支持（需要先运行 npm install 安装 vite-plugin-pwa）
+// 安装后取消下面注释即可启用
+// import { VitePWA } from 'vite-plugin-pwa'
+
 export default defineConfig({
   plugins: [
     vue(),
@@ -28,7 +32,9 @@ export default defineConfig({
     Components({
       resolvers: [ElementPlusResolver({ resolveIcons: true })],
       dts: resolve(__dirname, 'src/typings/components.d.ts')
-    })
+    }),
+    // PWA 配置（安装 vite-plugin-pwa 后取消注释）
+    // VitePWA({ registerType: 'autoUpdate', manifest: false, workbox: { globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'], runtimeCaching: [...] } })
   ],
   resolve: {
     alias: {

@@ -663,20 +663,46 @@ const handleFileUpload = asyncHandler(async (req, res) => {
     if (ci && ci.enable) {
       const ext = path.extname(file.filename);
       const cosFilename = `${uuidv4()}${ext}`;
+      const thumbFilename = `thumb_${uuidv4()}.jpg`;
       cosKey = buildCosKey(userId, folder_id, cosFilename, fileType);
 
       try {
         const uploadResult = await ci.uploadToCos(file.path, cosKey, { mimeType });
         if (uploadResult) {
           cosUrl = uploadResult.url;
-          // 缩略图直接用 CI 处理参数
-          thumbnailCosKey = cosKey; // 复用同一文件
-          thumbnailCosUrl = ci.getThumbnailUrl(cosKey);
         } else {
           throw new Error('CI uploadToCos returned null');
         }
+
+        // 生成本地缩略图（sharp 支持 HEIF/HEIC 等 CI 处理不了的格式）
+        try {
+          const baseUploadPath = process.env.UPLOAD_PATH || '/www/wwwroot/tuku/backend/storage';
+          const thumbDir = path.join(baseUploadPath, `users/user_${userId}`, folder_id ? `folders/folder_${folder_id}/thumbnails` : 'thumbnails');
+          await fs.ensureDir(thumbDir);
+          const thumbPath = path.join(thumbDir, thumbFilename);
+          await sharp(file.path)
+            .resize(300, 300, { fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 80 })
+            .toFile(thumbPath);
+
+          // 上传缩略图到 COS
+          const thumbnailCosKey = buildCosKey(userId, folder_id, thumbFilename, 'image');
+          const thumbUploadResult = await ci.uploadToCos(thumbPath, thumbnailCosKey, { mimeType: 'image/jpeg' });
+          if (thumbUploadResult) {
+            thumbnailCosUrl = thumbUploadResult.url;
+            thumbnailCosKey = thumbnailCosKey;
+          } else {
+            // 缩略图上传失败则降级为使用原图的 CI 处理 URL（仅支持 JPEG/PNG/WebP 等）
+            thumbnailCosUrl = ci.getThumbnailUrl(cosKey);
+            thumbnailCosKey = cosKey;
+          }
+          await fs.remove(thumbPath);
+        } catch (thumbErr) {
+          console.warn('[Upload] Thumbnail generation failed, using CI processing:', thumbErr.message);
+          thumbnailCosUrl = ci.getThumbnailUrl(cosKey);
+          thumbnailCosKey = cosKey;
+        }
       } catch (err) {
-        // CI 上传失败，删除临时文件并返回错误
         await fs.remove(file.path);
         return res.status(500).json({
           message: '文件上传到云存储失败，请稍后重试',
@@ -1080,6 +1106,53 @@ router.put('/:id', authenticateToken, asyncHandler(async (req, res) => {
   );
 
   res.json({ message: '文件重命名成功' });
+}));
+
+// 批量重命名文件
+router.put('/batch/rename', authenticateToken, asyncHandler(async (req, res) => {
+  const { file_ids, pattern, prefix, suffix, start_number } = req.body;
+  if (!file_ids || !Array.isArray(file_ids) || file_ids.length === 0) {
+    return res.status(400).json({ message: '请选择要重命名的文件' });
+  }
+  
+  try {
+    const results = [];
+    
+    for (let i = 0; i < file_ids.length; i++) {
+      const fileId = file_ids[i];
+      const [rows] = await pool.execute(
+        'SELECT filename, original_name FROM files WHERE id = ? AND user_id = ?',
+        [fileId, req.user.id]
+      );
+      if (rows.length === 0) continue;
+      
+      let newName = rows[0].original_name;
+      const ext = newName.includes('.') ? '.' + newName.split('.').pop() : '';
+      const baseName = newName.includes('.') ? newName.slice(0, -ext.length) : newName;
+      
+      if (pattern === 'prefix' && prefix) {
+        newName = prefix + baseName + ext;
+      } else if (pattern === 'suffix' && suffix) {
+        newName = baseName + suffix + ext;
+      } else if (pattern === 'number' && start_number !== undefined) {
+        newName = `${start_number + i}${ext}`;
+      } else if (pattern === 'date') {
+        const date = new Date().toISOString().slice(0, 10);
+        newName = `${date}_${baseName}${ext}`;
+      }
+      
+      await pool.execute(
+        'UPDATE files SET original_name = ?, filename = ? WHERE id = ?',
+        [newName, newName, fileId]
+      );
+      results.push({ fileId, newName });
+    }
+    
+    res.json({ message: `成功重命名 ${results.length} 个文件`, results });
+  } catch (error) {
+    console.error('批量重命名失败:', error);
+    res.status(500).json({ message: '批量重命名失败' });
+  }
 }));
 
 // 移动文件到文件夹
@@ -2157,6 +2230,35 @@ router.get('/video/job/:jobId', authenticateToken, asyncHandler(async (req, res)
     });
   } else {
     res.status(404).json({ success: false, message: '任务不存在或查询失败' });
+  }
+}));
+
+// 导出文件列表
+router.get('/export', authenticateToken, asyncHandler(async (req, res) => {
+  const { format = 'csv', folder_id } = req.query;
+  try {
+    let query = 'SELECT original_name, file_type, file_size, created_at FROM files WHERE user_id = ?';
+    const params = [req.user.id];
+    if (folder_id) { query += ' AND folder_id = ?'; params.push(folder_id); }
+    query += ' ORDER BY created_at DESC LIMIT 10000';
+    
+    const [rows] = await pool.execute(query, params);
+    
+    if (format === 'json') {
+      return res.json({ files: rows, total: rows.length });
+    }
+    
+    // CSV format
+    const header = '文件名,类型,大小,创建时间\n';
+    const csv = rows.map(r => 
+      `"${r.original_name}",${r.file_type},${r.file_size},${r.created_at}`
+    ).join('\n');
+    res.setHeader('Content-Type', 'text/csv;charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename=files_export.csv');
+    res.send('\ufeff' + header + csv); // BOM for Excel
+  } catch (error) {
+    console.error('导出失败:', error);
+    res.status(500).json({ message: '导出失败' });
   }
 }));
 

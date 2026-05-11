@@ -2592,28 +2592,34 @@ const shareStatusText = computed(() => {
 
 // 桌面端工具栏样式
 .desktop-toolbar {
-  display: block;
+  display: flex;
+  justify-content: center;
+}
+
+.toolbar-container {
+  width: 100%;
 }
 
 .unified-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 12px 16px;
+  gap: 12px;
+  padding: 10px 16px;
   background: #ffffff;
   border-radius: 16px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   border: 1px solid #e5e7eb;
   margin-bottom: 8px;
-  max-width: calc(100vw - 400px); // 限制宽度与内容区域一致
-  margin-left: auto;
-  margin-right: auto;
+  min-width: 0;
+  box-sizing: border-box;
+  flex-shrink: 0;
 
   .toolbar-main {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
+    flex-shrink: 0;
 
     .action-btn {
       height: 40px;
@@ -2643,12 +2649,15 @@ const shareStatusText = computed(() => {
   .toolbar-search {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     flex: 1;
-    max-width: 400px;
+    min-width: 0;
+    overflow: hidden;
 
     .search-input {
       flex: 1;
+      min-width: 0;
+      max-width: 320px;
 
       :deep(.el-input__wrapper) {
         height: 40px;
@@ -2697,7 +2706,8 @@ const shareStatusText = computed(() => {
   .toolbar-actions {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    flex-shrink: 0;
 
     .filter-live-btn {
       height: 40px;
@@ -3741,6 +3751,7 @@ const shareStatusText = computed(() => {
 
 .desktop-toolbar {
   display: flex;
+  justify-content: center;
 }
 
 // 响应式设计 - 使用精确断点，避免重叠
@@ -3761,20 +3772,27 @@ const shareStatusText = computed(() => {
   }
 
   .unified-toolbar {
-    padding: 16px 20px;
-    gap: 20px;
-    max-width: calc(100vw - 440px); // 与内容区域宽度一致
+    padding: 12px 16px;
+    gap: 14px;
 
     .toolbar-main .action-btn {
       height: 44px;
-      padding: 0 20px;
+      padding: 0 18px;
       font-size: 15px;
     }
 
-    .toolbar-search .sort-btn {
-      height: 44px;
-      padding: 0 16px;
-      font-size: 13px;
+    .toolbar-search {
+      max-width: none;
+
+      .search-input {
+        max-width: 360px;
+      }
+
+      .sort-btn {
+        height: 44px;
+        padding: 0 14px;
+        font-size: 13px;
+      }
     }
 
     .toolbar-actions .view-btn,
@@ -3852,7 +3870,8 @@ const shareStatusText = computed(() => {
   }
 
   .desktop-toolbar {
-    display: block;
+    display: flex;
+    justify-content: center;
   }
 
   .mobile-toolbar {
@@ -3860,29 +3879,46 @@ const shareStatusText = computed(() => {
   }
 
   .unified-toolbar {
-    padding: 12px 16px;
-    gap: 12px;
+    padding: 10px 12px;
+    gap: 10px;
     margin-bottom: 12px;
+
+    .toolbar-main {
+      gap: 8px;
+    }
 
     .toolbar-main .action-btn {
       height: 36px;
-      padding: 0 12px;
+      padding: 0 10px;
       font-size: 13px;
     }
 
     .toolbar-search {
-      max-width: 250px;
+      max-width: none;
+
+      .search-input {
+        max-width: 200px;
+      }
 
       .sort-btn {
-        height: 40px;
-        padding: 0 12px;
+        height: 36px;
+        padding: 0 10px;
         font-size: 12px;
       }
     }
 
-    .toolbar-actions .view-btn,
-    .toolbar-actions .filter-live-btn {
-      height: 40px;
+    .toolbar-actions {
+      gap: 6px;
+
+      .filter-live-btn {
+        padding: 0 10px;
+        font-size: 12px;
+      }
+
+      .view-btn {
+        min-width: 36px;
+        padding: 0 8px;
+      }
     }
   }
 
@@ -4000,7 +4036,8 @@ const shareStatusText = computed(() => {
   }
 
   .mobile-toolbar {
-    display: block;
+    display: flex;
+    justify-content: center;
     padding: 6px 0;
 
     .mobile-actions {
@@ -4183,7 +4220,8 @@ const shareStatusText = computed(() => {
   }
 
   .mobile-toolbar {
-    display: block;
+    display: flex;
+    justify-content: center;
     padding: 8px 0;
 
     .mobile-actions {
@@ -4339,7 +4377,8 @@ const shareStatusText = computed(() => {
   }
 
   .mobile-toolbar {
-    display: block;
+    display: flex;
+    justify-content: center;
     padding: 4px 0;
 
     .mobile-actions {

@@ -531,10 +531,10 @@ let touchStartY = 0
 
 // 轮播数据（从 stats 响应式计算）
 const statCards = computed(() => [
-  { key: 'images', label: '图片文件', value: stats.value.imageCount, detail: formatFileSize(stats.value.imageSize), icon: Picture, color: '#3b82f6', cls: 'image-card', percentage: Number(stats.value.changes?.images?.percentage) || 0 },
-  { key: 'videos', label: '视频文件', value: stats.value.videoCount, detail: formatFileSize(stats.value.videoSize), icon: VideoPlay, color: '#ef4444', cls: 'video-card', percentage: Number(stats.value.changes?.videos?.percentage) || 0 },
-  { key: 'motion', label: '动图/实况', value: stats.value.motionCount || 0, detail: formatFileSize(stats.value.motionSize || 0), icon: CircleCheck, color: '#a855f7', cls: 'motion-card', percentage: Number(stats.value.changes?.videos?.percentage) || 0 },
-  { key: 'folders', label: '文件夹', value: stats.value.folderCount, detail: `${stats.value.totalFiles} 个文件`, icon: Folder, color: '#10b981', cls: 'folder-card', percentage: Number(stats.value.changes?.folders?.percentage) || 0 },
+  { key: 'images', label: '图片文件', value: stats.value.imageCount, detail: formatFileSize(stats.value.imageSize), icon: Picture, color: '#409eff', cls: 'image-card', percentage: Number(stats.value.changes?.images?.percentage) || 0 },
+  { key: 'videos', label: '视频文件', value: stats.value.videoCount, detail: formatFileSize(stats.value.videoSize), icon: VideoPlay, color: '#f56c6c', cls: 'video-card', percentage: Number(stats.value.changes?.videos?.percentage) || 0 },
+  { key: 'motion', label: '动图/实况', value: stats.value.motionCount || 0, detail: formatFileSize(stats.value.motionSize || 0), icon: CircleCheck, color: '#9f7aea', cls: 'motion-card', percentage: Number(stats.value.changes?.videos?.percentage) || 0 },
+  { key: 'folders', label: '文件夹', value: stats.value.folderCount, detail: `${stats.value.totalFiles} 个文件`, icon: Folder, color: '#67c23a', cls: 'folder-card', percentage: Number(stats.value.changes?.folders?.percentage) || 0 },
 ])
 
 // 统计数据
@@ -818,7 +818,7 @@ onUnmounted(() => {
 
 .welcome-section {
   background: #ffffff;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #dcdfe6;
   border-radius: 20px;
   padding: 36px 40px;
   box-shadow: 0 2px 12px rgba(17, 24, 39, 0.06);
@@ -826,7 +826,7 @@ onUnmounted(() => {
   /* 默认不裁切子元素；弧形轮播需要左右露出 */
   overflow-x: visible;
   overflow-y: visible;
-  border-top: 3px solid #667eea;
+  border-top: 3px solid #409eff;
   
   // 主要内容区域：左右布局 - 桌面端优化
   .welcome-main {
@@ -887,8 +887,8 @@ onUnmounted(() => {
       flex-shrink: 0; // 防止头像被压缩
       
       :deep(.el-avatar) {
-        border: 3px solid rgba(102, 126, 234, 0.2);
-        box-shadow: 0 4px 16px rgba(102, 126, 234, 0.15);
+        border: 3px solid rgba(64, 158, 255, 0.2);
+        box-shadow: 0 4px 16px rgba(64, 158, 255, 0.15);
         transition: all 0.3s ease;
         
         // 桌面端大屏幕头像
@@ -927,7 +927,7 @@ onUnmounted(() => {
         font-size: 42px;
         font-weight: 900;
         margin-bottom: 12px;
-        color: #111827;
+        color: #1d2129;
         line-height: 1.2;
         word-break: normal; // 中文标题避免逐字断行；长英文仍可由 overflow-wrap 处理
         overflow-wrap: break-word;
@@ -953,19 +953,19 @@ onUnmounted(() => {
       
       .welcome-subtitle {
         font-size: 17px;
-        color: #6b7280;
+        color: #606266;
         line-height: 1.6;
         display: flex;
         flex-direction: column;
         gap: 4px;
 
         .welcome-date {
-          color: #374151;
+          color: #1d2129;
           font-weight: 600;
         }
 
         .welcome-meta {
-          color: #9ca3af;
+          color: #909399;
           font-weight: 400;
         }
       }
@@ -1100,7 +1100,7 @@ onUnmounted(() => {
         content: '';
         position: absolute;
         inset: 0;
-        background: linear-gradient(135deg, rgba(102, 126, 234, 0.06), rgba(118, 75, 162, 0.04));
+        background: linear-gradient(135deg, rgba(64, 158, 255, 0.06), rgba(118, 75, 162, 0.04));
         opacity: 0;
         transition: opacity 0.25s ease;
       }
@@ -1110,14 +1110,14 @@ onUnmounted(() => {
       }
 
       &.primary {
-        background: linear-gradient(135deg, #667eea, #764ba2) !important;
+        background: linear-gradient(135deg, #409eff, #53a8ff) !important;
         color: #ffffff !important;
         border: none !important;
-        box-shadow: 0 4px 14px rgba(102, 126, 234, 0.3) !important;
+        box-shadow: 0 4px 14px rgba(64, 158, 255, 0.3) !important;
 
         &:hover {
           transform: translateY(-2px);
-          box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4) !important;
+          box-shadow: 0 8px 24px rgba(64, 158, 255, 0.4) !important;
         }
 
         &:active {
@@ -1127,25 +1127,25 @@ onUnmounted(() => {
 
       &:not(.primary) {
         background: #ffffff !important;
-        color: #374151 !important;
-        border: 1px solid #e5e7eb !important;
+        color: #1d2129 !important;
+        border: 1px solid #dcdfe6 !important;
 
         &:hover {
-          border-color: #667eea !important;
-          color: #667eea !important;
+          border-color: #409eff !important;
+          color: #409eff !important;
           transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(102, 126, 234, 0.15) !important;
+          box-shadow: 0 6px 20px rgba(64, 158, 255, 0.15) !important;
         }
       }
 
       &.admin-btn {
-        background: rgba(102, 126, 234, 0.06) !important;
-        color: #667eea !important;
-        border: 1px solid rgba(102, 126, 234, 0.2) !important;
+        background: rgba(64, 158, 255, 0.06) !important;
+        color: #409eff !important;
+        border: 1px solid rgba(64, 158, 255, 0.2) !important;
 
         &:hover {
-          background: rgba(102, 126, 234, 0.1) !important;
-          border-color: #667eea !important;
+          background: rgba(64, 158, 255, 0.1) !important;
+          border-color: #409eff !important;
         }
       }
       
@@ -1233,26 +1233,26 @@ onUnmounted(() => {
     padding: 20px 28px;
     background: #ffffff;
     border-radius: 16px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid #dcdfe6;
     box-shadow: 0 1px 4px rgba(17, 24, 39, 0.06);
     transition: all 0.3s ease;
     min-width: 140px;
 
     &:hover {
       transform: translateY(-3px);
-      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.12);
-      border-color: rgba(102, 126, 234, 0.3);
+      box-shadow: 0 8px 24px rgba(64, 158, 255, 0.12);
+      border-color: rgba(64, 158, 255, 0.3);
     }
 
     .stat-value {
       font-size: 30px;
       font-weight: 800;
-      color: #667eea;
+      color: #409eff;
     }
 
     .stat-label {
       font-size: 13px;
-      color: #6b7280;
+      color: #606266;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.5px;
@@ -1379,7 +1379,7 @@ onUnmounted(() => {
 
 // 加载状态动画
 .loading-shimmer {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background: linear-gradient(90deg, #f5f7fa 25%, #ebeef5 50%, #f5f7fa 75%);
   background-size: 200px 100%;
   animation: shimmer 1.5s infinite;
 }
@@ -1480,7 +1480,7 @@ onUnmounted(() => {
         opacity: 1;
         filter: blur(0);
         z-index: 5;
-        box-shadow: 0 16px 48px rgba(102, 126, 234, 0.18), 0 0 0 2px rgba(102, 126, 234, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        box-shadow: 0 16px 48px rgba(64, 158, 255, 0.18), 0 0 0 2px rgba(64, 158, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.9);
       }
 
       // 右侧卡片
@@ -1524,10 +1524,10 @@ onUnmounted(() => {
       }
 
       // 图标颜色
-      &.image-card .arc-icon { color: #667eea; }
-      &.video-card .arc-icon { color: #f97316; }
-      &.motion-card .arc-icon { color: #a855f7; }
-      &.folder-card .arc-icon { color: #10b981; }
+      &.image-card .arc-icon { color: #409eff; }
+      &.video-card .arc-icon { color: #e6a23c; }
+      &.motion-card .arc-icon { color: #9f7aea; }
+      &.folder-card .arc-icon { color: #67c23a; }
 
       .arc-card-inner {
         background: #ffffff;
@@ -1565,11 +1565,11 @@ onUnmounted(() => {
             }
 
             &.trend-positive {
-              color: #4ade80;
+              color: #67c23a;
               background: rgba(74, 222, 128, 0.18);
             }
             &.trend-negative {
-              color: #f87171;
+              color: #f56c6c;
               background: rgba(248, 113, 113, 0.18);
             }
           }
@@ -1578,7 +1578,7 @@ onUnmounted(() => {
         .arc-number {
           font-size: 36px;
           font-weight: 800;
-          color: #111827;
+          color: #1d2129;
           line-height: 1;
           text-shadow: none;
           letter-spacing: -0.02em;
@@ -1587,12 +1587,12 @@ onUnmounted(() => {
         .arc-label {
           font-size: 14px;
           font-weight: 600;
-          color: #374151;
+          color: #1d2129;
         }
 
         .arc-detail {
           font-size: 11px;
-          color: #6b7280;
+          color: #606266;
         }
       }
     }
@@ -1609,14 +1609,14 @@ onUnmounted(() => {
         width: 6px;
         height: 6px;
         border-radius: 3px;
-        background: #e5e7eb;
+        background: #dcdfe6;
         transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
         cursor: pointer;
 
         &.active {
           width: 22px;
-          background: #667eea;
-          box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+          background: #409eff;
+          box-shadow: 0 0 10px rgba(64, 158, 255, 0.5);
         }
       }
     }
@@ -1624,7 +1624,7 @@ onUnmounted(() => {
     // 滑动提示
     .arc-hint {
       font-size: 11px;
-      color: #9ca3af;
+      color: #909399;
       letter-spacing: 0.06em;
       padding-top: 4px;
     }
@@ -1648,7 +1648,7 @@ onUnmounted(() => {
     left: 0;
     right: 0;
     height: 3px;
-    background: linear-gradient(90deg, #667eea, #764ba2);
+    background: linear-gradient(90deg, #409eff, #53a8ff);
     opacity: 0;
     transition: opacity 0.3s ease;
   }
@@ -1665,36 +1665,36 @@ onUnmounted(() => {
   
   &.image-card {
     .card-header .stat-icon {
-      background: rgba(102, 126, 234, 0.12);
-      color: #667eea;
+      background: rgba(64, 158, 255, 0.12);
+      color: #409eff;
     }
   }
 
   &.video-card {
     .card-header .stat-icon {
       background: rgba(249, 115, 22, 0.1);
-      color: #f97316;
+      color: #e6a23c;
     }
   }
 
   &.motion-card {
     .card-header .stat-icon {
       background: rgba(168, 85, 247, 0.1);
-      color: #a855f7;
+      color: #9f7aea;
     }
   }
 
   &.folder-card {
     .card-header .stat-icon {
       background: rgba(16, 185, 129, 0.1);
-      color: #10b981;
+      color: #67c23a;
     }
   }
 
   &.storage-card {
     .card-header .stat-icon {
-      background: rgba(102, 126, 234, 0.1);
-      color: #667eea;
+      background: rgba(64, 158, 255, 0.1);
+      color: #409eff;
     }
   }
   
@@ -1711,7 +1711,7 @@ onUnmounted(() => {
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #111827;
+      color: #1d2129;
       font-size: 22px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
@@ -1722,7 +1722,7 @@ onUnmounted(() => {
       gap: 4px;
       font-size: 12px;
       font-weight: 600;
-      color: #6b7280;
+      color: #606266;
       background: rgba(107, 114, 128, 0.1);
       padding: 4px 8px;
       border-radius: 12px;
@@ -1737,21 +1737,21 @@ onUnmounted(() => {
     .stat-number {
       font-size: 32px;
       font-weight: 800;
-      color: #2c3e50;
+      color: #303133;
       margin-bottom: 8px;
       line-height: 1;
     }
     
     .stat-label {
       font-size: 15px;
-      color: #6b7280;
+      color: #606266;
       margin-bottom: 4px;
       font-weight: 500;
     }
     
     .stat-detail {
       font-size: 13px;
-      color: #6b7280;
+      color: #606266;
       font-weight: 500;
     }
   }
@@ -1760,7 +1760,7 @@ onUnmounted(() => {
 .storage-section {
   .storage-card {
     border-radius: 20px;
-    border: 1px solid #e5e7eb;
+    border: 1px solid #dcdfe6;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
     overflow: hidden;
     transition: all 0.3s ease;
@@ -1772,7 +1772,7 @@ onUnmounted(() => {
     
     :deep(.el-card__header) {
       background: #ffffff;
-      border-bottom: 1px solid #e5e7eb;
+      border-bottom: 1px solid #dcdfe6;
       padding: 24px 24px 0 24px;
     }
     
@@ -1788,7 +1788,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 20px 0;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #dcdfe6;
   margin-bottom: 0;
   
   .header-left {
@@ -1798,8 +1798,8 @@ onUnmounted(() => {
     
     .header-icon {
       font-size: 20px;
-      color: #374151;
-      background: #f3f4f6;
+      color: #1d2129;
+      background: #f5f7fa;
       padding: 8px;
       border-radius: 8px;
     }
@@ -1808,21 +1808,21 @@ onUnmounted(() => {
       margin: 0;
       font-size: 20px;
       font-weight: 700;
-      color: #111827;
+      color: #1d2129;
     }
   }
   
   .header-actions {
     :deep(.el-button) {
-      color: #374151;
+      color: #1d2129;
       font-weight: 600;
       padding: 8px 16px;
       border-radius: 8px;
       transition: all 0.3s ease;
       
       &:hover {
-        color: #111827;
-        background: #f3f4f6;
+        color: #1d2129;
+        background: #f5f7fa;
       }
     }
   }
@@ -1830,8 +1830,8 @@ onUnmounted(() => {
 
 .storage-content {
   .storage-overview {
-    background: linear-gradient(135deg, #f9fafb, #ffffff);
-    border: 1px solid #e5e7eb;
+    background: linear-gradient(135deg, #f5f7fa, #ffffff);
+    border: 1px solid #dcdfe6;
     border-radius: 16px;
     padding: 24px;
     margin-bottom: 24px;
@@ -1845,7 +1845,7 @@ onUnmounted(() => {
       left: 0;
       right: 0;
       height: 4px;
-      background: linear-gradient(90deg, #667eea, #764ba2);
+      background: linear-gradient(90deg, #409eff, #53a8ff);
     }
     
     .storage-info {
@@ -1859,31 +1859,31 @@ onUnmounted(() => {
         font-weight: 600;
         
         .used {
-          color: #111827;
+          color: #1d2129;
           font-size: 20px;
           font-weight: 700;
         }
         
         .separator {
-          color: #6b7280;
+          color: #606266;
           margin: 0 8px;
           font-weight: 500;
         }
         
         .total {
-          color: #6b7280;
+          color: #606266;
           font-weight: 500;
         }
       }
       
       .storage-percent {
         font-size: 16px;
-        color: #374151;
+        color: #1d2129;
         font-weight: 600;
-        background: #f3f4f6;
+        background: #f5f7fa;
         padding: 8px 16px;
         border-radius: 20px;
-        border: 1px solid #e5e7eb;
+        border: 1px solid #dcdfe6;
       }
     }
     
@@ -1891,20 +1891,20 @@ onUnmounted(() => {
       margin-bottom: 0;
       
       :deep(.el-progress-bar__outer) {
-        background: #f3f4f6;
+        background: #f5f7fa;
         border-radius: 10px;
         height: 20px !important;
       }
       
       :deep(.el-progress-bar__inner) {
-        background: linear-gradient(90deg, #667eea, #764ba2) !important;
+        background: linear-gradient(90deg, #409eff, #53a8ff) !important;
         border-radius: 10px;
       }
       
       :deep(.el-progress__text) {
         font-size: 16px !important;
         font-weight: 700 !important;
-        color: #111827 !important;
+        color: #1d2129 !important;
       }
     }
   }
@@ -1915,13 +1915,13 @@ onUnmounted(() => {
       border: none;
       
       &.el-alert--warning {
-        background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
-        color: #2d3436;
+        background: linear-gradient(135deg, #f5f7fa, #dcdfe6);
+        color: #1d2129;
       }
       
       &.el-alert--success {
-        background: linear-gradient(135deg, #e5e7eb, #d1d5db);
-        color: #2d3436;
+        background: linear-gradient(135deg, #dcdfe6, #c0c4cc);
+        color: #1d2129;
       }
     }
   }
@@ -1938,7 +1938,7 @@ onUnmounted(() => {
       gap: 16px;
       padding: 20px;
       background: #ffffff;
-      border: 1px solid #e5e7eb;
+      border: 1px solid #dcdfe6;
       border-radius: 16px;
       transition: all 0.3s ease;
       position: relative;
@@ -1951,7 +1951,7 @@ onUnmounted(() => {
         left: 0;
         right: 0;
         height: 3px;
-        background: linear-gradient(90deg, #667eea, #764ba2);
+        background: linear-gradient(90deg, #409eff, #53a8ff);
         opacity: 0;
         transition: opacity 0.3s ease;
       }
@@ -1959,8 +1959,8 @@ onUnmounted(() => {
       &:hover {
         transform: translateY(-2px);
         box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
-        border-color: #667eea;
+        box-shadow: 0 8px 25px rgba(64, 158, 255, 0.15);
+        border-color: #409eff;
         &::before {
           opacity: 1;
         }
@@ -1978,15 +1978,15 @@ onUnmounted(() => {
         flex-shrink: 0;
         
         &.image {
-          background: linear-gradient(135deg, #667eea, #764ba2);
+          background: linear-gradient(135deg, #409eff, #53a8ff);
         }
         
         &.video {
-          background: linear-gradient(135deg, #f97316, #ea580c);
+          background: linear-gradient(135deg, #e6a23c, #e6a23c);
         }
         
         &.motion {
-          background: linear-gradient(135deg, #a855f7, #9333ea);
+          background: linear-gradient(135deg, #9f7aea, #9f7aea);
         }
       }
       
@@ -1997,14 +1997,14 @@ onUnmounted(() => {
         .breakdown-label {
           font-size: 14px;
           font-weight: 600;
-          color: #374151;
+          color: #1d2129;
           margin-bottom: 4px;
         }
         
         .breakdown-value {
           font-size: 16px;
           font-weight: 700;
-          color: #111827;
+          color: #1d2129;
         }
       }
     }
@@ -2026,10 +2026,10 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.3s ease;
   background: white;
-  border: 1px solid #f0f0f0;
+  border: 1px solid #f5f7fa;
   
   &:hover {
-    background: #f8f9fa;
+    background: #f5f7fa;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
@@ -2051,7 +2051,7 @@ onUnmounted(() => {
     .file-icon {
       width: 100%;
       height: 100%;
-      background: linear-gradient(135deg, #667eea, #764ba2);
+      background: linear-gradient(135deg, #409eff, #53a8ff);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -2063,7 +2063,7 @@ onUnmounted(() => {
       position: absolute;
       bottom: -2px;
       right: -2px;
-      background: #374151;
+      background: #1d2129;
       color: white;
       font-size: 10px;
       padding: 2px 6px;
@@ -2079,7 +2079,7 @@ onUnmounted(() => {
     .file-name {
       font-size: 14px;
       font-weight: 600;
-      color: #2c3e50;
+      color: #303133;
       margin-bottom: 4px;
       white-space: nowrap;
       overflow: hidden;
@@ -2091,7 +2091,7 @@ onUnmounted(() => {
       align-items: center;
       gap: 8px;
       font-size: 12px;
-      color: #6b7280;
+      color: #606266;
       margin-bottom: 8px;
     }
     
@@ -2104,7 +2104,7 @@ onUnmounted(() => {
         border-radius: 6px;
         
         &:hover {
-          color: #374151;
+          color: #1d2129;
         }
       }
     }
@@ -2127,22 +2127,22 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.3s ease;
   background: white;
-  border: 1px solid #f0f0f0;
+  border: 1px solid #f5f7fa;
   
   &:hover {
-    background: #f8f9fa;
+    background: #f5f7fa;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
   
   .action-icon {
     font-size: 28px;
-    color: #374151;
+    color: #1d2129;
   }
   
   .action-text {
     font-size: 14px;
-    color: #2c3e50;
+    color: #303133;
     font-weight: 600;
     text-align: center;
   }
@@ -2154,7 +2154,7 @@ onUnmounted(() => {
   
   :deep(.el-empty) {
     .el-empty__description {
-      color: #6b7280;
+      color: #606266;
       font-size: 16px;
     }
     
@@ -2163,12 +2163,12 @@ onUnmounted(() => {
       font-weight: 600;
       
       &.el-button--primary {
-        background: linear-gradient(135deg, #667eea, #764ba2);
+        background: linear-gradient(135deg, #409eff, #53a8ff);
         border: none;
         
         &:hover {
           transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+          box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
         }
       }
     }
@@ -2339,7 +2339,7 @@ onUnmounted(() => {
           margin-bottom: 8px !important;
           word-break: normal !important;
           overflow-wrap: break-word !important;
-          color: #111827 !important;
+          color: #1d2129 !important;
           background: none !important;
           background-clip: unset !important;
           -webkit-background-clip: unset !important;
@@ -2359,13 +2359,13 @@ onUnmounted(() => {
         .welcome-date {
           font-size: 12px !important;
           line-height: 1.45 !important;
-          color: #374151 !important;
+          color: #1d2129 !important;
         }
 
         .welcome-meta {
           font-size: 14px !important;
           line-height: 1.5 !important;
-          color: #6b7280 !important;
+          color: #606266 !important;
           max-width: 100% !important;
         }
       }
@@ -2398,12 +2398,12 @@ onUnmounted(() => {
 
       .action-btn {
         background: #ffffff !important;
-        color: #374151 !important;
-        border: 1px solid #e5e7eb !important;
+        color: #1d2129 !important;
+        border: 1px solid #dcdfe6 !important;
       }
 
       .action-btn.primary {
-        background: linear-gradient(135deg, #667eea, #764ba2) !important;
+        background: linear-gradient(135deg, #409eff, #53a8ff) !important;
         color: #ffffff !important;
         border: none !important;
       }
@@ -3115,13 +3115,13 @@ onUnmounted(() => {
     
     .el-dialog__header {
       padding: 20px 20px 0 20px !important;
-      border-bottom: 1px solid #f0f0f0 !important;
+      border-bottom: 1px solid #f5f7fa !important;
       margin-bottom: 0 !important;
       
       .el-dialog__title {
         font-size: 18px !important;
         font-weight: 600 !important;
-        color: #2c3e50 !important;
+        color: #303133 !important;
       }
       
       .el-dialog__headerbtn {
@@ -3226,7 +3226,7 @@ onUnmounted(() => {
   background: white;
   border-radius: 20px;
   padding: 24px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #dcdfe6;
   box-shadow: 0 2px 12px rgba(17, 24, 39, 0.06);
 
   .trend-card {
@@ -3256,7 +3256,7 @@ onUnmounted(() => {
     }
 
     :deep(.chart-container) {
-      background: #f9fafb;
+      background: #f5f7fa;
       border-radius: 12px;
       padding: 16px;
       min-width: 0;
@@ -3265,7 +3265,7 @@ onUnmounted(() => {
     :deep(.chart-title) {
       font-size: 14px;
       font-weight: 600;
-      color: #374151;
+      color: #1d2129;
       margin-bottom: 16px;
       text-align: center;
     }
@@ -3293,8 +3293,8 @@ onUnmounted(() => {
       flex: 1 1 0;
       min-width: 0;
       margin: 0;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      background-color: #667eea;
+      background: linear-gradient(135deg, #409eff 0%, #53a8ff 100%);
+      background-color: #409eff;
       border-radius: 4px 4px 0 0;
       position: relative;
       transition: transform 0.3s ease, filter 0.3s ease;
@@ -3308,8 +3308,8 @@ onUnmounted(() => {
       }
 
       &.storage-bar {
-        background: linear-gradient(135deg, #f97316 0%, #a855f7 100%);
-        background-color: #f97316;
+        background: linear-gradient(135deg, #e6a23c 0%, #9f7aea 100%);
+        background-color: #e6a23c;
 
         &:hover {
           filter: brightness(1.08);
@@ -3324,7 +3324,7 @@ onUnmounted(() => {
       transform: translateX(-50%);
       font-size: 11px;
       font-weight: 600;
-      color: #374151;
+      color: #1d2129;
       white-space: nowrap;
       pointer-events: none;
     }
@@ -3347,7 +3347,7 @@ onUnmounted(() => {
       min-width: 0;
       text-align: center;
       font-size: 11px;
-      color: #6b7280;
+      color: #606266;
       line-height: 1.3;
     }
   }
@@ -3356,20 +3356,20 @@ onUnmounted(() => {
 // 趋势指示器样式
 .stat-trend {
   .trend-up {
-    color: #6b7280;
+    color: #606266;
   }
   
   .trend-down {
-    color: #9ca3af;
+    color: #909399;
   }
   
   .trend-text {
     &.trend-positive {
-      color: #6b7280;
+      color: #606266;
     }
     
     &.trend-negative {
-      color: #9ca3af;
+      color: #909399;
     }
   }
 }
@@ -3434,7 +3434,7 @@ onUnmounted(() => {
           margin-bottom: 10px !important;
           letter-spacing: -0.03em;
           line-height: 1.15;
-          color: #111827 !important;
+          color: #1d2129 !important;
           -webkit-text-fill-color: #fff !important;
           background: none !important;
           background-clip: unset !important;
@@ -3463,7 +3463,7 @@ onUnmounted(() => {
         .welcome-date {
           font-size: 12px !important;
           line-height: 1.45;
-          color: #374151 !important;
+          color: #1d2129 !important;
           letter-spacing: 0.02em;
           font-weight: 500 !important;
         }
@@ -3471,7 +3471,7 @@ onUnmounted(() => {
         .welcome-meta {
           font-size: 14px !important;
           line-height: 1.5;
-          color: #6b7280 !important;
+          color: #606266 !important;
           font-weight: 500 !important;
           max-width: 34rem;
           word-break: normal !important;
@@ -3508,12 +3508,12 @@ onUnmounted(() => {
 
       .action-btn {
         background: #ffffff !important;
-        color: #374151 !important;
-        border: 1px solid #e5e7eb !important;
+        color: #1d2129 !important;
+        border: 1px solid #dcdfe6 !important;
       }
 
       .action-btn.primary {
-        background: linear-gradient(135deg, #667eea, #764ba2) !important;
+        background: linear-gradient(135deg, #409eff, #53a8ff) !important;
         color: #ffffff !important;
         border: none !important;
       }
@@ -3544,19 +3544,19 @@ onUnmounted(() => {
 
       .action-btn.primary:hover,
       .action-btn.el-button--primary:hover {
-        background: linear-gradient(135deg, #7c8ff5, #9b7cc3) !important;
+        background: linear-gradient(135deg, #409eff, #53a8ff) !important;
         border: none !important;
       }
 
       .action-btn:not(.primary):not(.el-button--primary):hover {
-        background: rgba(102, 126, 234, 0.06) !important;
+        background: rgba(64, 158, 255, 0.06) !important;
       }
     }
 
     > .welcome-stats {
       margin-top: 0 !important;
       padding-top: 18px !important;
-      border-top: 1px solid #e5e7eb;
+      border-top: 1px solid #dcdfe6;
       gap: 20px !important;
       justify-content: space-between !important;
       flex-wrap: nowrap !important;
@@ -3567,7 +3567,7 @@ onUnmounted(() => {
         padding: 12px 16px !important;
         border-radius: 12px !important;
         background: #ffffff !important;
-        border: 1px solid #e5e7eb !important;
+        border: 1px solid #dcdfe6 !important;
         transform: none !important;
         box-shadow: none !important;
       }
@@ -3581,8 +3581,8 @@ onUnmounted(() => {
       .stat-value {
         box-shadow: none !important;
         font-weight: 700 !important;
-        color: #667eea !important;
-        -webkit-text-fill-color: #667eea !important;
+        color: #409eff !important;
+        -webkit-text-fill-color: #409eff !important;
         background: none !important;
       }
 
@@ -3727,7 +3727,7 @@ onUnmounted(() => {
           margin-bottom: 8px !important;
           word-break: normal !important;
           overflow-wrap: break-word !important;
-          color: #111827 !important;
+          color: #1d2129 !important;
           background: none !important;
           background-clip: unset !important;
           -webkit-background-clip: unset !important;
@@ -3746,13 +3746,13 @@ onUnmounted(() => {
         .welcome-date {
           font-size: 12px !important;
           line-height: 1.45 !important;
-          color: #374151 !important;
+          color: #1d2129 !important;
         }
 
         .welcome-meta {
           font-size: 14px !important;
           line-height: 1.5 !important;
-          color: #6b7280 !important;
+          color: #606266 !important;
           max-width: 100% !important;
         }
       }
@@ -3793,12 +3793,12 @@ onUnmounted(() => {
 
       .action-btn {
         background: #ffffff !important;
-        color: #374151 !important;
-        border: 1px solid #e5e7eb !important;
+        color: #1d2129 !important;
+        border: 1px solid #dcdfe6 !important;
       }
 
       .action-btn.primary {
-        background: linear-gradient(135deg, #667eea, #764ba2) !important;
+        background: linear-gradient(135deg, #409eff, #53a8ff) !important;
         color: #ffffff !important;
         border: none !important;
       }

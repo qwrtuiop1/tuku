@@ -1748,80 +1748,76 @@ onUnmounted(() => {
 // 平板竖屏 (768px - 1023px)
 @media (min-width: 768px) and (max-width: 1023px) {
   .main-content {
-    margin-left: 0 !important; // 强制移除左边距
-    padding-right: 0; // 明确移除右边距
-    padding-left: 0; // 移除左边距
-    
+    padding-left: 195px;
+    padding-right: 195px;
+    margin-left: 0;
+    margin-right: 0;
+
     &.sidebar-collapsed {
-      margin-left: 0 !important; // 强制移除折叠状态的左边距
-      padding-right: 0 !important; // 强制移除折叠状态的右边距
+      padding-left: 79px;
+      padding-right: 79px;
+      margin-left: 0;
+      margin-right: 0;
     }
-  }
-  
-  .sidebar {
-    position: fixed;
-    top: 0;
-    left: -200px; // 默认隐藏
-    width: 200px;
-    height: 100vh;
-    z-index: 1000;
-    transition: left 0.3s ease;
-    
-    &.mobile-open {
-      left: 0; // 显示时滑入
-    }
-    
-    &.collapsed {
-      width: 200px; // 平板端不折叠
-    }
-  }
-  
-  .top-header {
-    height: 64px; // 增加高度
-    padding: 0 16px;
-    max-width: 100vw; // 全宽
-    border-radius: 0; // 移除圆角
-    justify-content: space-between; // 左右分布
-    align-items: center; // 垂直居中
-  }
-  
-  .page-content {
-    padding: 0; // 移动端完全移除内边距
-  }
-  
-  .storage-info {
-    min-width: 160px; // 减少最小宽度
-  }
-  
-  // 移动端遮罩层
-  .mobile-overlay {
-    display: block;
-  }
-  
-  // 移动端底部 Dock 导航栏
-  .mobile-bottom-nav {
-    display: block;
   }
 
-  // 为底部导航栏预留空间
-  .page-content {
-    padding-bottom: 88px;
+  .sidebar {
+    width: 180px;
+    position: relative;
+    height: auto;
+
+    &.collapsed {
+      width: 64px;
+    }
   }
-  
+
+  .top-header {
+    height: 58px;
+    padding: 0 16px;
+    max-width: calc(100vw - 360px);
+    border-radius: 0 0 14px 14px;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .page-content {
+    padding: 0;
+  }
+
+  .storage-info {
+    min-width: 140px;
+  }
+
+  // 隐藏移动端遮罩层和底部 Dock
+  .mobile-overlay {
+    display: none;
+  }
+
+  .mobile-bottom-nav {
+    display: none;
+  }
+
+  // 移除底部导航栏预留空间
+  .page-content {
+    padding-bottom: 0;
+  }
+
   .header-left {
-    gap: 12px;
+    gap: 10px;
     flex: 0 0 auto;
     justify-content: flex-start;
   }
 
   .header-right {
-    gap: 12px;
+    gap: 10px;
     flex: 0 0 auto;
     justify-content: flex-end;
   }
-  
-  .storage-info {
-    min-width: 150px;
+
+  .sidebar-footer {
+    .user-info {
+      display: none;
+    }
   }
 }
 

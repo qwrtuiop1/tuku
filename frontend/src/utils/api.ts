@@ -9,6 +9,29 @@ const RETRY_CONFIG = {
   retryDelayMultiplier: 2 // 每次重试延迟翻倍
 }
 
+// CSRF Token 缓存
+let csrfTokenCache: string | null = null
+
+// 获取 CSRF token 从 cookie
+const getCsrfToken = () => {
+  const match = document.cookie.match(/csrfToken=([^;]+)/)
+  return match ? match[1] : null
+}
+
+// 获取 CSRF Token
+export const fetchCsrfToken = async () => {
+  try {
+    const response = await axios.get('/auth/csrf-token')
+    if (response.data.csrfToken) {
+      csrfTokenCache = response.data.csrfToken
+      return response.data.csrfToken
+    }
+  } catch (error) {
+    console.error('获取 CSRF Token 失败:', error)
+  }
+  return null
+}
+
 // 重试函数
 const retryRequest = async (config: any, retryCount = 0): Promise<any> => {
   try {
@@ -42,6 +65,11 @@ api.interceptors.request.use(
     const token = localStorage.getItem('token') || sessionStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
+    }
+    // 添加 CSRF Token（用于敏感操作的安全保护）
+    const csrfToken = getCsrfToken() || csrfTokenCache
+    if (csrfToken) {
+      config.headers['X-CSRF-Token'] = csrfToken
     }
     return config
   },

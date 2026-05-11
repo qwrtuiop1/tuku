@@ -7,6 +7,8 @@ export {}
 
 declare module 'vue' {
   export interface GlobalComponents {
+    BreadcrumbNav: typeof import('./../components/BreadcrumbNav.vue')['default']
+    CreateFolderDialog: typeof import('./../components/CreateFolderDialog.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAvatar: typeof import('element-plus/es')['ElAvatar']
     ElBreadcrumb: typeof import('element-plus/es')['ElBreadcrumb']
@@ -57,6 +59,7 @@ declare module 'vue' {
     FileUploader: typeof import('./../components/FileUploader.vue')['default']
     FolderDetailsDialog: typeof import('./../components/FolderDetailsDialog.vue')['default']
     GlassConfirmModal: typeof import('./../components/GlassConfirmModal.vue')['default']
+    GlobalUploadBar: typeof import('./../components/GlobalUploadBar.vue')['default']
     ImageViewer: typeof import('./../components/ImageViewer.vue')['default']
     LiveMediaCard: typeof import('./../components/LiveMediaCard.vue')['default']
     LiveMediaFullscreen: typeof import('./../components/LiveMediaFullscreen.vue')['default']
@@ -67,6 +70,7 @@ declare module 'vue' {
     ResponsiveDebugger: typeof import('./../components/ResponsiveDebugger.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    ShareDialog: typeof import('./../components/ShareDialog.vue')['default']
     VideoPlayer: typeof import('./../components/VideoPlayer.vue')['default']
   }
   export interface ComponentCustomProperties {

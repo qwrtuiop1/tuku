@@ -85,6 +85,7 @@ async function ensureShareTable() {
       owner_user_id INT NOT NULL,
       allow_preview TINYINT(1) DEFAULT 1,
       allow_download TINYINT(1) DEFAULT 1,
+      share_password VARCHAR(255) NULL,
       expires_at DATETIME NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -95,6 +96,8 @@ async function ensureShareTable() {
   try { await pool.execute('ALTER TABLE file_shares ADD COLUMN review_reason VARCHAR(255) NULL'); } catch (_) {}
   try { await pool.execute('ALTER TABLE file_shares ADD COLUMN review_debug MEDIUMTEXT NULL'); } catch (_) {}
   try { await pool.execute("ALTER TABLE file_shares ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"); } catch (_) {}
+  // 密码保护字段（幂等新增）
+  try { await pool.execute('ALTER TABLE file_shares ADD COLUMN share_password VARCHAR(255) NULL'); } catch (_) {}
 }
 
 async function ensureReviewTable() {
@@ -271,7 +274,7 @@ router.post('/', authenticateToken, asyncHandler(async (req, res) => {
   }
   await ensureShareTable();
   const userId = req.user.id;
-  const { file_id, allowPreview, allowDownload, expireInHours } = req.body || {};
+  const { file_id, allowPreview, allowDownload, expireInHours, password } = req.body || {};
   if (!file_id) return res.status(400).json({ message: '缺少 file_id' });
 
   // 校验文件归属
@@ -284,18 +287,25 @@ router.post('/', authenticateToken, asyncHandler(async (req, res) => {
     ? new Date(Date.now() + Number(expireInHours) * 3600 * 1000)
     : null;
 
+  // 处理密码（如果提供）
+  let hashedPassword = null;
+  if (password && password.trim()) {
+    const bcrypt = require('bcryptjs');
+    hashedPassword = await bcrypt.hash(password, 10);
+  }
+
   await pool.execute(
-    'INSERT INTO file_shares (token, file_id, owner_user_id, allow_preview, allow_download, expires_at, status, review_progress, review_reason) VALUES (?,?,?,?,?,?,?,?,?)',
-    [token, file_id, userId, allowPreview ? 1 : 0, allowDownload ? 1 : 0, expiresAt ? expiresAt.toISOString().slice(0, 19).replace('T', ' ') : null, 'pending_review', 5, null]
+    'INSERT INTO file_shares (token, file_id, owner_user_id, allow_preview, allow_download, expires_at, status, review_progress, review_reason, share_password) VALUES (?,?,?,?,?,?,?,?,?,?)',
+    [token, file_id, userId, allowPreview ? 1 : 0, allowDownload ? 1 : 0, expiresAt ? expiresAt.toISOString().slice(0, 19).replace('T', ' ') : null, 'pending_review', 5, null, hashedPassword]
   );
 
   // 异步启动审核模拟
   setImmediate(() => { simulateReview(token, file) });
 
-  res.json({ success: true, token, expires_at: expiresAt ? expiresAt.toISOString() : null, status: 'pending_review', review_progress: 5 });
+  res.json({ success: true, token, expires_at: expiresAt ? expiresAt.toISOString() : null, status: 'pending_review', review_progress: 5, requirePassword: !!password });
 }));
 
-async function getShareAndFile(token) {
+async function getShareAndFile(token, req) {
   await ensureShareTable();
   const [rows] = await pool.execute('SELECT * FROM file_shares WHERE token=?', [token]);
   if (!rows || rows.length === 0) return null;
@@ -307,6 +317,14 @@ async function getShareAndFile(token) {
   if (share.expires_at && new Date(share.expires_at) < new Date()) return null;
   // 未审核通过前不公开
   if (!share.status || share.status !== 'approved') return null;
+  // 密码保护验证
+  if (share.share_password) {
+    const bcrypt = require('bcryptjs');
+    const providedPassword = req.query.pwd || req.body?.password || '';
+    if (!providedPassword || !bcrypt.compareSync(providedPassword, share.share_password)) {
+      return { requirePassword: true, share };
+    }
+  }
   const [files] = await pool.execute('SELECT id, user_id, original_name, mime_type, file_size, file_type, file_path, thumbnail_path, created_at FROM files WHERE id=?', [share.file_id]);
   if (!files || files.length === 0) return null;
   return { share, file: files[0] };
@@ -315,7 +333,17 @@ async function getShareAndFile(token) {
 // 公共：获取分享元数据
 router.get('/:token', asyncHandler(async (req, res) => {
   const token = req.params.token;
-  const record = await getShareAndFile(token);
+  const record = await getShareAndFile(token, req);
+  
+  // 密码验证失败
+  if (record && record.requirePassword) {
+    return res.status(403).json({ 
+      message: '此分享已加密，请输入密码', 
+      requirePassword: true,
+      hasPassword: !!record.share?.share_password
+    });
+  }
+  
   if (!record) return res.status(404).json({ message: '分享不存在或已过期' });
   const { share, file } = record;
   // 为防止关闭分享后仍可直接访问静态地址，这里不再返回直链
@@ -333,6 +361,7 @@ router.get('/:token', asyncHandler(async (req, res) => {
     },
     allow_preview: !!share.allow_preview,
     allow_download: !!share.allow_download,
+    has_password: !!share.share_password,
     preview_url: share.allow_preview ? (file.file_type === 'image' ? `/api/share/${token}/preview` : null) : null,
     stream_url: share.allow_preview ? (file.file_type === 'video' ? `/api/share/${token}/stream` : null) : null,
     download_url: share.allow_download ? `/api/share/${token}/download` : null,
@@ -363,7 +392,13 @@ router.get('/:token/status', authenticateToken, asyncHandler(async (req, res) =>
 // 公共：视频流播放（支持范围请求）
 router.get('/:token/stream', asyncHandler(async (req, res) => {
   const token = req.params.token;
-  const record = await getShareAndFile(token);
+  const record = await getShareAndFile(token, req);
+  
+  // 密码验证失败
+  if (record && record.requirePassword) {
+    return res.status(403).json({ message: '此分享已加密，请输入密码', requirePassword: true });
+  }
+  
   if (!record) return res.status(404).json({ message: '分享不存在或已过期' });
   const { share, file } = record;
   if (!share.allow_preview) return res.status(403).json({ message: '不允许预览' });
@@ -425,7 +460,13 @@ router.get('/:token/stream', asyncHandler(async (req, res) => {
 // 公共：图片预览（受分享开关与过期保护）
 router.get('/:token/preview', asyncHandler(async (req, res) => {
   const token = req.params.token;
-  const record = await getShareAndFile(token);
+  const record = await getShareAndFile(token, req);
+  
+  // 密码验证失败
+  if (record && record.requirePassword) {
+    return res.status(403).json({ message: '此分享已加密，请输入密码', requirePassword: true });
+  }
+  
   if (!record) return res.status(404).json({ message: '分享不存在或已过期' });
   const { share, file } = record;
   if (!share.allow_preview) return res.status(403).json({ message: '不允许预览' });
@@ -454,7 +495,13 @@ router.get('/:token/preview', asyncHandler(async (req, res) => {
 // 公共：下载文件
 router.get('/:token/download', asyncHandler(async (req, res) => {
   const token = req.params.token;
-  const record = await getShareAndFile(token);
+  const record = await getShareAndFile(token, req);
+  
+  // 密码验证失败
+  if (record && record.requirePassword) {
+    return res.status(403).json({ message: '此分享已加密，请输入密码', requirePassword: true });
+  }
+  
   if (!record) return res.status(404).json({ message: '分享不存在或已过期' });
   const { share, file } = record;
   if (!share.allow_download) return res.status(403).json({ message: '不允许下载' });

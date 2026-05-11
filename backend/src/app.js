@@ -5,6 +5,15 @@ const rateLimit = require('express-rate-limit');
 const path = require('path');
 require('dotenv').config();
 
+// ─── 环境变量必填检查 ────────────────────────────────────────────────────────
+const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME', 'JWT_SECRET'];
+const missing = requiredEnvVars.filter(key => !process.env[key]);
+if (missing.length > 0) {
+  console.error(`❌ 缺少必需的环境变量: ${missing.join(', ')}`);
+  console.error('   请复制 .env.example 为 .env 并填写所有必填项');
+  process.exit(1);
+}
+
 const authRoutes = require('./routes/auth');
 const fileRoutes = require('./routes/files');
 const folderRoutes = require('./routes/folders');
@@ -13,6 +22,7 @@ const avatarRoutes = require('./routes/avatars');
 const systemRoutes = require('./routes/system');
 const liveMediaRoutes = require('./routes/liveMedia');
 const shareRoutes = require('./routes/share');
+const favoriteRoutes = require('./routes/favorites');
 const nginxConfigRoutes = require('./routes/nginxConfig');
 const { errorHandler } = require('./middleware/errorHandler');
 const { authenticateToken } = require('./middleware/auth');
@@ -21,6 +31,7 @@ const { startCleanupTask } = require('./services/verificationService');
 const TrendService = require('./services/trendService');
 const nginxAutoUpdateService = require('./services/nginxAutoUpdateService');
 const databaseInitService = require('./services/databaseInitService');
+const { pool: dbPool } = require('./config/database');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -201,6 +212,7 @@ app.use('/api/files/avatar', express.static(path.join(process.env.UPLOAD_PATH ||
 app.use('/api/files', authenticateToken, fileRoutes);
 app.use('/api/live-media', authenticateToken, liveMediaRoutes);
 app.use('/api/share', shareRoutes); // 公开分享，无需认证
+app.use('/api/favorites', authenticateToken, favoriteRoutes); // 收藏路由
 
 // 健康检查
 app.get('/api/health', (req, res) => {
@@ -277,7 +289,30 @@ databaseInitService.initialize().catch(error => {
   console.error('❌ 数据库初始化失败:', error.message);
 });
 
-app.listen(PORT, () => {
+// ─── Graceful Shutdown ──────────────────────────────────────────────────────
+const gracefulShutdown = async (signal) => {
+  console.log(`\n📩 收到 ${signal}，正在优雅关闭...`);
+  server.close(async () => {
+    try {
+      await dbPool.end();
+      console.log('✅ 数据库连接池已关闭');
+    } catch (err) {
+      console.error('❌ 关闭数据库连接池失败:', err.message);
+    }
+    console.log('👋 服务已关闭');
+    process.exit(0);
+  });
+  // 超过 10 秒强制退出
+  setTimeout(() => {
+    console.error('⚠️  优雅关闭超时，强制退出');
+    process.exit(1);
+  }, 10000);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+
+const server = app.listen(PORT, () => {
   console.log(`🚀 图库系统后端服务启动成功`);
   console.log(`📍 服务地址: http://localhost:${PORT}`);
   console.log(`🌍 环境: ${process.env.NODE_ENV || 'development'}`);

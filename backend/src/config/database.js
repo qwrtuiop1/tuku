@@ -2,11 +2,16 @@ const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 // 数据库连接配置
+if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_PASSWORD || !process.env.DB_NAME) {
+  console.error('❌ 缺少数据库环境变量，请确保 .env 中设置了 DB_HOST、DB_USER、DB_PASSWORD、DB_NAME');
+  process.exit(1);
+}
+
 const dbConfig = {
-  host: process.env.DB_HOST || '134.175.220.243',
-  user: process.env.DB_USER || 'tuku',
-  password: process.env.DB_PASSWORD || 'RHd5biyaXmaAbyDC',
-  database: process.env.DB_NAME || 'tuku',
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -185,12 +190,14 @@ const initDatabase = async () => {
         width INT,
         height INT,
         duration INT DEFAULT NULL,
+        file_hash VARCHAR(64) DEFAULT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
         INDEX idx_user_folder (user_id, folder_id),
         INDEX idx_file_type (file_type),
-        INDEX idx_created_at (created_at)
+        INDEX idx_created_at (created_at),
+        INDEX idx_file_hash (file_hash)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
@@ -204,6 +211,16 @@ const initDatabase = async () => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // 创建系统统计缓存表
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS system_stats (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        stat_key VARCHAR(100) UNIQUE NOT NULL,
+        stat_value TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
     // 插入默认系统设置
@@ -305,13 +322,33 @@ const initDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
 
-    // 创建默认管理员用户
-    const bcrypt = require('bcryptjs');
-    const adminPassword = await bcrypt.hash('123456', 10);
+    // 用户收藏/星标文件表
     await connection.execute(`
-      INSERT IGNORE INTO users (username, email, password_hash, role, status) VALUES
-      ('zyl', 'zyl@tuku.com', ?, 'admin', 'active')
-    `, [adminPassword]);
+      CREATE TABLE IF NOT EXISTS file_favorites (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        user_id INT NOT NULL,
+        file_id INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_user_file_favorite (user_id, file_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // 创建默认管理员用户（如不存在则提示）
+    // 注意：生产环境应通过环境变量配置，禁止自动创建弱密码管理员
+    const bcrypt = require('bcryptjs');
+    const adminPassword = await bcrypt.hash(process.env.ADMIN_PASSWORD || '', 10);
+    if (process.env.ADMIN_USERNAME && process.env.ADMIN_PASSWORD) {
+      await connection.execute(`
+        INSERT IGNORE INTO users (username, email, password_hash, role, status) VALUES
+        (?, ?, ?, 'admin', 'active')
+      `, [process.env.ADMIN_USERNAME, process.env.ADMIN_EMAIL || `${process.env.ADMIN_USERNAME}@tuku.local`, adminPassword]);
+      console.log('✅ 管理员账户已通过环境变量配置');
+    } else {
+      console.log('ℹ️  未配置 ADMIN_USERNAME/ADMIN_PASSWORD，跳过自动创建管理员');
+      console.log('   请在 .env 中设置 ADMIN_USERNAME、ADMIN_PASSWORD、ADMIN_EMAIL 以创建管理员账户');
+    }
 
     connection.release();
     console.log('✅ 数据库表初始化完成');
@@ -321,9 +358,32 @@ const initDatabase = async () => {
   }
 };
 
+// Helper: 获取缓存的统计数据
+const getCachedStat = async (key) => {
+  try {
+    const [rows] = await pool.execute(
+      'SELECT stat_value FROM system_stats WHERE stat_key = ?',
+      [key]
+    );
+    return rows.length > 0 ? rows[0].stat_value : null;
+  } catch { return null; }
+};
+
+// Helper: 设置缓存的统计数据
+const setCachedStat = async (key, value) => {
+  try {
+    await pool.execute(
+      'INSERT INTO system_stats (stat_key, stat_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE stat_value = VALUES(stat_value)',
+      [key, String(value)]
+    );
+  } catch { /* ignore */ }
+};
+
 module.exports = {
   pool,
   testConnection,
-  initDatabase
+  initDatabase,
+  getCachedStat,
+  setCachedStat
 };
 
