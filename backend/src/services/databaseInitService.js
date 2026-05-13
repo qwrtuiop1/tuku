@@ -260,6 +260,106 @@ class DatabaseInitService {
       console.error('❌ 兜底创建 file_favorites 表失败:', e.message);
     }
 
+    // 兜底：确保回收站相关表和字段存在
+    try {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS recycle_bin (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          user_id INT NOT NULL,
+          file_id INT NOT NULL,
+          original_name VARCHAR(255) NOT NULL,
+          file_path VARCHAR(500) NOT NULL,
+          thumbnail_path VARCHAR(500),
+          file_type ENUM('image', 'video') NOT NULL,
+          file_size BIGINT NOT NULL,
+          mime_type VARCHAR(100) NOT NULL,
+          width INT,
+          height INT,
+          duration INT,
+          file_hash VARCHAR(64),
+          deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          expire_at TIMESTAMP NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+
+      const [upCols] = await pool.execute('DESCRIBE user_preferences');
+      const upColNames = upCols.map(c => c.Field);
+      const safeAddCol = async (col, sql) => {
+        if (!upColNames.includes(col)) {
+          try { await pool.execute(sql); } catch (e) { console.warn(`⚠️ 添加列 ${col} 失败:`, e.message); }
+        }
+      };
+      await safeAddCol('recycle_days', "ALTER TABLE user_preferences ADD COLUMN recycle_days INT DEFAULT 30");
+      await safeAddCol('auto_cleanup', "ALTER TABLE user_preferences ADD COLUMN auto_cleanup TINYINT(1) DEFAULT 1");
+      console.log('✅ recycle_bin 表及字段检查完成');
+    } catch (e) {
+      console.error('❌ 兜底创建 recycle_bin 表失败:', e.message);
+    }
+
+    // 兜底：确保标签系统表存在
+    try {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS file_tags (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          tag_name VARCHAR(50) NOT NULL,
+          tag_color VARCHAR(20) DEFAULT '#409EFF',
+          user_id INT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          UNIQUE KEY unique_user_tag (user_id, tag_name)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS file_tag_relations (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          file_id INT NOT NULL,
+          tag_id INT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
+          FOREIGN KEY (tag_id) REFERENCES file_tags(id) ON DELETE CASCADE,
+          UNIQUE KEY unique_file_tag (file_id, tag_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ 标签系统表检查完成');
+    } catch (e) {
+      console.error('❌ 兜底创建标签系统表失败:', e.message);
+    }
+
+    // 兜底：确保相册系统表存在
+    try {
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS albums (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          user_id INT NOT NULL,
+          album_name VARCHAR(100) NOT NULL,
+          album_description TEXT,
+          cover_file_id INT NULL,
+          is_public TINYINT(1) DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          FOREIGN KEY (cover_file_id) REFERENCES files(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      await pool.execute(`
+        CREATE TABLE IF NOT EXISTS album_files (
+          id INT PRIMARY KEY AUTO_INCREMENT,
+          album_id INT NOT NULL,
+          file_id INT NOT NULL,
+          sort_order INT DEFAULT 0,
+          added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE,
+          FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
+          UNIQUE KEY unique_album_file (album_id, file_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+      console.log('✅ 相册系统表检查完成');
+    } catch (e) {
+      console.error('❌ 兜底创建相册系统表失败:', e.message);
+    }
+
     return true;
   }
 }

@@ -20,8 +20,9 @@
           <p class="confirm-subtitle">检测到您使用 {{ providerName }} 登录，本账户尚未在本站注册</p>
         </div>
 
-        <div class="profile-preview" v-if="avatar || email">
+        <div class="profile-preview" v-if="avatar || nickname || email">
           <img v-if="avatar" :src="avatar" alt="avatar" class="avatar" />
+          <div class="profile-name" v-if="nickname">{{ nickname }}</div>
           <div class="email" v-if="email">{{ email }}</div>
         </div>
 
@@ -59,6 +60,7 @@ const authStore = useAuthStore()
 const provider = ref<string>((route.query.provider as string) || '')
 const token = ref<string>((route.query.token as string) || '')
 const avatar = ref<string | undefined>((route.query.avatar as string) || undefined)
+const nickname = ref<string | undefined>((route.query.nickname as string) || undefined)
 const email = ref<string | undefined>((route.query.email as string) || undefined)
 const submitting = ref(false)
 
@@ -144,6 +146,7 @@ const goLogin = () => {
 .confirm-subtitle { margin: 6px 0 0; font-size: 14px; color: #6b7280; }
 .profile-preview { margin: 12px 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .avatar { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 1px solid #e5e7eb; }
+.profile-name { max-width: 100%; font-size: 16px; font-weight: 600; color: #111827; overflow-wrap: anywhere; }
 .email { font-size: 13px; color: #4b5563; }
 .confirm-message { margin: 10px 0 16px; color: #374151; font-size: 14px; }
 .confirm-actions { display: flex; justify-content: center; gap: 12px; }

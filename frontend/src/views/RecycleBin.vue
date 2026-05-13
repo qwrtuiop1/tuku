@@ -7,7 +7,7 @@
           <p class="page-subtitle">已删除的文件将在 {{ recycleDays === 0 ? '永久保留' : recycleDays + '天后自动清理' }}</p>
         </div>
         <div class="header-actions">
-          <el-button @click="loadRecycleBin" :loading="loading">
+          <el-button @click="() => loadRecycleBin()" :loading="loading">
             <el-icon><Refresh /></el-icon>
             刷新
           </el-button>
@@ -82,7 +82,7 @@
         :page-size="pagination.limit"
         :total="pagination.total"
         layout="prev, pager, next"
-        @current-change="loadRecycleBin"
+        @current-change="(p) => loadRecycleBin(p)"
       />
     </div>
   </div>
@@ -155,7 +155,7 @@ async function deleteItem(id: number) {
     await ElMessageBox.confirm('确定要彻底删除此文件吗？此操作不可恢复。', '确认删除', { type: 'warning' })
     await api.delete('/recycle', { data: { file_ids: [id] } })
     ElMessage.success('文件已彻底删除')
-    await loadRecycleBin()
+    await loadRecycleBin(pagination.page)
   } catch (e: any) {
     if (e !== 'cancel') ElMessage.error(e?.response?.data?.message || '删除失败')
   }
@@ -168,7 +168,7 @@ async function restoreAll() {
     await api.post('/recycle/restore', { file_ids: ids })
     ElMessage.success('文件已恢复')
     selectedItems.value = []
-    await loadRecycleBin()
+    await loadRecycleBin(pagination.page)
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.message || '恢复失败')
   }
@@ -179,7 +179,7 @@ async function purgeAll() {
     await ElMessageBox.confirm('确定要清空回收站吗？此操作不可恢复。', '确认清空', { type: 'warning' })
     await api.delete('/recycle/purge')
     ElMessage.success('回收站已清空')
-    await loadRecycleBin()
+    await loadRecycleBin(1)
   } catch (e: any) {
     if (e !== 'cancel') ElMessage.error(e?.response?.data?.message || '清空失败')
   }

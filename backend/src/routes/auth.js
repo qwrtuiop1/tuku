@@ -2054,7 +2054,16 @@ router.post('/qq/callback', [
 // 完成 QQ 首次登录的注册流程
 router.post('/qq/complete-signup', [
   body('tempToken').notEmpty().withMessage('缺少临时令牌'),
-  body('username').isLength({ min: 2, max: 20 }).matches(/^[^\s@]+$/),
+  body('username')
+    .isLength({ min: 2, max: 50 })
+    .withMessage('用户名长度必须在2-50个字符之间')
+    .custom((value) => {
+      const name = String(value || '')
+      if (name.trim().length < 2 || name.includes('@')) {
+        throw new Error('用户名格式不正确')
+      }
+      return true
+    }),
   body('password').isLength({ min: 6 }).withMessage('密码长度至少6个字符'),
   body('email').isEmail().withMessage('请输入有效的邮箱地址'),
   body('emailCode').isLength({ min: 6, max: 6 }).withMessage('验证码必须是6位')
@@ -2083,7 +2092,8 @@ router.post('/qq/complete-signup', [
   }
   const { openId, unionId, nickname, avatar } = payload;
   // 唯一性校验
-  const [u1] = await pool.execute('SELECT id FROM users WHERE username = ?', [username]);
+  const finalUsername = String(username || '').trim();
+  const [u1] = await pool.execute('SELECT id FROM users WHERE username = ?', [finalUsername]);
   if (u1.length > 0) return res.status(400).json({ success: false, message: '用户名已存在' });
   const [u2] = await pool.execute('SELECT id FROM users WHERE email = ?', [email]);
   if (u2.length > 0) return res.status(400).json({ success: false, message: '邮箱已被使用' });
@@ -2092,11 +2102,25 @@ router.post('/qq/complete-signup', [
   // 创建用户
   const bcrypt = require('bcryptjs');
   const passwordHash = await bcrypt.hash(password, 10);
-  const [result] = await pool.execute(
-    'INSERT INTO users (username, email, password_hash, role, status, qq_openid, qq_unionid, third_party_type, avatar_url, last_login, login_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())',
-    [username, email, passwordHash, 'user', 'active', openId, unionId || null, 'qq', avatar || '', 1]
-  );
-  const userId = result.insertId;
+  let insertId;
+  try {
+    const [result] = await pool.execute(
+      'INSERT INTO users (username, email, password_hash, role, status, qq_openid, qq_unionid, third_party_type, avatar_url, nickname, last_login, login_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())',
+      [finalUsername, email, passwordHash, 'user', 'active', openId, unionId || null, 'qq', avatar || '', nickname || finalUsername, 1]
+    );
+    insertId = result.insertId;
+  } catch (e1) {
+    if ((e1 && e1.code === 'ER_BAD_FIELD_ERROR') || /Unknown column\s+'nickname'/i.test(e1?.message || '')) {
+      const [result2] = await pool.execute(
+        'INSERT INTO users (username, email, password_hash, role, status, qq_openid, qq_unionid, third_party_type, avatar_url, last_login, login_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())',
+        [finalUsername, email, passwordHash, 'user', 'active', openId, unionId || null, 'qq', avatar || '', 1]
+      );
+      insertId = result2.insertId;
+    } else {
+      throw e1;
+    }
+  }
+  const userId = insertId;
   // 登录日志
   await pool.execute(
     'INSERT INTO user_login_logs (user_id, login_time, ip_address, user_agent, login_method, success) VALUES (?, NOW(), ?, ?, ?, ?)',
@@ -2104,7 +2128,7 @@ router.post('/qq/complete-signup', [
   );
   // 签发登录 token
   const token = generateToken(userId, '30d');
-  res.json({ success: true, message: '注册并登录成功', token });
+  res.json({ success: true, message: '注册并登录成功', token, user: { id: userId, username: finalUsername, email, role: 'user', status: 'active', storage_limit: 1073741824, used_storage: 0, avatar_url: avatar || '', nickname: nickname || finalUsername, created_at: new Date() } });
 }));
 
 // 兼容QQ互联回调GET到后端API路径的情况：重定向到前端回调路由
@@ -2355,7 +2379,7 @@ router.post('/qq/unbind', authenticateToken, asyncHandler(async (req, res) => {
   }
 }))
 
-// 确认注册（QQ）：消费 tempToken 并创建用户（写入 qq_openid/qq_unionid，使用占位邮箱）
+// 确认注册（QQ）：消费 tempToken 并创建用户（写入 qq_openid/qq_unionid，优先使用 QQ 昵称）
 router.post('/qq/confirm-register', [
   body('tempToken').notEmpty().withMessage('缺少临时令牌')
 ], asyncHandler(async (req, res) => {
@@ -2378,7 +2402,7 @@ router.post('/qq/confirm-register', [
   const avatar = payload.avatar || ''
 
   // 幂等：若已存在则直接登录
-  let [exists] = await pool.execute('SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, created_at FROM users WHERE qq_openid = ? OR qq_unionid = ?', [openId, unionId])
+  let [exists] = await pool.execute('SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, nickname, bio, created_at FROM users WHERE qq_openid = ? OR qq_unionid = ?', [openId, unionId])
   if (exists.length > 0) {
     const user = exists[0]
     await pool.execute('UPDATE users SET last_login = NOW(), login_count = COALESCE(login_count, 0) + 1 WHERE id = ?', [user.id])
@@ -2387,14 +2411,17 @@ router.post('/qq/confirm-register', [
     return res.json({ success: true, message: '登录成功', token, user })
   }
 
-  // 生成用户名
-  const sanitize = (s) => (s || '').toString().replace(/[^\u4e00-\u9fa5a-zA-Z0-9_\s]/g, '').trim()
+  // 生成用户名：QQ 返回昵称时直接作为用户名，冲突时保留昵称主体并追加随机后缀。
+  const sanitize = (s) => (s || '').toString().replace(/[\u0000-\u001f\u007f]/g, '').replace(/@/g, '').trim().slice(0, 50)
   const randomSuffix = () => Math.random().toString(16).slice(2, 8)
-  let username = sanitize(nickname) || `qq_user_${(unionId || openId || '').slice(-6) || randomSuffix()}`
-  for (let i = 0; i < 5; i++) {
+  const fallbackUsername = `qq_user_${(unionId || openId || '').slice(-6) || randomSuffix()}`
+  const baseUsername = sanitize(nickname) || fallbackUsername
+  let username = baseUsername
+  for (let i = 0; i < 10; i++) {
     const [u] = await pool.execute('SELECT id FROM users WHERE username = ?', [username])
     if (u.length === 0) break
-    username = `${username}_${randomSuffix()}`
+    const suffix = `_${randomSuffix()}`
+    username = `${baseUsername.slice(0, Math.max(1, 50 - suffix.length))}${suffix}`
   }
   // 邮箱改为 NULL（第三方注册默认无邮箱）
   const email = null
@@ -2404,15 +2431,26 @@ router.post('/qq/confirm-register', [
   const passwordHash = await bcrypt.hash(passwordRandom, 10)
 
   try {
-    const [result] = await pool.execute('INSERT INTO users (username, email, password_hash, has_password, role, status, qq_openid, qq_unionid, third_party_type, avatar_url, last_login, login_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())', [username, email, passwordHash, 0, 'user', 'active', openId, unionId, 'qq', avatar || '', 1])
-    const userId = result.insertId
+    let insertId
+    try {
+      const [result] = await pool.execute('INSERT INTO users (username, email, password_hash, has_password, role, status, qq_openid, qq_unionid, third_party_type, avatar_url, nickname, last_login, login_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())', [username, email, passwordHash, 0, 'user', 'active', openId, unionId, 'qq', avatar || '', nickname || username, 1])
+      insertId = result.insertId
+    } catch (e1) {
+      if ((e1 && e1.code === 'ER_BAD_FIELD_ERROR') || /Unknown column\s+'nickname'/i.test(e1?.message || '')) {
+        const [result2] = await pool.execute('INSERT INTO users (username, email, password_hash, has_password, role, status, qq_openid, qq_unionid, third_party_type, avatar_url, last_login, login_count, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())', [username, email, passwordHash, 0, 'user', 'active', openId, unionId, 'qq', avatar || '', 1])
+        insertId = result2.insertId
+      } else {
+        throw e1
+      }
+    }
+    const userId = insertId
     await pool.execute('INSERT INTO user_login_logs (user_id, login_time, ip_address, user_agent, login_method, success) VALUES (?, NOW(), ?, ?, ?, ?)', [userId, req.ip || req.connection.remoteAddress || 'unknown', req.get('User-Agent') || 'unknown', 'qq', true])
     const token = generateToken(userId, '30d')
-    return res.json({ success: true, message: '注册并登录成功', token })
+    return res.json({ success: true, message: '注册并登录成功', token, user: { id: userId, username, email, role: 'user', status: 'active', storage_limit: 1073741824, used_storage: 0, avatar_url: avatar || '', nickname: nickname || username, bio: '', created_at: new Date() } })
   } catch (e) {
     // 并发冲突兜底
     try {
-      const [u] = await pool.execute('SELECT id, username, email, role, status FROM users WHERE qq_openid = ? OR qq_unionid = ?', [openId, unionId])
+      const [u] = await pool.execute('SELECT id, username, email, role, status, storage_limit, used_storage, avatar_url, nickname, bio, created_at FROM users WHERE qq_openid = ? OR qq_unionid = ?', [openId, unionId])
       if (u.length > 0) {
         const user = u[0]
         const token = generateToken(user.id, '30d')

@@ -452,10 +452,6 @@
                             <el-icon><FolderOpened /></el-icon>
                             设置存储
                           </el-dropdown-item>
-                          <el-dropdown-item command="viewStats" divided>
-                            <el-icon><DataAnalysis /></el-icon>
-                            查看统计
-                          </el-dropdown-item>
                           <el-dropdown-item command="delete" divided>
                             <el-icon><Delete /></el-icon>
                             删除用户
@@ -1414,10 +1410,6 @@
                           <el-icon><FolderOpened /></el-icon>
                           设置存储
                         </el-dropdown-item>
-                        <el-dropdown-item command="viewStats" divided>
-                          <el-icon><DataAnalysis /></el-icon>
-                          查看统计
-                        </el-dropdown-item>
                         <el-dropdown-item command="delete" divided>
                           <el-icon><Delete /></el-icon>
                           删除用户
@@ -1913,9 +1905,9 @@
     <el-dialog
       v-model="showUserStatsDialog"
       :title="`用户统计 - ${selectedUserStats?.username || ''}`"
-      :width="isMobile ? '92%' : '640px'"
+      :width="isMobile ? 'calc(100vw - 24px)' : 'min(760px, calc(100vw - 48px))'"
       :close-on-click-modal="true"
-      :class="{ 'mobile-dialog': isMobile, 'grayscale-dialog': true }"
+      :class="{ 'mobile-dialog': isMobile, 'grayscale-dialog': true, 'user-stats-dialog': true }"
       @close="closeUserStatsDialog"
     >
       <div v-loading="loadingUserStats" class="user-stats-content grayscale">
@@ -1928,7 +1920,9 @@
               </el-avatar>
               <div class="user-basic-info">
                 <h3>{{ selectedUserStats?.username }}</h3>
-                <p>{{ selectedUserStats?.email }}</p>
+                <p :class="{ 'placeholder-email': !selectedUserHasRealEmail }">
+                  {{ selectedUserEmailText }}
+                </p>
                 <div class="user-tags">
                   <el-tag :type="selectedUserStats?.role === 'admin' ? 'danger' : 'primary'" size="small">
                     {{ selectedUserStats?.role === 'admin' ? '管理员' : '用户' }}
@@ -1954,7 +1948,9 @@
             </div>
             <div class="stats-item">
               <span class="label">邮箱：</span>
-              <span class="value">{{ selectedUserStats?.email }}</span>
+              <span class="value" :class="{ 'placeholder-email': !selectedUserHasRealEmail }">
+                {{ selectedUserEmailText }}
+              </span>
             </div>
             <div class="stats-item password-item">
               <div class="password-container">
@@ -2034,8 +2030,14 @@
                   <span class="info-value">{{ selectedUserStats?.username }}</span>
                 </div>
                 <div class="info-item">
+                  <span class="info-label">用户ID</span>
+                  <span class="info-value">{{ selectedUserStats?.id }}</span>
+                </div>
+                <div class="info-item">
                   <span class="info-label">邮箱</span>
-                  <span class="info-value">{{ selectedUserStats?.email }}</span>
+                  <span class="info-value" :class="{ 'placeholder-email': !selectedUserHasRealEmail }">
+                    {{ selectedUserEmailText }}
+                  </span>
                 </div>
                 <div class="info-item password-item">
                   <span class="info-label">密码</span>
@@ -2157,12 +2159,6 @@
           <p>暂无统计数据</p>
         </div>
       </div>
-      
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="closeUserStatsDialog">关闭</el-button>
-        </div>
-      </template>
     </el-dialog>
 
     
@@ -2473,6 +2469,19 @@ const passwordVerificationExpiry = ref<Date | null>(null)
 const sendingVerificationCode = ref(false)
 const passwordVerificationCooldown = ref(0)
 let passwordVerificationTimer: number | null = null
+
+const isPlaceholderEmail = (email?: string | null) => {
+  const value = (email || '').trim().toLowerCase()
+  return !value || value.endsWith('@noemail.qq.local') || value.endsWith('@noemail.epass.local')
+}
+
+const formatUserEmail = (email?: string | null) => {
+  if (isPlaceholderEmail(email)) return '未绑定邮箱'
+  return email || '未绑定邮箱'
+}
+
+const selectedUserHasRealEmail = computed(() => !isPlaceholderEmail(selectedUserStats.value?.email))
+const selectedUserEmailText = computed(() => formatUserEmail(selectedUserStats.value?.email))
 
 const startPasswordVerificationCooldown = () => {
   if (passwordVerificationTimer) { clearInterval(passwordVerificationTimer); passwordVerificationTimer = null }
@@ -3288,7 +3297,7 @@ const handleUserCardClick = async (user: User, evt?: MouseEvent) => {
       return
     }
     
-    // 直接显示对话框（保留查看统计）
+    // 直接显示用户统计对话框
     await showUserStats(user)
   } catch (error: any) {
     ElMessage.error('操作失败，请重试')
@@ -8873,6 +8882,745 @@ onUnmounted(() => {
         }
       }
     }
+  }
+}
+
+// 用户统计弹窗响应式覆盖
+:global(.el-dialog.user-stats-dialog) {
+  display: flex;
+  flex-direction: column;
+  max-height: min(88dvh, 760px);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 18px 48px rgba(17, 24, 39, 0.16);
+}
+
+:global(.el-dialog.user-stats-dialog .el-dialog__header) {
+  flex: 0 0 auto;
+  margin-right: 0;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+:global(.el-dialog.user-stats-dialog .el-dialog__title) {
+  display: block;
+  max-width: calc(100% - 44px);
+  overflow: hidden;
+  color: #1f2937;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:global(.el-dialog.user-stats-dialog .el-dialog__headerbtn) {
+  top: 14px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  transition: background-color 160ms ease;
+}
+
+:global(.el-dialog.user-stats-dialog .el-dialog__headerbtn:hover) {
+  background: #f3f4f6;
+}
+
+:global(.el-dialog.user-stats-dialog .el-dialog__body) {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none !important;
+  padding: 18px 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  background: #fafafa;
+}
+
+.user-stats-content {
+  .stats-grid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.85fr);
+    gap: 16px;
+  }
+
+  .stats-section {
+    min-width: 0;
+    padding: 18px;
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+
+    h4 {
+      display: flex;
+      align-items: center;
+      min-height: 28px;
+      margin-bottom: 12px;
+      border-bottom-width: 1px;
+      letter-spacing: 0;
+    }
+
+    .stats-item {
+      display: grid;
+      grid-template-columns: 84px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      min-width: 0;
+      margin-bottom: 0;
+      padding: 10px 0;
+      border-bottom: 1px solid #f0f1f3;
+
+      &:last-child {
+        border-bottom: 0;
+      }
+
+      .label {
+        line-height: 1.45;
+        white-space: nowrap;
+      }
+
+      .value {
+        max-width: none;
+        min-width: 0;
+        line-height: 1.45;
+        text-align: left;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+    }
+  }
+
+  .password-item {
+    display: block;
+
+    .password-container {
+      display: grid;
+      grid-template-columns: 84px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+      width: 100%;
+
+      .label {
+        min-width: 0;
+      }
+    }
+
+    .password-display {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      min-width: 0;
+      width: 100%;
+
+      .password-value {
+        min-width: 0;
+        min-height: 30px;
+        padding: 6px 10px;
+        border-radius: 8px;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+      }
+
+      .password-toggle-btn {
+        width: auto;
+        min-width: 86px;
+        height: 32px;
+        padding: 0 12px;
+        border-radius: 8px;
+      }
+    }
+
+    .password-verification {
+      width: 100%;
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 10px;
+
+      .verification-input {
+        display: grid;
+        grid-template-columns: minmax(120px, 1fr) auto auto;
+        gap: 8px;
+        align-items: center;
+
+        .verification-code-input {
+          width: 100%;
+          min-width: 0;
+        }
+
+        .verify-btn-desktop,
+        .send-code-btn-desktop {
+          height: 32px;
+          padding: 0 12px;
+          border-radius: 8px;
+        }
+      }
+    }
+  }
+
+  .mobile-user-header,
+  .mobile-info-card {
+    min-width: 0;
+  }
+
+  .mobile-user-header {
+    margin-bottom: 14px;
+
+    .user-avatar-section {
+      box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+    }
+
+    .user-basic-info {
+      min-width: 0;
+    }
+  }
+
+  .mobile-info-cards {
+    gap: 14px;
+
+    .mobile-info-card {
+      border-color: #e5e7eb;
+      border-radius: 12px;
+      box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+    }
+
+    .card-content {
+      .info-item {
+        display: grid;
+        grid-template-columns: 72px minmax(0, 1fr);
+        gap: 12px;
+        align-items: start;
+        padding: 10px 0;
+        border-bottom: 1px solid #f0f1f3;
+
+        &:last-child {
+          border-bottom: 0;
+        }
+
+        .info-label {
+          line-height: 1.45;
+          white-space: nowrap;
+        }
+
+        .info-value {
+          min-width: 0;
+          line-height: 1.45;
+          text-align: right;
+          overflow-wrap: anywhere;
+          word-break: break-word;
+        }
+
+        &.password-item {
+          display: grid;
+          grid-template-columns: 72px minmax(0, 1fr);
+          gap: 12px;
+        }
+      }
+
+      .password-display {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        min-width: 0;
+
+        .password-value {
+          min-height: 30px;
+          padding: 6px 10px;
+          border-radius: 8px;
+          line-height: 1.3;
+          overflow-wrap: anywhere;
+        }
+
+        .password-toggle-btn {
+          min-width: 86px;
+          height: 32px;
+          padding: 0 12px;
+          border-radius: 8px;
+        }
+      }
+
+      .password-verification {
+        padding: 12px;
+        border-radius: 10px;
+
+        .verification-actions-mobile {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 8px;
+
+          .verify-btn,
+          .send-code-btn {
+            width: 100%;
+            min-width: 0;
+          }
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 900px) and (min-width: 768px) {
+  .user-stats-content {
+    .stats-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .stats-section .stats-item,
+    .password-item .password-container {
+      grid-template-columns: 96px minmax(0, 1fr);
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  :global(.el-dialog.user-stats-dialog) {
+    width: calc(100vw - 24px) !important;
+    max-height: calc(100dvh - 24px);
+    margin: 12px auto !important;
+    border-radius: 14px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .el-dialog__header) {
+    padding: 16px 16px 12px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .el-dialog__title) {
+    font-size: 16px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .el-dialog__headerbtn) {
+    top: 10px;
+    right: 10px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .el-dialog__body) {
+    max-height: none !important;
+    padding: 14px;
+  }
+
+  .user-stats-content {
+    .stats-grid {
+      gap: 14px;
+    }
+
+    .mobile-user-header .user-avatar-section {
+      padding: 16px;
+      border-radius: 12px;
+    }
+
+    .mobile-info-cards {
+      .mobile-info-card {
+        overflow: hidden;
+      }
+
+      .card-header {
+        padding: 14px 16px;
+      }
+
+      .card-content {
+        padding: 14px 16px;
+      }
+
+      .storage-details {
+        gap: 8px;
+
+        .storage-item {
+          min-width: 0;
+          padding: 10px 6px;
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  :global(.el-dialog.user-stats-dialog) {
+    width: calc(100vw - 16px) !important;
+    margin: 8px auto !important;
+  }
+
+  :global(.el-dialog.user-stats-dialog .el-dialog__body) {
+    max-height: none !important;
+    padding: 12px;
+  }
+
+  .user-stats-content {
+    .mobile-user-header {
+      .user-avatar-section {
+        gap: 12px;
+        padding: 14px;
+      }
+
+      .user-basic-info {
+        h3 {
+          font-size: 17px;
+        }
+
+        p {
+          font-size: 12px;
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+      }
+    }
+
+    .mobile-info-cards {
+      .card-header {
+        padding: 12px 14px;
+      }
+
+      .card-content {
+        padding: 12px 14px;
+
+        .info-item,
+        .info-item.password-item {
+          grid-template-columns: 1fr;
+          gap: 6px;
+
+          .info-value {
+            text-align: left;
+          }
+        }
+
+        .password-display {
+          grid-template-columns: 1fr;
+
+          .password-toggle-btn {
+            width: 100%;
+          }
+        }
+
+        .password-verification .verification-actions-mobile {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .storage-details {
+        grid-template-columns: 1fr;
+      }
+    }
+  }
+}
+
+// 用户统计弹窗内容在 overlay 中渲染，需要使用全局根选择器保证样式命中
+:global(.el-dialog.user-stats-dialog .user-stats-content) {
+  color: #1f2937;
+}
+
+:global(.el-dialog.user-stats-dialog .user-stats-content .stats-grid) {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(240px, 0.85fr);
+  gap: 16px;
+}
+
+:global(.el-dialog.user-stats-dialog .stats-section),
+:global(.el-dialog.user-stats-dialog .mobile-user-header .user-avatar-section),
+:global(.el-dialog.user-stats-dialog .mobile-info-card) {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.04);
+}
+
+:global(.el-dialog.user-stats-dialog .stats-section) {
+  min-width: 0;
+  padding: 18px;
+}
+
+:global(.el-dialog.user-stats-dialog .stats-section h4),
+:global(.el-dialog.user-stats-dialog .mobile-info-card .card-header span) {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+:global(.el-dialog.user-stats-dialog .stats-section h4) {
+  margin: 0 0 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eef0f3;
+}
+
+:global(.el-dialog.user-stats-dialog .stats-item) {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f1f3;
+}
+
+:global(.el-dialog.user-stats-dialog .stats-item:last-child) {
+  border-bottom: 0;
+}
+
+:global(.el-dialog.user-stats-dialog .label),
+:global(.el-dialog.user-stats-dialog .info-label),
+:global(.el-dialog.user-stats-dialog .storage-label),
+:global(.el-dialog.user-stats-dialog .progress-label) {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+:global(.el-dialog.user-stats-dialog .value),
+:global(.el-dialog.user-stats-dialog .info-value),
+:global(.el-dialog.user-stats-dialog .storage-value),
+:global(.el-dialog.user-stats-dialog .progress-percent) {
+  min-width: 0;
+  max-width: none;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+:global(.el-dialog.user-stats-dialog .placeholder-email) {
+  color: #9ca3af !important;
+  font-weight: 500 !important;
+}
+
+:global(.el-dialog.user-stats-dialog .password-item) {
+  display: block;
+}
+
+:global(.el-dialog.user-stats-dialog .password-container) {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+:global(.el-dialog.user-stats-dialog .password-display) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+:global(.el-dialog.user-stats-dialog .password-value) {
+  min-width: 0;
+  min-height: 30px;
+  padding: 6px 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  color: #111827;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+:global(.el-dialog.user-stats-dialog .password-toggle-btn) {
+  min-width: 86px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+}
+
+:global(.el-dialog.user-stats-dialog .password-verification) {
+  margin-top: 10px;
+  padding: 12px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+}
+
+:global(.el-dialog.user-stats-dialog .password-verification .verification-input) {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+:global(.el-dialog.user-stats-dialog .password-verification .verification-code-input) {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  :global(.el-dialog.user-stats-dialog .user-stats-content .stats-grid) {
+    display: block;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-user-header) {
+    margin-bottom: 12px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-user-header .user-avatar-section) {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 14px;
+    align-items: center;
+    padding: 16px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .user-basic-info) {
+    min-width: 0;
+  }
+
+  :global(.el-dialog.user-stats-dialog .user-basic-info h3) {
+    margin: 0 0 4px;
+    color: #111827;
+    font-size: 18px;
+    font-weight: 750;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.el-dialog.user-stats-dialog .user-basic-info p) {
+    margin: 0 0 10px;
+    color: #6b7280;
+    font-size: 13px;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.el-dialog.user-stats-dialog .user-tags) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-info-cards) {
+    display: grid;
+    gap: 12px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-info-card) {
+    overflow: hidden;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-info-card .card-header) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px 16px;
+    background: #ffffff;
+    border-bottom: 1px solid #eef0f3;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-info-card .card-header .el-icon) {
+    color: #6b7280;
+    font-size: 16px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-info-card .card-content) {
+    padding: 2px 16px 12px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-info-card .info-item) {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    padding: 11px 0;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-info-card .info-item:last-child) {
+    border-bottom: 0;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-info-card .info-value) {
+    text-align: right;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-info-card .password-item) {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-info-card .password-display) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-info-card .password-verification) {
+    margin-top: 8px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .verification-actions-mobile) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .verification-actions-mobile .el-button) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  :global(.el-dialog.user-stats-dialog .storage-progress) {
+    margin-bottom: 14px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .storage-progress .progress-info) {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .storage-details) {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .storage-item) {
+    min-width: 0;
+    padding: 10px 6px;
+    background: #f9fafb;
+    border: 1px solid #eef0f3;
+    border-radius: 10px;
+    text-align: center;
+  }
+
+  :global(.el-dialog.user-stats-dialog .storage-label),
+  :global(.el-dialog.user-stats-dialog .storage-value) {
+    display: block;
+  }
+}
+
+@media (max-width: 420px) {
+  :global(.el-dialog.user-stats-dialog .mobile-user-header .user-avatar-section) {
+    grid-template-columns: 48px minmax(0, 1fr);
+    padding: 14px;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-info-card .info-item),
+  :global(.el-dialog.user-stats-dialog .mobile-info-card .password-item) {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    align-items: start;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-info-card .info-value) {
+    text-align: left;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-info-card .password-display) {
+    grid-template-columns: 1fr;
+  }
+
+  :global(.el-dialog.user-stats-dialog .mobile-info-card .password-toggle-btn) {
+    width: 100%;
+  }
+
+  :global(.el-dialog.user-stats-dialog .storage-details) {
+    grid-template-columns: 1fr;
   }
 }
 

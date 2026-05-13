@@ -19,6 +19,6 @@ CREATE TABLE IF NOT EXISTS recycle_bin (
   FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 用户回收站设置
-ALTER TABLE user_preferences ADD COLUMN recycle_days INT DEFAULT 30;
-ALTER TABLE user_preferences ADD COLUMN auto_cleanup BOOLEAN DEFAULT TRUE;
+-- 用户回收站设置（列不存在时添加，支持重复执行）
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS recycle_days INT DEFAULT 30;
+ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS auto_cleanup BOOLEAN DEFAULT TRUE;

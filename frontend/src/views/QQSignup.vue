@@ -28,7 +28,7 @@
         <el-form-item label="用户名" prop="username">
           <div class="row-inline">
             <el-input v-model="form.username" placeholder="请输入用户名，支持中文" />
-            <el-button v-if="qq.nickname" @click="useQQNickname" class="use-qq-btn" type="default">使用QQ昵称</el-button>
+            <el-button v-if="qq.nickname && form.username !== qq.nickname" @click="useQQNickname" class="use-qq-btn" type="default">使用QQ昵称</el-button>
           </div>
         </el-form-item>
         <el-form-item label="密码" prop="password">
@@ -124,9 +124,16 @@ const form = ref({
 })
 const rules = {
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 2, max: 20, message: '长度2-20个字符', trigger: 'blur' },
-    { pattern: /^[\u4e00-\u9fa5a-zA-Z0-9_\s]+$/, message: '仅限中文/字母/数字/下划线/空格', trigger: 'blur' }
+    {
+      validator: (_: any, value: string, callback: any) => {
+        const name = String(value || '')
+        if (!name.trim()) return callback(new Error('请输入用户名'))
+        if (name.length < 2 || name.length > 50) return callback(new Error('长度2-50个字符'))
+        if (name.includes('@')) return callback(new Error('用户名不能包含@'))
+        callback()
+      },
+      trigger: 'blur'
+    }
   ],
   password: [ { required: true, message: '请输入密码', trigger: 'blur' }, { min: 6, message: '至少6位', trigger: 'blur' } ],
   confirmPassword: [ { validator: (_: any, v: string, cb: any) => { v !== form.value.password ? cb(new Error('两次密码不一致')) : cb() }, trigger: 'blur' } ],
@@ -236,6 +243,9 @@ onMounted(() => {
   tempToken.value = url.searchParams.get('token') || ''
   qq.value.nickname = url.searchParams.get('nickname') || ''
   qq.value.avatar = url.searchParams.get('avatar') || ''
+  if (qq.value.nickname && !form.value.username) {
+    form.value.username = qq.value.nickname
+  }
 })
 
 const useQQNickname = () => {
@@ -394,5 +404,3 @@ const goToLogin = () => { router.push('/login') }
   .floating-shape { display: none; }
 }
 </style>
-
-

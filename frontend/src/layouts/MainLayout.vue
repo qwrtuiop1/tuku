@@ -67,12 +67,6 @@
             <span>回收站</span>
           </el-menu-item>
 
-          <!-- 我的相册 -->
-          <el-menu-item index="/albums">
-            <el-icon><Picture /></el-icon>
-            <span>我的相册</span>
-          </el-menu-item>
-
           <!-- 管理员专用菜单 -->
           <el-menu-item v-if="authStore.isAdmin" index="/admin">
             <el-icon><Setting /></el-icon>
@@ -100,10 +94,6 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="profile">
-                <el-icon><User /></el-icon>
-                个人资料
-              </el-dropdown-item>
               <el-dropdown-item command="help">
                 <el-icon><QuestionFilled /></el-icon>
                 帮助中心
@@ -185,6 +175,10 @@
                   <el-icon><Bell /></el-icon>
                   通知
                 </el-dropdown-item>
+                <el-dropdown-item command="help">
+                  <el-icon><QuestionFilled /></el-icon>
+                  帮助中心
+                </el-dropdown-item>
                 <el-dropdown-item divided command="logout">
                   <el-icon><SwitchButton /></el-icon>
                   退出登录
@@ -211,6 +205,10 @@
                 <el-dropdown-item v-if="authStore.isAdmin" command="notifications">
                   <el-icon><Bell /></el-icon>
                   通知
+                </el-dropdown-item>
+                <el-dropdown-item command="help">
+                  <el-icon><QuestionFilled /></el-icon>
+                  帮助中心
                 </el-dropdown-item>
                 <el-dropdown-item divided command="logout">
                   <el-icon><SwitchButton /></el-icon>
@@ -245,8 +243,8 @@
     <!-- 通知悬浮窗：批量展示与详情 -->
     <el-dialog
       v-model="notificationsDialogVisible"
-      title="通知"
-      :width="isMobile ? '95%' : '700px'"
+      title="通知中心"
+      :width="isMobile ? 'calc(100vw - 24px)' : 'min(820px, calc(100vw - 48px))'"
       :close-on-click-modal="false"
       :destroy-on-close="false"
       :append-to-body="true"
@@ -258,13 +256,16 @@
         <!-- 通知列表面板 -->
         <div class="notifications-list-panel">
           <div class="list-header">
-            <h3 class="list-title">通知列表</h3>
-            <span class="notification-count">{{ allNotifications.length }} 条通知</span>
+            <div class="list-title-row">
+              <h3 class="list-title">通知列表</h3>
+              <span class="notification-count">{{ allNotifications.length }} 条通知</span>
+            </div>
+            <p class="list-subtitle">系统消息与账户提醒</p>
           </div>
           
           <el-scrollbar class="notifications-scrollbar">
             <div v-if="allNotifications.length === 0" class="empty-list">
-              <div class="empty-icon">📭</div>
+              <el-icon class="empty-icon"><Bell /></el-icon>
               <p class="empty-text">暂无通知</p>
             </div>
             <div
@@ -278,9 +279,10 @@
             >
               <div class="notification-content">
                 <div class="notification-title">{{ n.title || '无标题' }}</div>
+                <div v-if="n.content" class="notification-summary-text">{{ n.content }}</div>
                 <div class="notification-meta">
                   <span class="notification-type">{{ getNotificationTypeText(n.notification_type) }}</span>
-                  <span class="notification-priority priority-{{ n.priority }}">{{ getPriorityText(n.priority) }}</span>
+                  <span :class="['notification-priority', `priority-${n.priority}`]">{{ getPriorityText(n.priority) }}</span>
                   <span v-if="n.is_read" class="read-badge">已读</span>
                 </div>
                 <div class="notification-time">{{ formatDateTime(n.created_at) }}</div>
@@ -299,7 +301,7 @@
               <h3 class="detail-title">{{ detailNotification.title || '无标题' }}</h3>
               <div class="detail-badges">
                 <span class="detail-type">{{ getNotificationTypeText(detailNotification.notification_type) }}</span>
-                <span class="detail-priority priority-{{ detailNotification.priority }}">
+                <span :class="['detail-priority', `priority-${detailNotification.priority}`]">
                   {{ getPriorityText(detailNotification.priority) }}
                 </span>
                 <span v-if="detailNotification.is_read" class="read-badge">已读</span>
@@ -336,7 +338,7 @@
           </div>
           
           <div v-else class="detail-empty">
-            <div class="empty-icon">👆</div>
+            <el-icon class="empty-icon"><Document /></el-icon>
             <h3 class="empty-title">选择通知查看详情</h3>
             <p class="empty-description">点击左侧通知列表中的任意一条通知，即可查看详细内容</p>
           </div>
@@ -370,7 +372,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import api from '@/utils/api'
 import {
-  Picture,
   Fold,
   Expand,
   House,
@@ -529,9 +530,6 @@ const handleUserCommand = async (command: string) => {
   mobileUserMenuVisible.value = false
   
   switch (command) {
-    case 'profile':
-      router.push('/user-center')
-      break
     case 'help':
       router.push('/help')
       break
@@ -839,25 +837,40 @@ const openNotificationDetail = async (n: any) => {
   detailNotification.value = n
 
   if (!n.is_read) {
-    try {
-      await api.put(`/auth/notifications/${n.id}/read`)
-
-      n.is_read = 1
-      n.read_at = new Date().toISOString()
-
-      const notificationIndex = allNotifications.value.findIndex(notif => notif.id === n.id)
-      if (notificationIndex !== -1) {
-        allNotifications.value[notificationIndex].is_read = 1
-        allNotifications.value[notificationIndex].read_at = n.read_at
+    const notificationId = n.id
+    const now = new Date().toISOString()
+    
+    // 立即更新本地状态（乐观更新）
+    const notificationIndex = allNotifications.value.findIndex(notif => notif.id === notificationId)
+    if (notificationIndex !== -1) {
+      allNotifications.value[notificationIndex] = {
+        ...allNotifications.value[notificationIndex],
+        is_read: 1,
+        read_at: now
       }
+    }
+    
+    // 从全局通知中移除
+    const globalIndex = globalNotifications.value.findIndex(notif => notif.id === notificationId)
+    if (globalIndex !== -1) {
+      globalNotifications.value.splice(globalIndex, 1)
+    }
 
-      globalNotifications.value = globalNotifications.value.filter(notif => notif.id !== n.id)
-
-      allNotifications.value = [...allNotifications.value]
-      globalNotifications.value = [...globalNotifications.value]
-
+    // 调用API标记已读
+    try {
+      await api.put(`/auth/notifications/${notificationId}/read`)
     } catch (error: any) {
-      // 即使标记失败，仍然显示详情
+      // API失败时回滚本地状态
+      if (notificationIndex !== -1) {
+        allNotifications.value[notificationIndex] = {
+          ...allNotifications.value[notificationIndex],
+          is_read: 0,
+          read_at: null
+        }
+        if (globalIndex === -1) {
+          globalNotifications.value.push(n)
+        }
+      }
     }
   }
 
@@ -1279,12 +1292,14 @@ onUnmounted(() => {
 
 .top-header {
   height: 60px;
+  width: 100%;
   padding: 0 24px;
   background: #ffffff;
   border-bottom: 1px solid #e4e7ed;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  box-sizing: border-box;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   backdrop-filter: blur(10px);
 }
@@ -1642,9 +1657,9 @@ onUnmounted(() => {
   }
   
   .top-header {
-    max-width: calc(100vw - 400px); // 限制宽度与内容区域一致
-    margin: 0 auto; // 居中显示
-    border-radius: 0 0 16px 16px; // 添加圆角
+    width: 100%;
+    max-width: none;
+    border-radius: 0;
   }
 }
 
@@ -1678,10 +1693,10 @@ onUnmounted(() => {
   }
   
   .top-header {
+    width: 100%;
     height: 70px;
     padding: 0 32px;
-    max-width: calc(100vw - 440px); // 与内容区域宽度一致
-    border-radius: 0 0 20px 20px; // 更大的圆角
+    border-radius: 0;
   }
 }
 
@@ -1714,10 +1729,10 @@ onUnmounted(() => {
   }
   
   .top-header {
+    width: 100%;
     height: 65px;
     padding: 0 28px;
-    max-width: calc(100vw - 420px); // 与内容区域宽度一致
-    border-radius: 0 0 18px 18px; // 适中的圆角
+    border-radius: 0;
   }
 }
 
@@ -1750,10 +1765,11 @@ onUnmounted(() => {
   }
   
   .top-header {
+    width: 100%;
+    max-width: none;
     height: 60px;
     padding: 0 24px;
-    max-width: calc(100vw - 400px); // 与内容区域宽度一致
-    border-radius: 0 0 16px 16px; // 标准圆角
+    border-radius: 0;
   }
 }
 
@@ -1786,10 +1802,11 @@ onUnmounted(() => {
   }
   
   .top-header {
+    width: 100%;
+    max-width: none;
     height: 58px;
     padding: 0 20px;
-    max-width: calc(100vw - 360px); // 与内容区域宽度一致
-    border-radius: 0 0 14px 14px; // 较小的圆角
+    border-radius: 0;
   }
   
   .storage-info {
@@ -1824,10 +1841,11 @@ onUnmounted(() => {
   }
 
   .top-header {
+    width: 100%;
+    max-width: none;
     height: 58px;
     padding: 0 16px;
-    max-width: calc(100vw - 360px);
-    border-radius: 0 0 14px 14px;
+    border-radius: 0;
     justify-content: space-between;
     align-items: center;
   }
@@ -2491,55 +2509,34 @@ onUnmounted(() => {
 // 通知对话框样式
 .notifications-dialog {
   :deep(.el-dialog) {
-    border-radius: 16px;
-    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
-    backdrop-filter: blur(10px);
-    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    background: #ffffff;
   }
   
   :deep(.el-dialog__header) {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 16px 16px 0 0;
-    padding: 24px 28px;
-    position: relative;
-    overflow: hidden;
+    padding: 20px 24px;
+    background: #ffffff;
+    border-bottom: 1px solid #ebeef5;
+  }
+  
+  :deep(.el-dialog__title) {
+    color: #303133;
+    font-weight: 600;
+    font-size: 17px;
+  }
+  
+  :deep(.el-dialog__headerbtn) {
+    top: 20px;
+    right: 20px;
     
-    &::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: linear-gradient(45deg, rgba(255, 255, 255, 0.1) 0%, transparent 100%);
-      pointer-events: none;
-    }
-    
-    .el-dialog__title {
-      font-size: 20px;
-      font-weight: 700;
-      position: relative;
-      z-index: 1;
-    }
-    
-    .el-dialog__headerbtn {
-      color: white;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      transition: all 0.3s ease;
-      
-      &:hover {
-        background: rgba(255, 255, 255, 0.2);
-        transform: scale(1.05);
-      }
+    &:hover .el-dialog__close {
+      color: #409eff;
     }
   }
   
   :deep(.el-dialog__body) {
     padding: 0;
-    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-    border-radius: 0 0 16px 16px;
   }
 }
 
@@ -3371,6 +3368,397 @@ onUnmounted(() => {
           font-size: 12px;
         }
       }
+    }
+  }
+}
+
+// 通知中心最终样式覆盖
+.notifications-dialog {
+  :deep(.el-dialog) {
+    max-height: min(88vh, 720px);
+    border-radius: 12px;
+    overflow: hidden;
+    background: #ffffff;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+  }
+
+  :deep(.el-dialog__header) {
+    min-height: 68px;
+    padding: 20px 28px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #ffffff;
+    color: #0f172a;
+
+    &::before {
+      display: none;
+    }
+
+    .el-dialog__title {
+      color: #0f172a;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .el-dialog__headerbtn {
+      top: 18px;
+      right: 20px;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #f8fafc;
+      color: #64748b;
+
+      &:hover {
+        background: #eef2ff;
+        color: #2563eb;
+        transform: none;
+      }
+    }
+  }
+
+  :deep(.el-dialog__body) {
+    padding: 0;
+    border-radius: 0;
+    background: #f8fafc;
+  }
+}
+
+.notifications-dialog-body {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 480px;
+  max-height: calc(85vh - 60px);
+  overflow: hidden;
+}
+
+.notifications-list-panel {
+  min-width: 0;
+  padding: 0 !important;
+  border-right: 1px solid #ebeef5;
+  background: #ffffff;
+
+  .list-header {
+    padding: 20px;
+    border-bottom: 1px solid #f5f7fa;
+    background: #ffffff;
+  }
+
+  .list-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .list-title {
+    margin: 0;
+    color: #303133;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .list-subtitle {
+    margin: 6px 0 0;
+    color: #909399;
+    font-size: 12px;
+  }
+
+  .notification-count {
+    padding: 3px 10px;
+    border-radius: 10px;
+    background: #f4f4f5;
+    color: #606266;
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .notifications-scrollbar,
+  .el-scrollbar {
+    flex: 1;
+    height: auto !important;
+    min-height: 0;
+  }
+
+  .notifications-scrollbar {
+    padding: 12px;
+  }
+
+  .empty-list {
+    min-height: 280px;
+    padding: 40px 20px;
+
+    .empty-icon {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 12px;
+      color: #c0c4cc;
+      font-size: 48px;
+    }
+  }
+
+  .notification-item {
+    display: flex;
+    gap: 12px;
+    min-width: 0;
+    margin: 0 0 8px;
+    padding: 14px;
+    border: 1px solid #ebeef5;
+    border-radius: 8px;
+    background: #ffffff;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      background: #f5f7fa;
+    }
+
+    &.active {
+      background: #ecf5ff;
+      border-color: #d9ecff;
+    }
+
+    &.is-read {
+      opacity: 0.6;
+    }
+
+    .notification-content {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .notification-title {
+      margin: 0 0 4px;
+      color: #303133;
+      font-size: 14px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .notification-summary-text {
+      margin: 0 0 8px;
+      color: #909399;
+      font-size: 13px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .notification-meta {
+      display: flex;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .notification-type,
+    .notification-priority,
+    .read-badge {
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: #f4f4f5;
+      color: #606266;
+    }
+
+    .notification-time {
+      color: #c0c4cc;
+      font-size: 12px;
+      margin-top: 6px;
+    }
+
+    .notification-indicator {
+      flex-shrink: 0;
+    }
+
+    .unread-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #409eff;
+    }
+  }
+}
+
+.notifications-detail-panel {
+  min-width: 0;
+  min-height: 0;
+  padding: 0 !important;
+  background: #ffffff;
+
+  .detail-content {
+    min-height: 100%;
+    padding: 24px;
+  }
+
+  .detail-header {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #ebeef5;
+  }
+
+  .detail-title {
+    margin: 0 0 12px;
+    color: #303133;
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .detail-badges {
+    display: flex;
+    gap: 8px;
+
+    span {
+      padding: 3px 10px;
+      border-radius: 4px;
+      background: #f4f4f5;
+      color: #606266;
+      font-size: 12px;
+    }
+  }
+
+  .detail-body {
+    flex: 1;
+    margin-bottom: 20px;
+  }
+
+  .detail-text {
+    min-height: 160px;
+    padding: 16px;
+    border: 1px solid #ebeef5;
+    border-radius: 6px;
+    background: #fafafa;
+    color: #606266;
+    font-size: 14px;
+    line-height: 1.8;
+  }
+
+  .detail-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #ebeef5;
+  }
+
+  .detail-time {
+    color: #909399;
+    font-size: 13px;
+  }
+
+  .detail-actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .detail-empty {
+    min-height: 100%;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .detail-empty .empty-icon {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 16px;
+    color: #c0c4cc;
+    font-size: 64px;
+  }
+
+  .detail-empty .empty-title {
+    margin: 0 0 8px;
+    color: #606266;
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  .detail-empty .empty-description {
+    color: #909399;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 768px) {
+  .notifications-dialog {
+    :deep(.el-dialog) {
+      width: calc(100vw - 24px) !important;
+      max-height: calc(100dvh - 24px);
+      margin: 12px auto;
+    }
+
+    :deep(.el-dialog__header) {
+      min-height: 58px;
+      padding: 16px 20px;
+
+      .el-dialog__title {
+        font-size: 17px;
+      }
+    }
+  }
+
+  .notifications-dialog-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: 230px minmax(0, 1fr);
+    min-height: calc(100dvh - 96px);
+    max-height: calc(100dvh - 82px);
+  }
+
+  .notifications-list-panel {
+    border-right: none;
+    border-bottom: 1px solid #ebeef5;
+
+    .list-header {
+      padding: 14px 16px 12px;
+    }
+
+    .notifications-scrollbar {
+      padding: 8px;
+    }
+  }
+
+  .notifications-detail-panel {
+    min-height: 0;
+
+    .detail-content {
+      padding: 18px;
+    }
+
+    .detail-footer {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .detail-actions {
+      width: 100%;
+
+      .el-button {
+        flex: 1 1 0;
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .notifications-dialog-body {
+    grid-template-rows: 210px minmax(0, 1fr);
+  }
+
+  .notifications-list-panel .notification-item {
+    padding: 12px 12px 12px 14px;
+  }
+
+  .notifications-detail-panel {
+    .detail-title {
+      font-size: 18px;
+    }
+
+    .detail-text {
+      min-height: 120px;
     }
   }
 }

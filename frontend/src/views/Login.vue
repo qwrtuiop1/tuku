@@ -203,6 +203,7 @@ const geetestCaptchaId = (((import.meta as any).env?.VITE_GEETEST_CAPTCHA_ID as 
 let geetestHandler: any = null
 const geetestReady = ref(false)
 const geetestMaxWaitMs = 12000
+const humanVerificationMessageShown = ref(false)
 
 const loadScriptOnce = (src: string): Promise<void> => {
   return new Promise((resolve, reject) => {
@@ -243,9 +244,14 @@ const ensureGeetest = async (): Promise<boolean> => {
 }
 
 const runHumanVerification = async (): Promise<boolean> => {
+  humanVerificationMessageShown.value = false
   if (!geetestCaptchaId) return true
   const ok = await ensureGeetest()
-  if (!ok || !geetestHandler) return false
+  if (!ok || !geetestHandler) {
+    humanVerificationMessageShown.value = true
+    try { ElMessage.error('人机验证加载失败，请刷新后重试') } catch {}
+    return false
+  }
   return new Promise<boolean>((resolve) => {
     let settled = false
     let popupShown = false
@@ -272,8 +278,8 @@ const runHumanVerification = async (): Promise<boolean> => {
       }
     }
     if (geetestHandler.onSuccess) geetestHandler.onSuccess(onSuccess)
-    if (geetestHandler.onError) geetestHandler.onError(() => { if (!settled) { settled = true; try { ElMessage.error('人机验证出错，请关闭拦截或更换网络后重试') } catch {}; resolve(false) } })
-    if (geetestHandler.onClose) geetestHandler.onClose(() => { if (!settled) { settled = true; try { ElMessage.warning('请先完成人机验证') } catch {}; resolve(false) } })
+    if (geetestHandler.onError) geetestHandler.onError(() => { if (!settled) { settled = true; humanVerificationMessageShown.value = true; try { ElMessage.error('人机验证出错，请关闭拦截或更换网络后重试') } catch {}; resolve(false) } })
+    if (geetestHandler.onClose) geetestHandler.onClose(() => { if (!settled) { settled = true; humanVerificationMessageShown.value = true; try { ElMessage.warning('请先完成人机验证') } catch {}; resolve(false) } })
     const showIt = () => {
       popupShown = true
       if (geetestHandler.showCaptcha) geetestHandler.showCaptcha()
@@ -286,6 +292,7 @@ const runHumanVerification = async (): Promise<boolean> => {
       if (!settled) {
         settled = true
         if (!popupShown) {
+          humanVerificationMessageShown.value = true
           try { ElMessage.error('人机验证超时，请重试或检查拦截设置') } catch {}
         }
         resolve(false)
@@ -302,7 +309,9 @@ const handleLogin = async () => {
     // 人机验证
     const humanOk = await runHumanVerification()
     if (!humanOk) {
-      ElMessage.error('请先完成人机验证')
+      if (!humanVerificationMessageShown.value) {
+        ElMessage.error('请先完成人机验证')
+      }
       return
     }
     const success = await authStore.login({

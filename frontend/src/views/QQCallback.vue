@@ -50,7 +50,7 @@ const error = ref('')
 const success = ref(false)
 const showConfirm = ref(false)
 const tempToken = ref('')
-const profile = ref<{ avatar?: string }>({})
+const profile = ref<{ avatar?: string; nickname?: string }>({})
 
 onMounted(async () => {
   try {
@@ -74,7 +74,8 @@ onMounted(async () => {
       if (response.data.needs_confirm || response.data.signup_required) {
         const t = response.data.tempToken
         const avatar = response.data.profile?.avatar || response.data.qq?.avatar || ''
-        router.replace({ name: 'SignupConfirm', query: { provider: 'qq', token: t, avatar } })
+        const nickname = response.data.profile?.nickname || response.data.qq?.nickname || ''
+        router.replace({ name: 'SignupConfirm', query: { provider: 'qq', token: t, avatar, nickname } })
         return
       }
       // 标记需要刷新绑定状态
@@ -225,7 +226,6 @@ const cancelRegister = () => {
   }
 }
 </style>
-
 
 
 
