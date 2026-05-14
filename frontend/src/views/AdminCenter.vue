@@ -35,22 +35,24 @@
         
         <!-- 移动端标签页导航 -->
         <div class="mobile-tabs">
-          <div 
+          <button 
             v-for="tab in mobileTabs" 
             :key="tab.key"
+            type="button"
             :class="['mobile-tab', { active: activeSection === tab.key }]"
+            :aria-pressed="activeSection === tab.key"
             @click="handleSectionSelect(tab.key)"
           >
             <el-icon><component :is="tab.icon" /></el-icon>
             <span>{{ tab.label }}</span>
-          </div>
+          </button>
         </div>
       </div>
 
       <!-- 桌面端布局 -->
-      <el-row v-if="!isMobile" class="desktop-layout">
+      <div v-if="!isMobile" class="desktop-layout">
         <!-- 左侧导航 -->
-        <el-col :xs="24" :sm="8" :md="6" :lg="5" :xl="4">
+        <div class="admin-nav-col">
           <el-card class="admin-nav-card">
             <el-menu
               v-model="activeSection"
@@ -84,10 +86,10 @@
               </el-menu-item>
             </el-menu>
           </el-card>
-        </el-col>
+        </div>
 
         <!-- 右侧内容面板 -->
-        <el-col :xs="24" :sm="16" :md="18" :lg="19" :xl="20">
+        <div class="admin-content-col">
           <el-card class="admin-panel-card">
             <!-- 系统概览 -->
             <div v-if="activeSection === 'overview'" class="admin-section">
@@ -1151,8 +1153,8 @@
               </el-form>
             </div>
           </el-card>
-        </el-col>
-      </el-row>
+        </div>
+      </div>
       <!-- 移动端内容区域 -->
       <div v-if="isMobile" class="mobile-content">
         <el-card class="mobile-panel-card">
@@ -1224,22 +1226,19 @@
             
             <!-- 移动端用户筛选 -->
             <div class="mobile-user-filters">
-                <!-- 筛选表单标题 -->
                 <div class="user-filter-header">
                   <div class="filter-title">
                     <el-icon class="filter-icon"><User /></el-icon>
                     <span>用户筛选</span>
                   </div>
-                  <div class="filter-subtitle">快速查找和管理系统用户</div>
                 </div>
                 
-                <el-form :model="userFilter" label-position="top" class="user-filter-form">
-                  <!-- 用户搜索区域 -->
-                  <div class="search-section">
-                    <el-form-item label="用户搜索" class="search-item">
+              <el-form :model="userFilter" class="user-filter-form">
+                <div class="search-section">
+                    <el-form-item class="search-item">
                       <el-input
                         v-model="userFilter.search"
-                        placeholder="输入用户名或邮箱"
+                        placeholder="用户名/邮箱"
                         clearable
                         @keyup.enter="searchUsers"
                         class="search-input"
@@ -1251,36 +1250,34 @@
                     </el-form-item>
                   </div>
                   
-                  <!-- 角色和状态筛选 -->
                   <div class="filter-section">
-                    <el-form-item label="用户角色" class="filter-item">
+                    <el-form-item class="filter-item">
                       <el-select 
-                        v-model="userFilter.role" 
-                        placeholder="选择用户角色" 
+                        :model-value="userFilter.role || undefined"
+                        @update:model-value="userFilter.role = $event || ''"
+                        placeholder="用户角色" 
                         clearable
                         class="filter-select"
                       >
-                        <el-option label="全部角色" value="" />
                         <el-option label="管理员" value="admin" />
                         <el-option label="普通用户" value="user" />
                       </el-select>
                     </el-form-item>
                     
-                    <el-form-item label="用户状态" class="filter-item">
+                    <el-form-item class="filter-item">
                       <el-select 
-                        v-model="userFilter.status" 
-                        placeholder="选择用户状态" 
+                        :model-value="userFilter.status || undefined"
+                        @update:model-value="userFilter.status = $event || ''"
+                        placeholder="用户状态" 
                         clearable
                         class="filter-select"
                       >
-                        <el-option label="全部状态" value="" />
                         <el-option label="正常用户" value="active" />
                         <el-option label="禁用用户" value="inactive" />
                       </el-select>
                     </el-form-item>
                   </div>
                   
-                  <!-- 操作按钮 -->
                   <div class="user-action-section">
                     <div class="user-action-buttons">
                       <el-button 
@@ -1290,7 +1287,7 @@
                         class="user-action-btn primary-btn"
                       >
                         <el-icon><Search /></el-icon>
-                        <span>搜索用户</span>
+                        <span class="btn-text">搜索</span>
                       </el-button>
                       
                       <el-button 
@@ -1298,7 +1295,7 @@
                         class="user-action-btn secondary-btn"
                       >
                         <el-icon><Refresh /></el-icon>
-                        <span>重置筛选</span>
+                        <span class="btn-text">重置</span>
                       </el-button>
                     </div>
                   </div>
@@ -1309,20 +1306,16 @@
             <div class="user-actions">
               <!-- 移动端操作按钮 -->
               <div class="mobile-actions" v-if="isMobile">
-                <el-row :gutter="12">
-                  <el-col :span="12">
-                    <el-button type="primary" @click="showCreateUserDialog = true" style="width: 100%">
-                      <el-icon><Plus /></el-icon>
-                      创建用户
-                    </el-button>
-                  </el-col>
-                  <el-col :span="12">
-                    <el-button @click="batchDeleteUsers" :disabled="selectedUsers.length === 0" style="width: 100%">
-                      <el-icon><Delete /></el-icon>
-                      批量删除
-                    </el-button>
-                  </el-col>
-                </el-row>
+                <div class="mobile-action-grid">
+                  <el-button type="primary" @click="showCreateUserDialog = true">
+                    <el-icon><Plus /></el-icon>
+                    创建用户
+                  </el-button>
+                  <el-button @click="batchDeleteUsers" :disabled="selectedUsers.length === 0">
+                    <el-icon><Delete /></el-icon>
+                    批量删除
+                  </el-button>
+                </div>
               </div>
             </div>
             
@@ -1435,26 +1428,23 @@
             
             <!-- 移动端日志筛选 -->
             <div class="mobile-log-filters">
-              <!-- 筛选表单标题 -->
               <div class="log-filter-header">
                 <div class="filter-title">
                   <el-icon class="filter-icon"><Document /></el-icon>
                   <span>日志筛选</span>
                 </div>
-                <div class="filter-subtitle">快速查找和分析系统日志</div>
               </div>
               
-              <el-form :model="logFilter" label-position="top" class="log-filter-form">
-                <!-- 日志级别选择 -->
+              <el-form :model="logFilter" class="log-filter-form">
                 <div class="level-section">
-                  <el-form-item label="日志级别" class="level-item">
+                  <el-form-item class="level-item">
                     <el-select 
-                      v-model="logFilter.level" 
-                      placeholder="选择日志级别" 
+                      :model-value="logFilter.level || undefined"
+                      @update:model-value="logFilter.level = $event || ''"
+                      placeholder="日志级别" 
                       clearable
                       class="level-select"
                     >
-                      <el-option label="全部级别" value="" />
                       <el-option label="错误日志" value="error" />
                       <el-option label="警告日志" value="warning" />
                       <el-option label="信息日志" value="info" />
@@ -1462,12 +1452,11 @@
                   </el-form-item>
                 </div>
                 
-                <!-- 关键词搜索 -->
                 <div class="search-section">
-                  <el-form-item label="关键词搜索" class="search-item">
+                  <el-form-item class="search-item">
                     <el-input
                       v-model="logFilter.keyword"
-                      placeholder="输入关键词搜索日志"
+                      placeholder="关键词"
                       clearable
                       @keyup.enter="searchLogs"
                       class="search-input"
@@ -1479,7 +1468,6 @@
                   </el-form-item>
                 </div>
                 
-                <!-- 操作按钮 -->
                 <div class="log-action-section">
                   <div class="log-action-buttons">
                     <el-button 
@@ -1489,7 +1477,7 @@
                       class="log-action-btn primary-btn"
                     >
                       <el-icon><Search /></el-icon>
-                      <span>搜索日志</span>
+                      <span class="btn-text">搜索</span>
                     </el-button>
                     
                     <el-button 
@@ -1497,7 +1485,7 @@
                       class="log-action-btn secondary-btn"
                     >
                       <el-icon><Download /></el-icon>
-                      <span>导出日志</span>
+                      <span class="btn-text">导出</span>
                     </el-button>
                     
                     <el-button 
@@ -1506,7 +1494,7 @@
                       class="log-action-btn danger-btn"
                     >
                       <el-icon><Delete /></el-icon>
-                      <span>清空日志</span>
+                      <span class="btn-text">清空</span>
                     </el-button>
                   </div>
                 </div>
@@ -1624,29 +1612,22 @@
             
             <!-- 移动端存储操作 -->
             <div class="mobile-storage-actions">
-              <el-row :gutter="12">
-                <el-col :span="12">
-                  <el-button type="primary" @click="showCleanupDialog = true" style="width: 100%">
-                    <el-icon><Delete /></el-icon>
-                    清理存储
-                  </el-button>
-                </el-col>
-                <el-col :span="12">
-                  <el-button @click="showStorageAnalysis" style="width: 100%">
-                    <el-icon><DataAnalysis /></el-icon>
-                    存储分析
-                  </el-button>
-                </el-col>
-              </el-row>
-              
-              <el-row :gutter="12" style="margin-top: 12px;">
-                <el-col :span="24">
-                  <el-button @click="exportStorageReport" style="width: 100%">
-                    <el-icon><Download /></el-icon>
-                    导出报告
-                  </el-button>
-                </el-col>
-              </el-row>
+              <div class="mobile-action-grid">
+                <el-button type="primary" @click="showCleanupDialog = true">
+                  <el-icon><Delete /></el-icon>
+                  清理存储
+                </el-button>
+                <el-button @click="showStorageAnalysis">
+                  <el-icon><DataAnalysis /></el-icon>
+                  存储分析
+                </el-button>
+              </div>
+              <div class="mobile-action-grid single">
+                <el-button @click="exportStorageReport">
+                  <el-icon><Download /></el-icon>
+                  导出报告
+                </el-button>
+              </div>
             </div>
           </div>
           <!-- 系统设置 -->
@@ -1776,20 +1757,16 @@
                 
                 <!-- 操作按钮 -->
                 <div class="settings-actions">
-                  <el-row :gutter="12">
-                    <el-col :span="12">
-                      <el-button type="primary" @click="saveSystemSettings" :loading="savingSettings" style="width: 100%">
-                        <el-icon><Setting /></el-icon>
-                        保存设置
-                      </el-button>
-                    </el-col>
-                    <el-col :span="12">
-                      <el-button @click="fetchSystemSettings" :loading="loadingSettings" style="width: 100%">
-                        <el-icon><Refresh /></el-icon>
-                        重置
-                      </el-button>
-                    </el-col>
-                  </el-row>
+                  <div class="settings-action-grid">
+                    <el-button type="primary" @click="saveSystemSettings" :loading="savingSettings">
+                      <el-icon><Setting /></el-icon>
+                      保存设置
+                    </el-button>
+                    <el-button @click="fetchSystemSettings" :loading="loadingSettings">
+                      <el-icon><Refresh /></el-icon>
+                      重置
+                    </el-button>
+                  </div>
                 </div>
               </el-form>
             </div>
@@ -1857,7 +1834,7 @@
                   </el-form-item>
                 </div>
 
-                <div class="settings-actions">
+                <div class="settings-actions moderation-mobile-actions">
                   <div class="settings-action-item">
                     <el-button type="primary" :loading="moderationSaving" @click="saveModeration" style="width: 100%">保存</el-button>
                   </div>
@@ -4632,9 +4609,17 @@ onUnmounted(() => {
   padding: 24px; // 统一设置所有方向的内边距
   background: #f5f7fa;
   min-height: 100vh;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .page-header {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
   margin-bottom: 24px;
   padding: 20px 0;
   background: linear-gradient(135deg, #374151 0%, #111827 100%);
@@ -4678,6 +4663,11 @@ onUnmounted(() => {
 }
 .admin-center-content {
   // 移除所有内边距，让父级容器控制间距
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
   
   // 重置Element Plus栅格系统，保持响应式布局
   :deep(.el-row) {
@@ -4699,7 +4689,8 @@ onUnmounted(() => {
     .el-col {
       padding-left: 0 !important;
       padding-right: 0 !important;
-      flex: 0 0 auto !important;
+      min-width: 0 !important;
+      box-sizing: border-box;
       
       // 覆盖内联样式
       &[style*="padding-left"] {
@@ -4716,7 +4707,8 @@ onUnmounted(() => {
   :deep(.el-col) {
     padding-left: 0 !important;
     padding-right: 0 !important;
-    flex: 0 0 auto !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
     
     &[style*="padding-left"] {
       padding-left: 0 !important;
@@ -4794,7 +4786,9 @@ onUnmounted(() => {
         :deep(.el-col) {
           padding-left: 0 !important;
           padding-right: 0 !important;
-          flex: 0 0 auto !important;
+          flex: 1 1 0 !important;
+          width: auto !important;
+          min-width: 0 !important;
         }
         
         .stat-card {
@@ -5090,6 +5084,22 @@ onUnmounted(() => {
         padding: 16px;
         background: #f8f9fa;
         border-radius: 8px;
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+        overflow: hidden;
+
+        :deep(.el-form) {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          max-width: 100%;
+        }
+
+        :deep(.el-form-item) {
+          margin-right: 0;
+          margin-bottom: 0;
+        }
       }
       
       
@@ -5939,6 +5949,285 @@ onUnmounted(() => {
     }
   }
 }
+
+// 移动端用户筛选精简版覆盖
+.mobile-user-filters {
+  padding: 10px 12px !important;
+  margin-bottom: 12px !important;
+  overflow: hidden !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  animation: none !important;
+
+  &::before,
+  &::after {
+    display: none !important;
+  }
+
+  &:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  .user-filter-header {
+    position: relative;
+    z-index: 1;
+    margin-bottom: 8px !important;
+    padding: 0 !important;
+  }
+
+  .filter-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0 !important;
+
+    .filter-icon {
+      margin-right: 0 !important;
+      color: #4b5563 !important;
+      background: none !important;
+      -webkit-text-fill-color: currentColor !important;
+      font-size: 15px !important;
+    }
+
+    span {
+      color: #111827 !important;
+      font-size: 15px !important;
+      font-weight: 700 !important;
+      letter-spacing: 0 !important;
+    }
+  }
+
+  .filter-subtitle {
+    display: none !important;
+  }
+
+  .user-filter-form {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 0 !important;
+  }
+
+  .search-section,
+  .filter-section,
+  .user-action-section {
+    margin: 0 !important;
+  }
+
+  .filter-section {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .search-item,
+  .filter-item {
+    margin-bottom: 0 !important;
+
+    :deep(.el-form-item__label) {
+      display: none !important;
+    }
+
+    :deep(.el-form-item__content) {
+      width: 100%;
+      line-height: 1 !important;
+    }
+  }
+
+  .search-input,
+  .filter-select {
+    width: 100%;
+
+    :deep(.el-select__selection) {
+      min-width: 0 !important;
+      flex: 1 1 auto !important;
+      width: 100% !important;
+    }
+
+    :deep(.el-input__wrapper),
+    :deep(.el-select__wrapper) {
+      height: 36px !important;
+      min-height: 36px !important;
+      border: none !important;
+      border-radius: 8px !important;
+      background: #fff !important;
+      box-shadow: 0 0 0 1px #d1d5db inset !important;
+      transform: none !important;
+      transition: box-shadow 0.2s ease, background-color 0.2s ease !important;
+
+      &:hover {
+        box-shadow: 0 0 0 1px #9ca3af inset !important;
+        transform: none !important;
+      }
+
+      &.is-focus,
+      &:focus-within {
+        animation: none !important;
+        box-shadow: 0 0 0 1px #111827 inset, 0 0 0 3px rgba(17, 24, 39, 0.08) !important;
+        transform: none !important;
+      }
+    }
+  }
+
+  .search-input :deep(.el-input__inner),
+  .filter-select :deep(.el-select__selected-item),
+  .filter-select :deep(.el-select__placeholder) {
+    display: flex !important;
+    align-items: center !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: 34px !important;
+    padding: 0 10px !important;
+    color: #111827 !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    line-height: 34px !important;
+  }
+
+  .search-input :deep(.el-input__inner::placeholder),
+  .filter-select :deep(.el-select__placeholder),
+  .filter-select :deep(.el-select__placeholder span) {
+    color: #6b7280 !important;
+    -webkit-text-fill-color: #6b7280 !important;
+    font-weight: 400 !important;
+    opacity: 1 !important;
+  }
+
+  .filter-select :deep(.el-select__placeholder),
+  .filter-select :deep(.el-select__placeholder.is-transparent),
+  .filter-select :deep(.el-select__selected-item.el-select__placeholder) {
+    position: static !important;
+    top: auto !important;
+    transform: none !important;
+    z-index: 1 !important;
+    width: auto !important;
+    flex: 1 1 auto !important;
+    visibility: visible !important;
+    color: #6b7280 !important;
+    -webkit-text-fill-color: #6b7280 !important;
+    opacity: 1 !important;
+  }
+
+  .filter-select :deep(.el-select__placeholder.is-transparent span),
+  .filter-select :deep(.el-select__selected-item.el-select__placeholder span) {
+    color: #6b7280 !important;
+    -webkit-text-fill-color: #6b7280 !important;
+    opacity: 1 !important;
+  }
+
+  .search-input :deep(.el-input__prefix) {
+    padding-left: 8px !important;
+  }
+
+  .filter-select :deep(.el-select__suffix) {
+    padding-right: 8px !important;
+  }
+
+  .search-prefix-icon {
+    color: #9ca3af !important;
+    font-size: 14px !important;
+  }
+
+  .user-action-buttons {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px !important;
+  }
+
+  .user-action-btn {
+    min-width: 0;
+    height: 34px !important;
+    margin: 0 !important;
+    padding: 0 6px !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 8px !important;
+    background: #fff !important;
+    color: #374151 !important;
+    box-shadow: none !important;
+    transform: none !important;
+    letter-spacing: 0 !important;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease !important;
+
+    &::before {
+      display: none !important;
+    }
+
+    &:hover,
+    &:active {
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    :deep(.el-icon),
+    .el-icon {
+      margin-right: 3px !important;
+      font-size: 13px !important;
+    }
+
+    .btn-text {
+      overflow: hidden;
+      font-size: 12px !important;
+      font-weight: 600 !important;
+      line-height: 1.2 !important;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    &.primary-btn {
+      border-color: #111827 !important;
+      background: #111827 !important;
+      color: #fff !important;
+
+      &:hover {
+        background: #020617 !important;
+      }
+    }
+
+    &.secondary-btn:hover {
+      border-color: #9ca3af !important;
+      background: #f8fafc !important;
+      color: #111827 !important;
+    }
+  }
+}
+
+@media (min-width: 520px) and (max-width: 767px) {
+  .mobile-user-filters {
+    .user-filter-form {
+      grid-template-columns: minmax(0, 2fr) minmax(96px, 1fr) minmax(96px, 1fr);
+      align-items: end;
+    }
+
+    .filter-section {
+      display: contents;
+    }
+
+    .user-action-section {
+      grid-column: 1 / -1;
+    }
+  }
+}
+
+@media (max-width: 360px) {
+  .mobile-user-filters {
+    .user-action-btn {
+      .el-icon,
+      :deep(.el-icon) {
+        margin-right: 0 !important;
+      }
+
+      .btn-text {
+        display: none;
+      }
+    }
+  }
+}
 // ==================== 移动端筛选表单样式优化 ====================
 .mobile-filters {
   background: #f8f9fa;
@@ -6123,8 +6412,24 @@ onUnmounted(() => {
 // ==================== 移动端操作按钮样式优化 ====================
 .mobile-actions {
   margin-bottom: 20px;
+
+  .mobile-action-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+
+    :deep(.el-button + .el-button) {
+      margin-left: 0 !important;
+    }
+  }
   
   .el-button {
+    width: 100%;
+    min-width: 0;
+    margin: 0 !important;
     height: 48px;
     font-size: 15px;
     font-weight: 600;
@@ -6430,20 +6735,21 @@ onUnmounted(() => {
 }
 // ==================== 移动端存储管理样式 ====================
 .mobile-storage-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
   margin-bottom: 20px;
   
   .storage-stat-card {
     background: #fff;
     border-radius: 12px;
-    padding: 16px;
+    min-width: 0;
+    padding: 14px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     border: 1px solid #e4e7ed;
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 10px;
     transition: all 0.3s ease;
     
     &:hover {
@@ -6452,15 +6758,16 @@ onUnmounted(() => {
     }
     
     .stat-icon {
-      width: 48px;
-      height: 48px;
+      flex: 0 0 auto;
+      width: 42px;
+      height: 42px;
       border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
       
       .el-icon {
-        font-size: 24px;
+        font-size: 22px;
         color: #fff;
       }
       
@@ -6478,13 +6785,17 @@ onUnmounted(() => {
     }
     
     .stat-info {
+      min-width: 0;
       flex: 1;
       
       .stat-value {
-        font-size: 18px;
+        overflow: hidden;
+        font-size: 17px;
         font-weight: 600;
         color: #303133;
         margin-bottom: 4px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       
       .stat-label {
@@ -6545,7 +6856,33 @@ onUnmounted(() => {
 }
 
 .mobile-storage-actions {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+
+  .mobile-action-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
+
+    &.single {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    :deep(.el-button + .el-button) {
+      margin-left: 0 !important;
+    }
+  }
+
   .el-button {
+    width: 100%;
+    min-width: 0;
+    margin: 0 !important;
     height: 44px;
     font-size: 14px;
     font-weight: 600;
@@ -6561,6 +6898,61 @@ onUnmounted(() => {
     .el-icon {
       margin-right: 6px;
       font-size: 14px;
+    }
+  }
+}
+
+@media (max-width: 420px) {
+  .mobile-storage-stats {
+    gap: 8px;
+
+    .storage-stat-card {
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 10px;
+      gap: 8px;
+
+      .stat-icon {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+
+        .el-icon {
+          font-size: 18px;
+        }
+      }
+
+      .stat-info {
+        width: 100%;
+      }
+
+      .stat-value {
+        font-size: 14px;
+      }
+
+      .stat-label {
+        font-size: 12px;
+      }
+    }
+  }
+
+  .mobile-actions,
+  .mobile-storage-actions,
+  .mobile-settings-form .settings-actions {
+    .mobile-action-grid,
+    .settings-action-grid {
+      gap: 8px;
+    }
+
+    .el-button {
+      height: 42px;
+      padding: 0 6px;
+      font-size: 13px;
+
+      .el-icon {
+        margin-right: 4px;
+        font-size: 14px;
+      }
     }
   }
 }
@@ -6643,8 +7035,45 @@ onUnmounted(() => {
     padding: 20px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     border: 1px solid #e4e7ed;
+
+    .settings-action-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow: hidden;
+      justify-self: stretch;
+
+      :deep(.el-button + .el-button) {
+        margin-left: 0 !important;
+      }
+    }
+
+    &.moderation-mobile-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow: hidden;
+      justify-items: stretch;
+    }
+
+    .settings-action-item {
+      min-width: 0;
+
+      .el-button {
+        margin-left: 0 !important;
+      }
+    }
     
     .el-button {
+      width: 100%;
+      min-width: 0;
+      margin: 0 !important;
       height: 48px;
       font-size: 15px;
       font-weight: 600;
@@ -6792,15 +7221,106 @@ onUnmounted(() => {
   }
 }
 
+// 桌面端管理中心宽度与导航对齐修正
+// 与 isMobile(width < 768) 保持一致，避免 768px 时桌面 DOM 退化为上下布局
+@media (min-width: 768px) {
+  .desktop-layout {
+    width: 100%;
+    max-width: 100%;
+    display: grid !important;
+    grid-template-columns: 168px minmax(0, 1fr);
+    align-items: flex-start;
+    justify-items: stretch;
+    gap: 24px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  .desktop-layout > .admin-nav-col {
+    flex: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+  }
+
+  .desktop-layout > .admin-content-col {
+    flex: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  .admin-nav-card,
+  .admin-panel-card {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-nav-card {
+    :deep(.el-card__body) {
+      padding: 12px;
+    }
+
+    .admin-menu {
+      width: 100%;
+    }
+
+    .admin-menu :deep(.el-menu-item) {
+      justify-content: flex-start;
+      padding: 0 12px 0 14px !important;
+    }
+
+    .admin-menu :deep(.el-menu-item .el-icon) {
+      margin-right: 10px;
+    }
+  }
+
+  .admin-panel-card {
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+
+    :deep(.el-card__body) {
+      width: auto !important;
+      max-width: none !important;
+      box-sizing: border-box !important;
+      overflow: hidden;
+    }
+
+    .stats-cards {
+      width: 100%;
+
+      :deep(.el-col) {
+        flex: 1 1 0 !important;
+        width: auto !important;
+        max-width: none !important;
+        min-width: 0;
+      }
+
+      .stat-card {
+        width: 100%;
+        min-width: 0;
+      }
+    }
+  }
+}
+
 // ==================== 移动端专用样式 ====================
 
 // 移动端导航栏
 .mobile-nav-bar {
   background: #fff;
-  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
   padding: 16px;
   margin-bottom: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  box-sizing: border-box;
   
   .mobile-nav-header {
     display: flex;
@@ -6810,15 +7330,19 @@ onUnmounted(() => {
     
     .mobile-nav-title {
       font-size: 18px;
-      font-weight: 600;
-      color: #303133;
+      font-weight: 700;
+      color: #111827;
       margin: 0;
+      line-height: 1.2;
     }
     
     .mobile-refresh-btn {
-      width: 40px;
-      height: 40px;
-      border-radius: 8px;
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      padding: 0;
+      background: #111827;
+      border-color: #111827;
     }
   }
   
@@ -6834,6 +7358,7 @@ onUnmounted(() => {
       align-items: center;
       gap: 4px;
       padding: 12px 16px;
+      border: none;
       border-radius: 8px;
       background: #f5f7fa;
       color: #606266;
@@ -6841,6 +7366,8 @@ onUnmounted(() => {
       transition: all 0.3s ease;
       min-width: 60px;
       flex-shrink: 0;
+      appearance: none;
+      font: inherit;
       
       .el-icon {
         font-size: 18px;
@@ -6881,6 +7408,35 @@ onUnmounted(() => {
       :deep(.el-icon) { color: #1f1f1f; }
     }
     :deep(.el-form-item__label) { color: #6f6f6f; }
+  }
+}
+
+@media (min-width: 490px) and (max-width: 767px) {
+  .mobile-nav-bar {
+    .mobile-tabs {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 6px;
+      overflow: visible;
+      padding-bottom: 0;
+    }
+
+    .mobile-tab {
+      justify-content: center;
+      min-width: 0;
+      min-height: 60px;
+      padding: 9px 3px;
+      flex-shrink: 1;
+
+      span {
+        display: block;
+        width: 100%;
+        overflow: hidden;
+        text-align: center;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
   }
 }
 
@@ -8309,6 +8865,303 @@ onUnmounted(() => {
   &:active::before {
     width: 300px;
     height: 300px;
+  }
+}
+
+// 移动端日志筛选精简版覆盖
+.mobile-log-filters {
+  padding: 10px 12px !important;
+  margin-bottom: 12px !important;
+  overflow: hidden !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  animation: none !important;
+
+  &::before,
+  &::after {
+    display: none !important;
+  }
+
+  &:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  .log-filter-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 0 !important;
+    border-bottom: 0 !important;
+    animation: none !important;
+  }
+
+  .filter-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0 !important;
+
+    .filter-icon {
+      margin-right: 0 !important;
+      color: #4b5563 !important;
+      background: none !important;
+      -webkit-text-fill-color: currentColor !important;
+      font-size: 15px !important;
+    }
+
+    span {
+      color: #111827 !important;
+      font-size: 15px !important;
+      font-weight: 700 !important;
+      letter-spacing: 0 !important;
+    }
+  }
+
+  .filter-subtitle {
+    display: none !important;
+  }
+
+  .log-filter-form {
+    display: grid;
+    grid-template-columns: minmax(92px, 0.7fr) minmax(0, 1.3fr);
+    gap: 8px;
+    align-items: end;
+    padding: 0 !important;
+    animation: none !important;
+  }
+
+  .level-section,
+  .search-section,
+  .log-action-section {
+    margin-bottom: 0 !important;
+    animation: none !important;
+  }
+
+  .level-item,
+  .search-item {
+    margin-bottom: 0 !important;
+
+    :deep(.el-form-item__label) {
+      display: none !important;
+    }
+
+    :deep(.el-form-item__content) {
+      width: 100%;
+      line-height: 1 !important;
+    }
+  }
+
+  .level-select,
+  .search-input {
+    width: 100%;
+
+    :deep(.el-select__selection) {
+      min-width: 0 !important;
+      flex: 1 1 auto !important;
+      width: 100% !important;
+    }
+
+    :deep(.el-select__wrapper),
+    :deep(.el-input__wrapper) {
+      height: 36px !important;
+      min-height: 36px !important;
+      border: none !important;
+      border-radius: 8px !important;
+      background: #fff !important;
+      box-shadow: 0 0 0 1px #d1d5db inset !important;
+      transform: none !important;
+      transition: box-shadow 0.2s ease, background-color 0.2s ease !important;
+
+      &:hover {
+        box-shadow: 0 0 0 1px #9ca3af inset !important;
+        transform: none !important;
+      }
+
+      &.is-focus,
+      &:focus-within {
+        animation: none !important;
+        box-shadow: 0 0 0 1px #111827 inset, 0 0 0 3px rgba(17, 24, 39, 0.08) !important;
+        transform: none !important;
+      }
+    }
+  }
+
+  .level-select :deep(.el-select__selection) {
+    height: 34px !important;
+  }
+
+  .level-select :deep(.el-select__selected-item),
+  .level-select :deep(.el-select__placeholder),
+  .search-input :deep(.el-input__inner) {
+    display: flex !important;
+    align-items: center !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: 34px !important;
+    padding: 0 10px !important;
+    color: #111827 !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    line-height: 34px !important;
+  }
+
+  .level-select :deep(.el-select__placeholder),
+  .level-select :deep(.el-select__placeholder span),
+  .search-input :deep(.el-input__inner::placeholder) {
+    color: #6b7280 !important;
+    -webkit-text-fill-color: #6b7280 !important;
+    font-weight: 400 !important;
+    opacity: 1 !important;
+  }
+
+  .level-select :deep(.el-select__placeholder),
+  .level-select :deep(.el-select__placeholder.is-transparent),
+  .level-select :deep(.el-select__selected-item.el-select__placeholder) {
+    position: static !important;
+    top: auto !important;
+    transform: none !important;
+    z-index: 1 !important;
+    width: auto !important;
+    flex: 1 1 auto !important;
+    visibility: visible !important;
+    color: #6b7280 !important;
+    -webkit-text-fill-color: #6b7280 !important;
+    opacity: 1 !important;
+  }
+
+  .level-select :deep(.el-select__placeholder.is-transparent span),
+  .level-select :deep(.el-select__selected-item.el-select__placeholder span) {
+    color: #6b7280 !important;
+    -webkit-text-fill-color: #6b7280 !important;
+    opacity: 1 !important;
+  }
+
+  .level-select :deep(.el-select__suffix) {
+    padding-right: 8px !important;
+  }
+
+  .search-input :deep(.el-input__prefix) {
+    padding-left: 8px !important;
+  }
+
+  .search-prefix-icon {
+    color: #9ca3af !important;
+    font-size: 14px !important;
+  }
+
+  .log-action-section {
+    grid-column: 1 / -1;
+  }
+
+  .log-action-buttons {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px !important;
+  }
+
+  .log-action-btn {
+    min-width: 0;
+    height: 34px !important;
+    margin: 0 !important;
+    padding: 0 6px !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 8px !important;
+    background: #fff !important;
+    color: #374151 !important;
+    box-shadow: none !important;
+    transform: none !important;
+    letter-spacing: 0 !important;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease !important;
+
+    &::before {
+      display: none !important;
+    }
+
+    &:hover,
+    &:active {
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    :deep(.el-icon),
+    .el-icon {
+      margin-right: 3px !important;
+      font-size: 13px !important;
+    }
+
+    .btn-text {
+      overflow: hidden;
+      font-size: 12px !important;
+      font-weight: 600 !important;
+      line-height: 1.2 !important;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    &.primary-btn {
+      border-color: #111827 !important;
+      background: #111827 !important;
+      color: #fff !important;
+
+      &:hover {
+        background: #020617 !important;
+      }
+    }
+
+    &.secondary-btn:hover {
+      border-color: #9ca3af !important;
+      background: #f8fafc !important;
+      color: #111827 !important;
+    }
+
+    &.danger-btn {
+      border-color: #fecaca !important;
+      color: #dc2626 !important;
+
+      &:hover {
+        border-color: #fca5a5 !important;
+        background: #fef2f2 !important;
+        color: #b91c1c !important;
+      }
+    }
+  }
+}
+
+@media (min-width: 640px) and (max-width: 767px) {
+  .mobile-log-filters {
+    .log-filter-form {
+      grid-template-columns: minmax(140px, 0.85fr) minmax(0, 1.15fr);
+      align-items: end;
+    }
+
+    .log-action-section {
+      grid-column: 1 / -1;
+    }
+  }
+}
+
+@media (max-width: 360px) {
+  .mobile-log-filters {
+    .log-filter-form {
+      grid-template-columns: minmax(82px, 0.68fr) minmax(0, 1.32fr);
+    }
+
+    .log-action-btn {
+      .el-icon,
+      :deep(.el-icon) {
+        margin-right: 0 !important;
+      }
+
+      .btn-text {
+        display: none;
+      }
+    }
   }
 }
 

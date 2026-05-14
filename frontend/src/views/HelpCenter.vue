@@ -26,27 +26,12 @@
       </div>
     </section>
 
-    <section class="quick-entry-section" aria-label="常用入口">
-      <router-link class="quick-entry" to="/">
-        <el-icon><Folder /></el-icon>
-        <span>文件管理</span>
-      </router-link>
-      <router-link class="quick-entry" to="/dashboard">
-        <el-icon><InfoFilled /></el-icon>
-        <span>仪表盘</span>
-      </router-link>
-      <router-link class="quick-entry" to="/user-center">
-        <el-icon><User /></el-icon>
-        <span>个人资料</span>
-      </router-link>
-      <router-link class="quick-entry" to="/recycle-bin">
-        <el-icon><Delete /></el-icon>
-        <span>回收站</span>
-      </router-link>
-    </section>
-
     <div class="help-layout">
       <aside class="help-nav" aria-label="帮助分类">
+        <div class="nav-heading">
+          <span>帮助分类</span>
+          <small>按主题快速定位指南</small>
+        </div>
         <button
           v-for="category in helpCategories"
           :key="category.key"
@@ -474,40 +459,6 @@ onUnmounted(() => {
   }
 }
 
-.quick-entry-section {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  max-width: 1180px;
-  margin: 0 auto 18px;
-}
-
-.quick-entry {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 52px;
-  padding: 0 16px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #1f2937;
-  text-decoration: none;
-  font-weight: 700;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
-  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
-
-  .el-icon {
-    color: #2563eb;
-  }
-
-  &:hover {
-    border-color: #bfdbfe;
-    box-shadow: 0 12px 28px rgba(37, 99, 235, 0.12);
-    transform: translateY(-1px);
-  }
-}
-
 .help-layout {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
@@ -522,12 +473,33 @@ onUnmounted(() => {
   top: 84px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px;
+  gap: 10px;
+  padding: 14px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.nav-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 2px 8px;
+  border-bottom: 1px solid #eef2f7;
+
+  span {
+    color: #0f172a;
+    font-size: 15px;
+    line-height: 1.4;
+    font-weight: 800;
+  }
+
+  small {
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.5;
+  }
 }
 
 .nav-item {
@@ -709,10 +681,6 @@ onUnmounted(() => {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .quick-entry-section {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .help-layout {
     grid-template-columns: 1fr;
   }
@@ -722,39 +690,128 @@ onUnmounted(() => {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .nav-heading {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 720px) {
   .help-center-page {
+    padding: 16px;
+  }
+
+  .help-hero {
+    gap: 20px;
+    margin-bottom: 20px;
+    padding: 22px 18px;
+  }
+
+  .hero-copy {
+    gap: 0;
+  }
+
+  .hero-copy h1 {
+    font-size: 28px;
+    line-height: 1.25;
+  }
+
+  .hero-copy p {
+    margin-top: 14px;
+    font-size: 14px;
+    line-height: 1.9;
+  }
+
+  .hero-panel {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .panel-item {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    min-height: 74px;
+    padding: 12px;
+
+    strong {
+      font-size: 24px;
+      line-height: 1.1;
+    }
+
+    span {
+      margin-top: 8px;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+  }
+
+  .help-layout {
+    gap: 20px;
+  }
+
+  .help-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
     padding: 14px;
   }
 
-  .help-hero,
+  .nav-heading {
+    grid-column: 1 / -1;
+    padding-bottom: 10px;
+  }
+
+  .nav-item {
+    min-height: 54px;
+    padding: 0 12px;
+  }
+
   .guide-section {
     padding: 18px;
   }
 
-  .hero-copy h1 {
-    font-size: 26px;
-  }
-
-  .hero-panel,
-  .quick-entry-section,
-  .help-nav,
   .guide-grid {
     grid-template-columns: 1fr;
   }
 
-  .panel-item {
-    min-height: 56px;
-  }
-
-  .quick-entry {
-    min-height: 48px;
-  }
-
   .section-heading {
     align-items: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .help-center-page {
+    padding: 12px;
+  }
+
+  .help-hero {
+    padding: 20px 16px;
+  }
+
+  .hero-copy h1 {
+    font-size: 24px;
+  }
+
+  .hero-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-item {
+    flex-direction: row;
+    justify-content: space-between;
+    min-height: 54px;
+
+    span {
+      margin-top: 0;
+    }
+  }
+
+  .help-nav {
+    gap: 8px;
+  }
+
+  .nav-item {
+    min-height: 50px;
   }
 }
 </style>

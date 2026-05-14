@@ -321,9 +321,12 @@ router.beforeEach(async (to, from, next) => {
   // 已登录用户访问登录页面，重定向到首页
   if ((to.name === 'Login' || to.name === 'Register')) {
     const authStore = useAuthStore()
-    if (authStore.token && authStore.user) {
-      next('/')
-      return
+    if (authStore.token) {
+      const restored = authStore.user ? true : await authStore.restoreSession()
+      if (restored) {
+        next('/')
+        return
+      }
     }
   }
   

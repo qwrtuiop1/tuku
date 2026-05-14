@@ -304,6 +304,29 @@ router.post('/login', [
   });
 }));
 
+// 刷新登录令牌，用于“记住我”免登录接近过期时续签
+router.post('/refresh', authenticateToken, [
+  body('rememberMe').optional().isBoolean().withMessage('记住我选项必须是布尔值')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      message: '数据验证失败',
+      errors: errors.array()
+    });
+  }
+
+  const rememberMe = req.body.rememberMe === true;
+  const tokenExpiry = rememberMe ? '30d' : '7d';
+  const token = generateToken(req.user.id, tokenExpiry);
+
+  res.json({
+    success: true,
+    token,
+    expiresIn: tokenExpiry
+  });
+}));
+
 // 获取当前用户信息
 router.get('/me', authenticateToken, asyncHandler(async (req, res) => {
   // 用户信息已经在中间件中验证并设置到req.user

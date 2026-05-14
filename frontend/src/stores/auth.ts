@@ -183,7 +183,8 @@ export const useAuthStore = defineStore('auth', () => {
       if (hoursUntilExpiry < 24 && hoursUntilExpiry > 0) {
         // Token即将过期，尝试刷新
         
-        const response = await api.post('/auth/refresh', { token: token.value })
+        const rememberMe = localStorage.getItem('rememberMe') === 'true' && localStorage.getItem('token') === token.value
+        const response = await api.post('/auth/refresh', { rememberMe })
         if (response.data.success) {
           const { token: newToken } = response.data
           
@@ -211,6 +212,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   // 检查认证状态
   const checkAuth = async () => {
+    token.value = token.value || getValidToken()
     if (!token.value) return false
     
     // 尝试刷新token（如果需要）
@@ -244,6 +246,21 @@ export const useAuthStore = defineStore('auth', () => {
       logout(false)
       return false
     }
+  }
+
+  // 从本地/会话存储恢复登录态，用于刷新页面或再次打开登录页时免输账号密码
+  const restoreSession = async () => {
+    const storedToken = getValidToken()
+    if (!storedToken) {
+      token.value = null
+      user.value = null
+      return false
+    }
+
+    token.value = storedToken
+    if (user.value) return true
+
+    return await checkAuth()
   }
 
   // 更新用户信息
@@ -310,11 +327,11 @@ export const useAuthStore = defineStore('auth', () => {
     register,
     logout,
     checkAuth,
+    restoreSession,
     refreshTokenIfNeeded,
     updateUser,
     forgotPassword,
     resetPassword
   }
 })
-
 
