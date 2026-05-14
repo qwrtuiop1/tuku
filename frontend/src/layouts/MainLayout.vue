@@ -346,6 +346,59 @@
       </div>
     </el-dialog>
 
+    <!-- 移动端通知详情弹窗 -->
+    <el-drawer
+      v-model="mobileNotificationDetailVisible"
+      direction="btt"
+      size="70%"
+      :show-close="false"
+      class="mobile-notification-drawer"
+    >
+      <template #header>
+        <div class="mobile-detail-header">
+          <h3 class="mobile-detail-title">{{ detailNotification?.title || '通知详情' }}</h3>
+          <el-button text @click="mobileNotificationDetailVisible = false">
+            <el-icon><Close /></el-icon>
+          </el-button>
+        </div>
+      </template>
+      <div v-if="detailNotification" class="mobile-detail-content">
+        <div class="mobile-detail-badges">
+          <span class="detail-type">{{ getNotificationTypeText(detailNotification.notification_type) }}</span>
+          <span :class="['detail-priority', `priority-${detailNotification.priority}`]">
+            {{ getPriorityText(detailNotification.priority) }}
+          </span>
+          <span v-if="detailNotification.is_read" class="read-badge">已读</span>
+          <span v-else class="unread-badge">未读</span>
+        </div>
+        <div class="mobile-detail-body">
+          <div class="detail-text">{{ detailNotification.content || '暂无内容' }}</div>
+        </div>
+        <div class="mobile-detail-footer">
+          <div class="detail-time">
+            <i class="el-icon-time"></i>
+            {{ formatDateTime(detailNotification.created_at) }}
+            <span v-if="detailNotification.read_at" class="read-time">
+              · 已读于 {{ formatDateTime(detailNotification.read_at) }}
+            </span>
+          </div>
+          <div class="detail-actions">
+            <el-button
+              v-if="!detailNotification.is_read"
+              type="primary"
+              size="small"
+              @click="markNotificationAsRead(detailNotification.id)"
+            >
+              标记为已读
+            </el-button>
+            <el-button type="primary" size="small" plain @click="markNotificationAsUnread(detailNotification.id)">
+              标记未读
+            </el-button>
+          </div>
+        </div>
+      </div>
+    </el-drawer>
+
     <!-- 移动端底部 Dock 导航栏 -->
     <div v-if="isMobile" class="mobile-bottom-nav">
       <!-- 椭圆玻璃指示器：通过 absolute 定位 + left transition 实现丝滑滑动 -->
@@ -391,7 +444,8 @@ import {
   Close,
   Grid,
   List,
-  QuestionFilled
+  QuestionFilled,
+  Close
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { formatFileSize, getStorageUsageColor, formatPercentage } from '@/utils/helpers'
@@ -423,6 +477,7 @@ const allNotifications = ref([])
 const notificationCheckInterval = ref(null)
 const notificationsDialogVisible = ref(false)
 const detailNotification = ref<any>(null)
+const mobileNotificationDetailVisible = ref(false)
 const eventSource = ref<EventSource | null>(null)
 const configVersion = ref<string | null>(null)
 let configPoller: any = null
@@ -772,25 +827,57 @@ const fetchGlobalNotifications = async () => {
 const markNotificationAsRead = async (notificationId: number) => {
   try {
     await api.put(`/auth/notifications/${notificationId}/read`)
-    
+
     // 从全局通知列表中移除
     globalNotifications.value = globalNotifications.value.filter(n => n.id !== notificationId)
-    
+
+    // 更新当前详情通知状态
+    if (detailNotification.value && detailNotification.value.id === notificationId) {
+      detailNotification.value = {
+        ...detailNotification.value,
+        is_read: 1,
+        read_at: new Date().toISOString()
+      }
+    }
+
     ElMessage.success('通知已标记为已读')
   } catch (error) {
     ElMessage.error('标记通知为已读失败')
   }
 }
 
+const markNotificationAsUnread = async (notificationId: number) => {
+  try {
+    await api.put(`/auth/notifications/${notificationId}/unread`)
+
+    // 更新当前详情通知状态
+    if (detailNotification.value && detailNotification.value.id === notificationId) {
+      detailNotification.value = {
+        ...detailNotification.value,
+        is_read: 0,
+        read_at: null
+      }
+    }
+
+    ElMessage.success('通知已标记为未读')
+  } catch (error) {
+    ElMessage.error('标记通知为未读失败')
+  }
+}
+
 const closeNotification = (notificationId: number) => {
   // 从全局通知列表中移除
   globalNotifications.value = globalNotifications.value.filter(n => n.id !== notificationId)
-  
+
   // 如果当前显示的是这个通知的详情，则关闭详情面板
   if (detailNotification.value && detailNotification.value.id === notificationId) {
     detailNotification.value = null
+    // 移动端关闭抽屉
+    if (isMobile.value) {
+      mobileNotificationDetailVisible.value = false
+    }
   }
-  
+
   // 如果所有通知都已关闭，关闭整个对话框
   if (globalNotifications.value.length === 0) {
     closeNotificationsDialog()
@@ -839,7 +926,7 @@ const openNotificationDetail = async (n: any) => {
   if (!n.is_read) {
     const notificationId = n.id
     const now = new Date().toISOString()
-    
+
     // 立即更新本地状态（乐观更新）
     const notificationIndex = allNotifications.value.findIndex(notif => notif.id === notificationId)
     if (notificationIndex !== -1) {
@@ -849,7 +936,7 @@ const openNotificationDetail = async (n: any) => {
         read_at: now
       }
     }
-    
+
     // 从全局通知中移除
     const globalIndex = globalNotifications.value.findIndex(notif => notif.id === notificationId)
     if (globalIndex !== -1) {
@@ -874,8 +961,13 @@ const openNotificationDetail = async (n: any) => {
     }
   }
 
-  if (!notificationsDialogVisible.value) {
-    notificationsDialogVisible.value = true
+  // 移动端打开抽屉，桌面端打开对话框
+  if (isMobile.value) {
+    mobileNotificationDetailVisible.value = true
+  } else {
+    if (!notificationsDialogVisible.value) {
+      notificationsDialogVisible.value = true
+    }
   }
 }
 
@@ -3367,6 +3459,11 @@ onUnmounted(() => {
         .notification-message {
           font-size: 12px;
         }
+        
+        // 移动端隐藏内容摘要
+        .notification-summary-text {
+          display: none;
+        }
       }
     }
   }
@@ -3759,6 +3856,90 @@ onUnmounted(() => {
 
     .detail-text {
       min-height: 120px;
+    }
+  }
+}
+
+// 移动端通知详情抽屉样式
+.mobile-notification-drawer {
+  :deep(.el-drawer) {
+    border-radius: 16px 16px 0 0;
+    max-height: 80vh;
+  }
+
+  :deep(.el-drawer__header) {
+    margin-bottom: 0;
+    padding: 16px 20px;
+    border-bottom: 1px solid #ebeef5;
+  }
+
+  .mobile-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+
+    .mobile-detail-title {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: #303133;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  :deep(.el-drawer__body) {
+    padding: 20px;
+    overflow-y: auto;
+  }
+
+  .mobile-detail-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+
+    .mobile-detail-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .mobile-detail-body {
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 16px;
+
+      .detail-text {
+        color: #606266;
+        font-size: 15px;
+        line-height: 1.7;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+    }
+
+    .mobile-detail-footer {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+
+      .detail-time {
+        color: #909399;
+        font-size: 13px;
+      }
+
+      .detail-actions {
+        display: flex;
+        gap: 12px;
+
+        .el-button {
+          flex: 1;
+        }
+      }
     }
   }
 }

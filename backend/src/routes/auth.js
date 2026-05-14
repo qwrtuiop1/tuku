@@ -1717,17 +1717,17 @@ router.get('/notifications/stream', authenticateToken, asyncHandler(async (req, 
 router.put('/notifications/:id/read', authenticateToken, asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const notificationId = req.params.id;
-  
+
   try {
     const [result] = await pool.execute(
       'UPDATE user_notifications SET is_read = 1, read_at = NOW() WHERE notification_id = ? AND user_id = ?',
       [notificationId, userId]
     );
-    
+
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: '通知不存在' });
     }
-    
+
     res.json({
       success: true,
       message: '通知已标记为已读'
@@ -1735,6 +1735,31 @@ router.put('/notifications/:id/read', authenticateToken, asyncHandler(async (req
   } catch (error) {
     console.error('标记通知为已读失败:', error);
     res.status(500).json({ message: '标记通知为已读失败' });
+  }
+}));
+
+// 标记通知为未读
+router.put('/notifications/:id/unread', authenticateToken, asyncHandler(async (req, res) => {
+  const userId = req.user.id;
+  const notificationId = req.params.id;
+
+  try {
+    const [result] = await pool.execute(
+      'UPDATE user_notifications SET is_read = 0, read_at = NULL WHERE notification_id = ? AND user_id = ?',
+      [notificationId, userId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: '通知不存在' });
+    }
+
+    res.json({
+      success: true,
+      message: '通知已标记为未读'
+    });
+  } catch (error) {
+    console.error('标记通知为未读失败:', error);
+    res.status(500).json({ message: '标记通知为未读失败' });
   }
 }));
 

@@ -250,9 +250,17 @@
                   v-if="!notification.is_read"
                   type="primary"
                   size="small"
-                  @click.stop="markAsRead(notification.id)"
+                  @click.stop="handleMarkAsRead(notification)"
                 >
                   标记已读
+                </el-button>
+                <el-button
+                  v-else
+                  type="primary"
+                  size="small"
+                  @click.stop="handleMarkAsUnread(notification)"
+                >
+                  标记未读
                 </el-button>
                 <el-button
                   type="danger"
@@ -621,28 +629,79 @@ const handleCurrentChange = (page: number) => {
 const handleNotificationClick = (notification: any) => {
   selectedNotification.value = notification
   detailDialogVisible.value = true
-  
-  // 如果未读，自动标记为已读
+
+  // 如果未读，自动标记为已读并立即更新本地状态
   if (!notification.is_read) {
-    markAsRead(notification.id)
+    handleMarkAsRead(notification)
   }
 }
 
 const markAsRead = async (notificationId: number) => {
   try {
     await api.put(`/auth/notifications/${notificationId}/read`)
-    
+
     // 更新本地状态
-    const notification = notifications.value.find(n => n.id === notificationId)
-    if (notification) {
-      notification.is_read = true
-      notification.read_at = new Date().toISOString()
+    const index = notifications.value.findIndex(n => n.id === notificationId)
+    if (index !== -1) {
+      notifications.value[index] = {
+        ...notifications.value[index],
+        is_read: true,
+        read_at: new Date().toISOString()
+      }
     }
-    
+
     ElMessage.success('通知已标记为已读')
   } catch (error) {
     ElMessage.error('标记通知为已读失败')
   }
+}
+
+const handleMarkAsRead = (notification: any) => {
+  // 先更新本地状态
+  const index = notifications.value.findIndex(n => n.id === notification.id)
+  if (index !== -1) {
+    notifications.value[index] = {
+      ...notifications.value[index],
+      is_read: true,
+      read_at: new Date().toISOString()
+    }
+  }
+  // 再调用API
+  markAsRead(notification.id)
+}
+
+const markAsUnread = async (notificationId: number) => {
+  try {
+    await api.put(`/auth/notifications/${notificationId}/unread`)
+
+    // 更新本地状态
+    const index = notifications.value.findIndex(n => n.id === notificationId)
+    if (index !== -1) {
+      notifications.value[index] = {
+        ...notifications.value[index],
+        is_read: false,
+        read_at: null
+      }
+    }
+
+    ElMessage.success('通知已标记为未读')
+  } catch (error) {
+    ElMessage.error('标记通知为未读失败')
+  }
+}
+
+const handleMarkAsUnread = (notification: any) => {
+  // 先更新本地状态
+  const index = notifications.value.findIndex(n => n.id === notification.id)
+  if (index !== -1) {
+    notifications.value[index] = {
+      ...notifications.value[index],
+      is_read: false,
+      read_at: null
+    }
+  }
+  // 再调用API
+  markAsUnread(notification.id)
 }
 
 const markAllAsRead = async () => {
@@ -1434,6 +1493,11 @@ onUnmounted(() => {
                 line-height: 1.5;
                 margin: 0;
               }
+
+              // 移动端隐藏内容
+              @media (max-width: 768px) {
+                display: none;
+              }
             }
             
             .notification-footer {
@@ -1441,7 +1505,12 @@ onUnmounted(() => {
               justify-content: space-between;
               align-items: center;
               
-              // 移动端适配
+              // 移动端隐藏footer
+              @media (max-width: 768px) {
+                display: none;
+              }
+              
+              // 移动端适配（隐藏模式下不会命中）
               @media (max-width: 768px) {
                 flex-direction: column;
                 align-items: flex-start;
@@ -2342,6 +2411,7 @@ onUnmounted(() => {
               
               .notification-body {
                 margin-bottom: 8px;
+                // 移动端已在上面隐藏
                 
                 .notification-text {
                   font-size: 12px;
@@ -2349,23 +2419,7 @@ onUnmounted(() => {
                 }
               }
               
-              .notification-footer {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 6px;
-                
-                .notification-user {
-                  font-size: 10px;
-                }
-                
-                .notification-status {
-                  align-self: flex-end;
-                  
-                  .read-time {
-                    font-size: 9px;
-                  }
-                }
-              }
+              // footer 在移动端已隐藏，此处不再需要重复样式
             }
             
             .notification-actions {
@@ -2384,210 +2438,131 @@ onUnmounted(() => {
           }
         }
       }
-      
-      .pagination-section {
-        .el-pagination {
-          :deep(.el-pagination__sizes),
-          :deep(.el-pagination__jump) {
-            display: none;
-          }
-        }
-      }
-    }
-  }
-  
-  .notification-detail {
-    .detail-header {
-      margin-bottom: 16px;
-      
-      h3 {
-        font-size: 16px;
-      }
-      
-      .detail-meta {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 6px;
-        
-        .detail-time {
-          font-size: 12px;
-        }
-      }
-    }
-    
-    .detail-content {
-      margin-bottom: 16px;
-      
-      p {
-        font-size: 13px;
-        line-height: 1.5;
-      }
-    }
-    
-    .detail-footer {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 8px;
-      
-      .detail-user {
-        font-size: 13px;
-      }
-      
-      .detail-status {
-        align-self: flex-end;
-        
-        .read-time {
-          font-size: 11px;
-        }
-      }
-    }
-  }
-  
-  .dialog-footer {
-    flex-direction: column;
-    gap: 8px;
-    
-    .el-button {
-      width: 100%;
     }
   }
 }
 
-@media (max-width: 576px) {
-  .notification-history-page {
-    padding: 12px;
+.notification-history-page {
+  padding: 12px;
+}
+
+.page-header {
+  .header-content {
+    .header-left {
+      .page-title {
+        font-size: 20px;
+      }
+      
+      .page-subtitle {
+        font-size: 11px;
+      }
+    }
+    
+    .header-actions {
+      flex-direction: column;
+      gap: 8px;
+      
+      .el-button {
+        width: 100%;
+        font-size: 13px;
+        padding: 8px 12px;
+      }
+    }
   }
-  
-  .page-header {
-    .header-content {
-      .header-left {
-        .page-title {
-          font-size: 20px;
+}
+
+.filter-section {
+  .filter-card {
+    .filter-content {
+      .filter-left {
+        .el-select,
+        .el-date-picker {
+          min-width: 100px;
         }
-        
-        .page-subtitle {
+      }
+    }
+  }
+}
+
+.notifications-section {
+  .notifications-card {
+    .card-header {
+      .header-stats {
+        .el-tag {
           font-size: 11px;
-        }
-      }
-      
-      .header-actions {
-        flex-direction: column;
-        gap: 8px;
-        
-        .el-button {
-          width: 100%;
-          font-size: 13px;
-          padding: 8px 12px;
+          padding: 2px 6px;
         }
       }
     }
-  }
-  
-  .filter-section {
-    .filter-card {
-      .filter-content {
-        .filter-left {
-          .el-select,
-          .el-date-picker {
-            min-width: 100px;
-          }
-        }
-      }
-    }
-  }
-  
-  .notifications-section {
-    .notifications-card {
-      .card-header {
-        .header-stats {
-          .el-tag {
-            font-size: 11px;
-            padding: 2px 6px;
-          }
-        }
-      }
-      
-      .notifications-list {
-        .notification-items {
-          .notification-item {
-            padding: 10px;
-            
-            .notification-content {
-              .notification-header {
-                .notification-title {
-                  font-size: 13px;
-                }
-                
-                .notification-meta {
-                  .notification-time {
-                    font-size: 9px;
-                  }
-                }
+    
+    .notifications-list {
+      .notification-items {
+        .notification-item {
+          padding: 10px;
+          
+          .notification-content {
+            .notification-header {
+              .notification-title {
+                font-size: 13px;
               }
               
-              .notification-body {
-                .notification-text {
-                  font-size: 11px;
-                }
-              }
-              
-              .notification-footer {
-                .notification-user {
+              .notification-meta {
+                .notification-time {
                   font-size: 9px;
                 }
-                
-                .notification-status {
-                  .read-time {
-                    font-size: 8px;
-                  }
-                }
               }
             }
             
-            .notification-actions {
-              .el-button {
-                font-size: 10px;
-                padding: 4px 6px;
+            .notification-body {
+              .notification-text {
+                font-size: 11px;
               }
+            }
+          }
+          
+          .notification-actions {
+            .el-button {
+              font-size: 10px;
+              padding: 4px 6px;
             }
           }
         }
       }
     }
   }
+}
+
+.notification-detail {
+  .detail-header {
+    margin-bottom: 12px;
+    
+    h3 {
+      font-size: 15px;
+    }
+    
+    .detail-meta {
+      .detail-time {
+        font-size: 11px;
+      }
+    }
+  }
   
-  .notification-detail {
-    .detail-header {
-      margin-bottom: 12px;
-      
-      h3 {
-        font-size: 15px;
-      }
-      
-      .detail-meta {
-        .detail-time {
-          font-size: 11px;
-        }
-      }
+  .detail-content {
+    margin-bottom: 12px;
+    
+    p {
+      font-size: 12px;
+    }
+  }
+  
+  .detail-footer {
+    .detail-user {
+      font-size: 12px;
     }
     
-    .detail-content {
-      margin-bottom: 12px;
-      
-      p {
-        font-size: 12px;
-      }
-    }
-    
-    .detail-footer {
-      .detail-user {
-        font-size: 12px;
-      }
-      
-      .detail-status {
-        .read-time {
-          font-size: 10px;
-        }
+    .detail-status {
+      .read-time {
+        font-size: 10px;
       }
     }
   }
