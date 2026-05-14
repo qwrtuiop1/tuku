@@ -444,8 +444,7 @@ import {
   Close,
   Grid,
   List,
-  QuestionFilled,
-  Close
+  QuestionFilled
 } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { formatFileSize, getStorageUsageColor, formatPercentage } from '@/utils/helpers'
