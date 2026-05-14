@@ -6,7 +6,7 @@ ALTER TABLE `users`
 
 -- 2) 新增是否已设置密码标记（默认认为已设置，便于存量账号）
 ALTER TABLE `users`
-  ADD COLUMN IF NOT EXISTS `has_password` TINYINT(1) NOT NULL DEFAULT 1 AFTER `password_hash`;
+  ADD COLUMN IF NOT EXISTS `has_password` TINYINT(1) NOT NULL DEFAULT 1;
 
 -- 3) 历史占位邮箱统一置 NULL
 UPDATE `users` SET `email` = NULL WHERE `email` LIKE 'unbound_%@unbind.local';
@@ -17,5 +17,3 @@ UPDATE `users`
 SET `has_password` = 0
 WHERE (`third_party_type` IN ('qq','epass') OR `qq_openid` IS NOT NULL OR `epass_id` IS NOT NULL)
   AND (`email` IS NULL OR `email` LIKE '%@unbind.local' OR `email` LIKE '%@noemail.qq.local');
-
-

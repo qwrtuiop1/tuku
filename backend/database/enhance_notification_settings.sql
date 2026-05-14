@@ -14,17 +14,16 @@ INSERT IGNORE INTO system_settings (setting_key, setting_value, description) VAL
 ('email_frequency', 'realtime', '邮件通知频率'),
 ('system_frequency', 'realtime', '系统通知频率');
 
--- 扩展用户通知设置表，添加更多通知类型字段
-ALTER TABLE user_notification_settings 
-ADD COLUMN IF NOT EXISTS login_notifications BOOLEAN DEFAULT TRUE COMMENT '登录通知',
-ADD COLUMN IF NOT EXISTS upload_notifications BOOLEAN DEFAULT TRUE COMMENT '文件上传通知',
-ADD COLUMN IF NOT EXISTS maintenance_notifications BOOLEAN DEFAULT TRUE COMMENT '系统维护通知',
-ADD COLUMN IF NOT EXISTS email_frequency VARCHAR(20) DEFAULT 'realtime' COMMENT '邮件通知频率',
-ADD COLUMN IF NOT EXISTS system_frequency VARCHAR(20) DEFAULT 'realtime' COMMENT '系统通知频率';
+-- 扩展用户通知设置表，添加更多通知类型字段（每条单独执行，兼容低版本MySQL）
+ALTER TABLE user_notification_settings ADD COLUMN IF NOT EXISTS login_notifications BOOLEAN DEFAULT TRUE COMMENT '登录通知';
+ALTER TABLE user_notification_settings ADD COLUMN IF NOT EXISTS upload_notifications BOOLEAN DEFAULT TRUE COMMENT '文件上传通知';
+ALTER TABLE user_notification_settings ADD COLUMN IF NOT EXISTS maintenance_notifications BOOLEAN DEFAULT TRUE COMMENT '系统维护通知';
+ALTER TABLE user_notification_settings ADD COLUMN IF NOT EXISTS email_frequency VARCHAR(20) DEFAULT 'realtime' COMMENT '邮件通知频率';
+ALTER TABLE user_notification_settings ADD COLUMN IF NOT EXISTS system_frequency VARCHAR(20) DEFAULT 'realtime' COMMENT '系统通知频率';
 
 -- 为现有用户更新默认设置
-UPDATE user_notification_settings 
-SET 
+UPDATE user_notification_settings
+SET
   login_notifications = TRUE,
   upload_notifications = TRUE,
   maintenance_notifications = TRUE,
@@ -69,7 +68,7 @@ CREATE TABLE IF NOT EXISTS notification_templates (
 -- 插入默认通知模板
 INSERT IGNORE INTO notification_templates (template_key, template_name, template_type, subject, content, variables) VALUES
 -- 登录通知模板
-('login_notification', '用户登录通知', 'email', '登录通知 - {{system_name}}', 
+('login_notification', '用户登录通知', 'email', '登录通知 - {{system_name}}',
 '<h2>登录通知</h2><p>您的账户在 {{login_time}} 从 {{ip_address}} 登录了 {{system_name}}。</p><p>如果这不是您的操作，请立即修改密码。</p>',
 '{"system_name": "系统名称", "login_time": "登录时间", "ip_address": "IP地址"}'),
 

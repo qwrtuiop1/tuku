@@ -1,17 +1,16 @@
 -- 完善通知存储功能
 -- 确保notification_history表包含所有需要的字段
 
--- 检查并添加缺失的字段
-ALTER TABLE notification_history 
-ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'normal' COMMENT '优先级',
-ADD COLUMN IF NOT EXISTS send_at TIMESTAMP NULL COMMENT '发送时间',
-ADD COLUMN IF NOT EXISTS delete_at TIMESTAMP NULL COMMENT '删除时间',
-ADD COLUMN IF NOT EXISTS target VARCHAR(20) DEFAULT 'all' COMMENT '发送范围',
-ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间';
+-- 检查并添加缺失的字段（分多条语句执行，兼容不支持IF NOT EXISTS的MySQL版本）
+ALTER TABLE notification_history ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'normal' COMMENT '优先级';
+ALTER TABLE notification_history ADD COLUMN IF NOT EXISTS send_at TIMESTAMP NULL COMMENT '发送时间';
+ALTER TABLE notification_history ADD COLUMN IF NOT EXISTS delete_at TIMESTAMP NULL COMMENT '删除时间';
+ALTER TABLE notification_history ADD COLUMN IF NOT EXISTS target VARCHAR(20) DEFAULT 'all' COMMENT '发送范围';
+ALTER TABLE notification_history ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间';
 
 -- 为现有记录设置默认值
-UPDATE notification_history 
-SET 
+UPDATE notification_history
+SET
   priority = 'normal',
   target = 'all'
 WHERE priority IS NULL OR target IS NULL;
@@ -23,8 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_notification_type ON notification_history(notific
 CREATE INDEX IF NOT EXISTS idx_notification_priority ON notification_history(priority);
 
 -- 发送者字段（用于标记谁创建/发送了该通知）
-ALTER TABLE notification_history
-ADD COLUMN IF NOT EXISTS sender_id INT NULL COMMENT '发送者用户ID' AFTER user_id;
+ALTER TABLE notification_history ADD COLUMN IF NOT EXISTS sender_id INT NULL COMMENT '发送者用户ID';
 
 -- 用户与通知的投递映射表（每个用户一条投递状态记录）
 CREATE TABLE IF NOT EXISTS user_notifications (
